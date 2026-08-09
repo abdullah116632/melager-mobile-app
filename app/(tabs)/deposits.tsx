@@ -344,12 +344,12 @@ export default function DepositSheet() {
           {/* Table header */}
       <View style={[styles.tableHeader, { borderBottomColor: colors.border, backgroundColor: PURPLE_DARK }]}>
             <View style={[styles.nameCol, { width: NAME_COL_W }]}>
-              <Text style={styles.headerText}>Consumer</Text>
+              <Text style={styles.headerText}>Consumers ({consumers.length})</Text>
             </View>
             <View style={[styles.totalCol, { width: TOTAL_COL_W }]}>
               <Text style={styles.headerText}>Total</Text>
             </View>
-            <View style={styles.depositsCol}>
+            <View style={[styles.depositsCol, styles.compactDepositsCol]}>
               <Text style={styles.headerText}>Deposits</Text>
             </View>
           </View>
@@ -439,7 +439,7 @@ export default function DepositSheet() {
                   ৳{formatAmt(grandTotal)}
                 </Text>
               </View>
-              <View style={styles.depositsCol} />
+              <View style={[styles.depositsCol, styles.compactDepositsCol]} />
             </View>
           </ScrollView>
         </View>
@@ -973,6 +973,8 @@ const styles = StyleSheet.create({
   // Table
   tableHeader: {
     flexDirection: 'row',
+    height: 38,
+    alignItems: 'center',
     borderBottomWidth: 1,
     paddingHorizontal: 0,
   },
@@ -980,7 +982,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
-    paddingVertical: 10,
+    paddingVertical: 0,
     paddingHorizontal: 10,
   },
   nameCol: {
@@ -995,6 +997,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     minHeight: 52,
+  },
+  compactDepositsCol: {
+    minHeight: 0,
+    height: '100%',
+    paddingVertical: 0,
   },
   totalCol: {
     justifyContent: 'center',
@@ -1054,7 +1061,9 @@ const styles = StyleSheet.create({
   },
   grandTotalRow: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    height: 50,
+    alignItems: 'center',
+    paddingVertical: 0,
   },
   grandTotalLabel: {
     color: '#fff',

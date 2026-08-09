@@ -16,6 +16,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@expo/vector-icons/Feather';
 import * as Clipboard from 'expo-clipboard';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 import { useColors } from '@/hooks/useColors';
 import { useMess } from '@/context/MessContext';
@@ -102,6 +104,15 @@ function shortDate(date: string): string {
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
     day: 'numeric', month: 'short', year: 'numeric',
   });
+}
+
+function escapeHtml(value: string | number): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // ── Table constants ───────────────────────────────────────────────────────────
@@ -330,6 +341,7 @@ export default function HomeScreen() {
   const [rangeLoading, setRangeLoading] = useState(false);
   const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
   const [showTableScrollHint, setShowTableScrollHint] = useState(true);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
   const [summarySending, setSummarySending] = useState(false);
   const appliedStartDate = appliedRange?.startDate ?? defaultStartDate;
   const appliedEndDate = appliedRange?.endDate ?? defaultEndDate;
@@ -460,6 +472,107 @@ export default function HomeScreen() {
   });
 
   const netBalance = totalDeposits - totalExpenses;
+
+  const downloadBreakdownPdf = async () => {
+    if (pdfGenerating) return;
+    setPdfGenerating(true);
+    const periodStart = appliedRange?.startDate ?? defaultStartDate;
+    const periodEnd = appliedRange?.endDate ?? defaultEndDate;
+    const balanceColor = netBalance >= 0 ? '#047857' : '#DC2626';
+    const rowsHtml = consumerRows.map((row, index) => {
+      const rowBalanceColor = row.balance >= 0 ? '#047857' : '#DC2626';
+      const rowBalanceSign = row.balance >= 0 ? '+' : '-';
+      return `
+        <tr class="${index % 2 === 0 ? 'even' : 'odd'}">
+          <td class="member">${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(row.meals)}</td>
+          <td>BDT ${escapeHtml(fmtAmt(row.cost))}</td>
+          <td>BDT ${escapeHtml(fmtAmt(row.deposits))}</td>
+          <td style="color:${rowBalanceColor};font-weight:700">${rowBalanceSign}BDT ${escapeHtml(fmtAmt(Math.abs(row.balance)))}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            @page { size: A4 landscape; margin: 14mm; }
+            * { box-sizing: border-box; }
+            body { margin: 0; color: #17202A; font-family: Arial, Helvetica, sans-serif; font-size: 11px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0F766E; padding-bottom: 12px; margin-bottom: 14px; }
+            .brand { color: #0F766E; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+            h1 { margin: 5px 0 4px; font-size: 25px; color: #111827; }
+            .mess { color: #4B5563; font-size: 12px; }
+            .period { text-align: right; padding: 9px 12px; border: 1px solid #99F6E4; border-radius: 8px; background: #F0FDFA; }
+            .period-label { color: #0F766E; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+            .period-value { margin-top: 4px; font-size: 12px; font-weight: 700; }
+            .metrics { display: flex; gap: 8px; margin-bottom: 15px; }
+            .metric { flex: 1; border: 1px solid #E5E7EB; border-radius: 8px; padding: 9px 10px; background: #FFFFFF; }
+            .metric.balance { border-color: ${netBalance >= 0 ? '#A7F3D0' : '#FECACA'}; background: ${netBalance >= 0 ? '#ECFDF5' : '#FEF2F2'}; }
+            .metric-label { color: #6B7280; font-size: 8px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
+            .metric-value { margin-top: 4px; font-size: 16px; font-weight: 700; color: #111827; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            thead { display: table-header-group; }
+            th { padding: 9px 10px; color: #FFFFFF; background: #0F766E; font-size: 9px; letter-spacing: .5px; text-transform: uppercase; text-align: right; }
+            th:first-child { width: 34%; text-align: left; border-radius: 7px 0 0 0; }
+            th:last-child { border-radius: 0 7px 0 0; }
+            td { padding: 8px 10px; border-bottom: 1px solid #E5E7EB; text-align: right; }
+            td.member { text-align: left; font-weight: 600; }
+            tr.even td { background: #FFFFFF; }
+            tr.odd td { background: #F8FAFC; }
+            tfoot td { padding: 10px; color: #FFFFFF; background: #0F766E; border: 0; font-weight: 700; }
+            .note { margin-top: 10px; color: #6B7280; font-size: 9px; }
+            .footer { margin-top: 16px; padding-top: 8px; border-top: 1px solid #E5E7EB; color: #9CA3AF; font-size: 8px; text-align: right; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="brand">Mess Manager</div>
+              <h1>Consumer Breakdown</h1>
+              <div class="mess">${escapeHtml(mess?.name ?? 'Mess')}</div>
+            </div>
+            <div class="period">
+              <div class="period-label">Selected period</div>
+              <div class="period-value">${escapeHtml(shortDate(periodStart))} - ${escapeHtml(shortDate(periodEnd))}</div>
+            </div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><div class="metric-label">Total meals</div><div class="metric-value">${escapeHtml(totalMeals)}</div></div>
+            <div class="metric"><div class="metric-label">Total expenses</div><div class="metric-value">BDT ${escapeHtml(fmtAmt(totalExpenses))}</div></div>
+            <div class="metric"><div class="metric-label">Total deposits</div><div class="metric-value">BDT ${escapeHtml(fmtAmt(totalDeposits))}</div></div>
+            <div class="metric"><div class="metric-label">Meal rate</div><div class="metric-value">${mealRate > 0 ? `BDT ${escapeHtml(fmtRate(mealRate))}` : '-'}</div></div>
+            <div class="metric balance"><div class="metric-label">Current balance</div><div class="metric-value" style="color:${balanceColor}">${netBalance >= 0 ? '+' : '-'}BDT ${escapeHtml(fmtAmt(Math.abs(netBalance)))}</div></div>
+          </div>
+          <table>
+            <thead><tr><th>Consumers (${consumers.length})</th><th>Meals</th><th>Cost</th><th>Deposit</th><th>Balance</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+            <tfoot><tr><td>Total</td><td>${escapeHtml(totalMeals)}</td><td>BDT ${escapeHtml(fmtAmt(totalExpenses))}</td><td>BDT ${escapeHtml(fmtAmt(totalDeposits))}</td><td>${netBalance >= 0 ? '+' : '-'}BDT ${escapeHtml(fmtAmt(Math.abs(netBalance)))}</td></tr></tfoot>
+          </table>
+          <div class="note">Balance = Deposit - (Meals x meal rate). The selected start and end dates are both included.</div>
+          <div class="footer">Generated ${escapeHtml(new Date().toLocaleString('en-GB'))}</div>
+        </body>
+      </html>`;
+
+    try {
+      const result = await Print.printToFileAsync({ html });
+      if (Platform.OS === 'web') return;
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(result.uri, {
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+          dialogTitle: 'Save or share Consumer Breakdown PDF',
+        });
+      } else {
+        await Print.printAsync({ uri: result.uri });
+      }
+    } catch (error) {
+      Alert.alert('PDF Error', error instanceof Error ? error.message : 'Could not generate the PDF.');
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
 
   const handleSendSummary = () => {
     if (!mess || !token) return;
@@ -674,12 +787,27 @@ export default function HomeScreen() {
                 <Text style={[styles.breakdownEyebrow, { color: colors.mutedForeground }]}>ACCOUNTING OVERVIEW</Text>
                 <Text style={[styles.tableTitle, { color: colors.foreground }]}>Consumer Breakdown</Text>
               </View>
-              {appliedRange && (
-                <View style={styles.customRangeBadge}>
-                  <Feather name="calendar" size={12} color="#6D28D9" />
-                  <Text style={styles.customRangeBadgeText}>Custom</Text>
-                </View>
-              )}
+              <View style={styles.breakdownHeaderActions}>
+                {appliedRange && (
+                  <View style={styles.customRangeBadge}>
+                    <Feather name="calendar" size={12} color="#6D28D9" />
+                    <Text style={styles.customRangeBadgeText}>Custom</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.pdfDownloadBtn, pdfGenerating && { opacity: 0.6 }]}
+                  onPress={downloadBreakdownPdf}
+                  disabled={pdfGenerating}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Download Consumer Breakdown PDF"
+                >
+                  {pdfGenerating
+                    ? <ActivityIndicator size={15} color="#0F766E" />
+                    : <Feather name="download" size={16} color="#0F766E" />}
+                  <Text style={styles.pdfDownloadText}>PDF</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {appliedRange && (
@@ -1035,8 +1163,11 @@ const styles = StyleSheet.create({
   breakdownHeaderText: { flex: 1, marginLeft: 11 },
   breakdownEyebrow: { fontSize: 9, lineHeight: 12, fontFamily: 'Inter_700Bold', letterSpacing: 1.1, marginBottom: 2 },
   tableTitle: { fontSize: 16, lineHeight: 21, fontFamily: 'Inter_700Bold', letterSpacing: -0.15 },
+  breakdownHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   customRangeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE' },
   customRangeBadgeText: { color: '#6D28D9', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  pdfDownloadBtn: { height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 9, borderRadius: 9, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0' },
+  pdfDownloadText: { color: '#0F766E', fontSize: 10, fontFamily: 'Inter_700Bold' },
   appliedRangeStrip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 14, paddingTop: 10 },
   appliedRangeLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#DDD6FE' },
   appliedRangeText: { color: '#6D28D9', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
