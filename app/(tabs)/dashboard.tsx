@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Animated,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -73,25 +74,34 @@ function fmtRate(n: number): string {
   return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// ── Blend helpers ─────────────────────────────────────────────────────────────
+// ── Accounting range helpers ─────────────────────────────────────────────────
 
-function getPastMonths(currentYearMonth: string, count = 11): string[] {
-  const [yearStr, monthStr] = currentYearMonth.split('-');
-  let year = parseInt(yearStr ?? '2024', 10);
-  let month = parseInt(monthStr ?? '1', 10);
+function monthRange(startDate: string, endDate: string): string[] {
+  const [startYear, startMonth] = startDate.slice(0, 7).split('-').map(Number);
+  const [endYear, endMonth] = endDate.slice(0, 7).split('-').map(Number);
   const months: string[] = [];
-  for (let i = 0; i < count; i++) {
-    month--;
-    if (month < 1) { month = 12; year--; }
-    months.push(`${year}-${month.toString().padStart(2, '0')}`);
+  let year = startYear!;
+  let month = startMonth!;
+  while (year < endYear! || (year === endYear && month <= endMonth!)) {
+    months.push(`${year}-${String(month).padStart(2, '0')}`);
+    month += 1;
+    if (month > 12) { month = 1; year += 1; }
   }
   return months;
 }
 
-function formatMonthChip(ym: string): string {
-  const [y, m] = ym.split('-').map(Number);
-  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${names[(m ?? 1) - 1]} '${(y ?? 2024).toString().slice(2)}`;
+function monthBounds(yearMonth: string, startDate: string, endDate: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  const firstDay = yearMonth === startDate.slice(0, 7) ? Number(startDate.slice(8, 10)) : 1;
+  const lastOfMonth = new Date(year!, month!, 0).getDate();
+  const lastDay = yearMonth === endDate.slice(0, 7) ? Number(endDate.slice(8, 10)) : lastOfMonth;
+  return { firstDay, lastDay };
+}
+
+function shortDate(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
 }
 
 // ── Table constants ───────────────────────────────────────────────────────────
@@ -256,11 +266,6 @@ export default function HomeScreen() {
   }, [token, mess?.id]);
 
   const [refreshing, setRefreshing] = useState(false);
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([refreshMonth(), fetchSchedule(selectedDate)]).catch(() => {});
-    setRefreshing(false);
-  }, [refreshMonth, fetchSchedule, selectedDate]);
 
   useEffect(() => {
     setTodaySchedule(null);
@@ -314,72 +319,135 @@ export default function HomeScreen() {
     );
   };
 
-  // ── Blend months ───────────────────────────────────────────────────────────
-  const [blendPhase, setBlendPhase] = useState<'off' | 'selecting' | 'applied'>('off');
-  const [pendingMonths, setPendingMonths] = useState<string[]>([]);
-  const [appliedMonths, setAppliedMonths] = useState<string[]>([]);
-  const [extraData, setExtraData] = useState<Record<string, MonthData>>({});
+  // ── Inclusive accounting date range ───────────────────────────────────────
+  const defaultStartDate = `${currentYearMonth}-01`;
+  const [defaultYear, defaultMonth] = currentYearMonth.split('-').map(Number);
+  const defaultEndDate = `${currentYearMonth}-${String(new Date(defaultYear!, defaultMonth!, 0).getDate()).padStart(2, '0')}`;
+  const [draftStartDate, setDraftStartDate] = useState(defaultStartDate);
+  const [draftEndDate, setDraftEndDate] = useState(defaultEndDate);
+  const [appliedRange, setAppliedRange] = useState<{ startDate: string; endDate: string } | null>(null);
+  const [rangeData, setRangeData] = useState<Record<string, MonthData>>({});
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [datePickerTarget, setDatePickerTarget] = useState<'start' | 'end' | null>(null);
+  const [showTableScrollHint, setShowTableScrollHint] = useState(true);
   const [summarySending, setSummarySending] = useState(false);
+  const appliedStartDate = appliedRange?.startDate ?? defaultStartDate;
+  const appliedEndDate = appliedRange?.endDate ?? defaultEndDate;
+  const hasUnappliedDateChange =
+    draftStartDate !== appliedStartDate || draftEndDate !== appliedEndDate;
 
   useEffect(() => {
-    if (blendPhase === 'off' || !token || !mess) return;
-    const monthsToFetch = blendPhase === 'selecting' ? pendingMonths : appliedMonths;
-    for (const ym of monthsToFetch) {
-      if (!extraData[ym]) {
-        api.getMonthData(ym, token, mess.id)
-          .then((d) => setExtraData((prev) => ({ ...prev, [ym]: d })))
-          .catch(() => {});
-      }
+    setDraftStartDate(defaultStartDate);
+    setDraftEndDate(defaultEndDate);
+    setAppliedRange(null);
+    setRangeData({});
+  }, [currentYearMonth, mess?.id]);
+
+  const fetchRange = useCallback(async (startDate: string, endDate: string) => {
+    if (!token || !mess) return null;
+    const months = monthRange(startDate, endDate);
+    const results = await Promise.all(months.map(async (yearMonth) => [
+      yearMonth,
+      await api.getMonthData(yearMonth, token, mess.id),
+    ] as const));
+    return Object.fromEntries(results) as Record<string, MonthData>;
+  }, [token, mess?.id]);
+
+  const applyDateRange = async () => {
+    if (draftEndDate <= draftStartDate) {
+      Alert.alert('Invalid Date Range', 'End date must be later than start date.');
+      return;
     }
-  }, [pendingMonths, appliedMonths, blendPhase, token, mess?.id]);
+    setRangeLoading(true);
+    try {
+      const data = await fetchRange(draftStartDate, draftEndDate);
+      if (!data) return;
+      setRangeData(data);
+      setAppliedRange({ startDate: draftStartDate, endDate: draftEndDate });
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not load the selected date range.');
+    } finally {
+      setRangeLoading(false);
+    }
+  };
 
-  const startBlend = () => { setPendingMonths([]); setBlendPhase('selecting'); };
-  const cancelBlend = () => { setPendingMonths([]); setAppliedMonths([]); setBlendPhase('off'); };
-  const applyBlend  = () => { setAppliedMonths(pendingMonths); setBlendPhase('applied'); };
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshMonth();
+      const refreshedRange = appliedRange
+        ? await fetchRange(appliedRange.startDate, appliedRange.endDate)
+        : null;
+      if (refreshedRange) setRangeData(refreshedRange);
+      await fetchSchedule(selectedDate);
+    } catch {
+      // Keep the last successfully loaded figures visible during a refresh failure.
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshMonth, fetchSchedule, selectedDate, fetchRange, appliedRange]);
 
-  const activeMonths = blendPhase === 'applied' ? [currentYearMonth, ...appliedMonths] : [currentYearMonth];
+  const activeMonths = appliedRange
+    ? monthRange(appliedRange.startDate, appliedRange.endDate)
+    : [currentYearMonth];
+
+  const dayIsIncluded = (yearMonth: string, day: number) => {
+    if (!appliedRange) return true;
+    const { firstDay, lastDay } = monthBounds(yearMonth, appliedRange.startDate, appliedRange.endDate);
+    return day >= firstDay && day <= lastDay;
+  };
 
   const sumMealsForMonth = (ym: string): number => {
-    if (ym === currentYearMonth) return getGrandTotal(ym);
-    const d = extraData[ym]; if (!d) return 0;
-    return consumers.reduce((sum, c) => {
-      const m = (d.meals as Record<string, Record<string, number>>)[c.id] ?? {};
-      return sum + Object.values(m).reduce((s, v) => s + v, 0);
+    if (!appliedRange && ym === currentYearMonth) return getGrandTotal(ym);
+    const data = rangeData[ym];
+    if (!data) return 0;
+    return consumers.reduce((sum, consumer) => {
+      const days = data.meals[consumer.id] ?? {};
+      return sum + Object.entries(days).reduce(
+        (daySum, [day, count]) => daySum + (dayIsIncluded(ym, Number(day)) ? count : 0), 0,
+      );
     }, 0);
   };
 
   const sumExpensesForMonth = (ym: string): number => {
-    if (ym === currentYearMonth) return getMonthExpenseTotal(ym);
-    const d = extraData[ym]; if (!d) return 0;
-    return Object.values(d.expenses).reduce((sum, day) => {
-      return sum + (day as { items: Array<{ amount: number }> }).items.reduce((s, i) => s + i.amount, 0);
+    if (!appliedRange && ym === currentYearMonth) return getMonthExpenseTotal(ym);
+    const data = rangeData[ym];
+    if (!data) return 0;
+    return Object.entries(data.expenses).reduce((sum, [day, expense]) => {
+      if (!dayIsIncluded(ym, Number(day))) return sum;
+      return sum + expense.items.reduce((itemSum, item) => itemSum + item.amount, 0);
     }, 0);
   };
 
   const sumDepositsForMonth = (ym: string): number => {
-    if (ym === currentYearMonth) return getGrandDepositTotal(ym);
-    const d = extraData[ym]; if (!d) return 0;
-    return consumers.reduce((sum, c) => {
-      const dep = (d.deposits as Record<string, Record<string, number>>)[c.id] ?? {};
-      return sum + Object.values(dep).reduce((s, v) => s + v, 0);
+    if (!appliedRange && ym === currentYearMonth) return getGrandDepositTotal(ym);
+    const data = rangeData[ym];
+    if (!data) return 0;
+    return consumers.reduce((sum, consumer) => {
+      const days = data.deposits[consumer.id] ?? {};
+      return sum + Object.entries(days).reduce(
+        (daySum, [day, amount]) => daySum + (dayIsIncluded(ym, Number(day)) ? amount : 0), 0,
+      );
     }, 0);
   };
 
-  const sumConsumerMeals = (ym: string, cId: string): number => {
-    if (ym === currentYearMonth) return getConsumerTotal(ym, cId);
-    const d = extraData[ym]; if (!d) return 0;
-    const m = (d.meals as Record<string, Record<string, number>>)[cId] ?? {};
-    return Object.values(m).reduce((s, v) => s + v, 0);
+  const sumConsumerMeals = (ym: string, consumerId: string): number => {
+    if (!appliedRange && ym === currentYearMonth) return getConsumerTotal(ym, consumerId);
+    const days = rangeData[ym]?.meals[consumerId] ?? {};
+    return Object.entries(days).reduce(
+      (sum, [day, count]) => sum + (dayIsIncluded(ym, Number(day)) ? count : 0), 0,
+    );
   };
 
-  const sumConsumerDeposits = (ym: string, cId: string): number => {
-    if (ym === currentYearMonth) return getConsumerDepositTotal(ym, cId);
-    const d = extraData[ym]; if (!d) return 0;
-    const dep = (d.deposits as Record<string, Record<string, number>>)[cId] ?? {};
-    return Object.values(dep).reduce((s, v) => s + v, 0);
+  const sumConsumerDeposits = (ym: string, consumerId: string): number => {
+    if (!appliedRange && ym === currentYearMonth) return getConsumerDepositTotal(ym, consumerId);
+    const days = rangeData[ym]?.deposits[consumerId] ?? {};
+    return Object.entries(days).reduce(
+      (sum, [day, amount]) => sum + (dayIsIncluded(ym, Number(day)) ? amount : 0), 0,
+    );
   };
 
-  const totalMeals    = activeMonths.reduce((sum, ym) => sum + sumMealsForMonth(ym), 0);
+  const totalMeals = activeMonths.reduce((sum, ym) => sum + sumMealsForMonth(ym), 0);
   const totalExpenses = activeMonths.reduce((sum, ym) => sum + sumExpensesForMonth(ym), 0);
   const totalDeposits = activeMonths.reduce((sum, ym) => sum + sumDepositsForMonth(ym), 0);
   const mealRate      = totalMeals > 0 ? totalExpenses / totalMeals : 0;
@@ -415,33 +483,8 @@ export default function HomeScreen() {
     );
   };
 
-  const handleSendBlendedSummary = () => {
-    if (!mess || !token) return;
-    const allMonths = [currentYearMonth, ...appliedMonths];
-    const label = `${allMonths.length}-month blend`;
-    const doSend = async () => {
-      setSummarySending(true);
-      try {
-        const { sent, total } = await api.sendBlendedSummary(mess.id, allMonths, token);
-        Alert.alert('Summary Sent', `Sent to ${sent} of ${total} members with email addresses.`);
-      } catch (e) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'Failed to send summaries.');
-      } finally { setSummarySending(false); }
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Send the ${label} summary to all members?`)) doSend();
-      return;
-    }
-    Alert.alert(
-      'Send Blended Summary',
-      `Email the ${label} breakdown to all members?`,
-      [{ text: 'Cancel', style: 'cancel' }, { text: 'Send Emails', onPress: doSend }],
-    );
-  };
-
   const topPadding    = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPadding = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 49;
-  const pastMonths    = getPastMonths(currentYearMonth);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPadding }]}>
@@ -578,6 +621,35 @@ export default function HomeScreen() {
 
         {/* ── Summary cards ───────────────────────────────────────────────── */}
         <View style={styles.cardsGrid}>
+          <View
+            style={[
+              styles.balanceHeroCard,
+              {
+                backgroundColor: '#FFFFFF',
+                borderColor: netBalance >= 0 ? '#A7F3D0' : '#FECACA',
+              },
+            ]}
+          >
+            <View style={[styles.balanceHeroIcon, { backgroundColor: netBalance >= 0 ? '#D1FAE5' : '#FEE2E2' }]}>
+              <Feather
+                name={netBalance >= 0 ? 'trending-up' : 'trending-down'}
+                size={23}
+                color={netBalance >= 0 ? '#059669' : '#DC2626'}
+              />
+            </View>
+            <View style={styles.balanceHeroTextWrap}>
+              <Text style={[styles.balanceHeroLabel, { color: netBalance >= 0 ? '#065F46' : '#991B1B' }]}>Current Balance</Text>
+              <Text style={[styles.balanceHeroSub, { color: netBalance >= 0 ? '#047857' : '#B91C1C' }]}>Total deposits minus total expenses</Text>
+            </View>
+            <Text
+              style={[styles.balanceHeroValue, { color: netBalance >= 0 ? '#059669' : '#DC2626' }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {netBalance >= 0 ? '+' : '-'}৳{fmtAmt(Math.abs(netBalance))}
+            </Text>
+          </View>
+
           <SummaryCard icon="coffee"       label="Total Meals"    value={totalMeals.toString()}                         bg="#ECFDF5" iconColor="#059669" />
           <SummaryCard icon="shopping-bag" label="Total Expenses" value={`৳${fmtAmt(totalExpenses)}`}                  bg="#FFF7ED" iconColor="#EA580C" />
           <SummaryCard icon="archive"      label="Total Deposits" value={`৳${fmtAmt(totalDeposits)}`}                  bg="#EFF6FF" iconColor="#3B82F6" />
@@ -594,60 +666,94 @@ export default function HomeScreen() {
         ) : (
           <View style={[styles.tableCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-            <View style={styles.tableCardHeader}>
-              <Text style={[styles.tableTitle, { color: colors.foreground }]}>
-                Consumer Breakdown
-                {blendPhase === 'applied' && appliedMonths.length > 0 && (
-                  <Text style={{ color: '#7C3AED', fontSize: 13, fontFamily: 'Inter_400Regular' }}>
-                    {`  (${1 + appliedMonths.length} months)`}
-                  </Text>
-                )}
-              </Text>
-              {isAdmin && (
-                blendPhase === 'off' ? (
-                  <TouchableOpacity style={styles.blendToggle} onPress={startBlend} activeOpacity={0.75}>
-                    <Feather name="layers" size={13} color={colors.mutedForeground} />
-                    <Text style={styles.blendToggleText}>Blend</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity style={[styles.blendToggle, styles.blendToggleCancel]} onPress={cancelBlend} activeOpacity={0.75}>
-                    <Feather name="x" size={13} color="#DC2626" />
-                    <Text style={[styles.blendToggleText, styles.blendToggleCancelText]}>Cancel</Text>
-                  </TouchableOpacity>
-                )
+            <View style={[styles.tableCardHeader, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+              <View style={styles.breakdownIconWrap}>
+                <Feather name="bar-chart-2" size={19} color="#0F766E" />
+              </View>
+              <View style={styles.breakdownHeaderText}>
+                <Text style={[styles.breakdownEyebrow, { color: colors.mutedForeground }]}>ACCOUNTING OVERVIEW</Text>
+                <Text style={[styles.tableTitle, { color: colors.foreground }]}>Consumer Breakdown</Text>
+              </View>
+              {appliedRange && (
+                <View style={styles.customRangeBadge}>
+                  <Feather name="calendar" size={12} color="#6D28D9" />
+                  <Text style={styles.customRangeBadgeText}>Custom</Text>
+                </View>
               )}
             </View>
 
-            {isAdmin && blendPhase === 'selecting' && (
-              <>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={{ paddingHorizontal: 14, gap: 8 }}>
-                  {pastMonths.map((ym) => {
-                    const sel = pendingMonths.includes(ym);
-                    return (
-                      <TouchableOpacity
-                        key={ym}
-                        style={[styles.chip, sel && styles.chipSel]}
-                        onPress={() => setPendingMonths((prev) => sel ? prev.filter((m) => m !== ym) : [...prev, ym])}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={[styles.chipText, sel && styles.chipTextSel]}>{formatMonthChip(ym)}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-                {pendingMonths.length > 0 && (
-                  <TouchableOpacity style={styles.applyBtn} onPress={applyBlend} activeOpacity={0.8}>
-                    <Feather name="check" size={14} color="#fff" />
-                    <Text style={styles.applyBtnText}>Apply ({1 + pendingMonths.length} months)</Text>
-                  </TouchableOpacity>
-                )}
-              </>
+            {appliedRange && (
+              <View style={styles.appliedRangeStrip}>
+                <View style={styles.appliedRangeLine} />
+                <Text style={styles.appliedRangeText}>
+                  {shortDate(appliedRange.startDate)}
+                </Text>
+                <Feather name="arrow-right" size={13} color="#7C3AED" />
+                <Text style={styles.appliedRangeText}>
+                  {shortDate(appliedRange.endDate)}
+                </Text>
+                <View style={styles.appliedRangeLine} />
+              </View>
             )}
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} bounces={false}>
-              <View style={{ width: TABLE_INNER_W }}>
+            <View style={[styles.rangePanel, { borderTopColor: colors.border }]}>
+              <View style={styles.rangeFields}>
+                <View style={styles.rangeFieldWrap}>
+                  <Text style={[styles.rangeLabel, { color: colors.mutedForeground }]}>Start Date</Text>
+                  <TouchableOpacity
+                    style={[styles.rangeDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    onPress={() => setDatePickerTarget('start')}
+                    activeOpacity={0.75}
+                  >
+                    <Feather name="calendar" size={14} color={colors.primary} />
+                    <Text style={[styles.rangeValue, { color: colors.foreground }]} numberOfLines={1}>{shortDate(draftStartDate)}</Text>
+                    <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.rangeFieldWrap}>
+                  <Text style={[styles.rangeLabel, { color: colors.mutedForeground }]}>End Date</Text>
+                  <TouchableOpacity
+                    style={[styles.rangeDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    onPress={() => setDatePickerTarget('end')}
+                    activeOpacity={0.75}
+                  >
+                    <Feather name="calendar" size={14} color={colors.primary} />
+                    <Text style={[styles.rangeValue, { color: colors.foreground }]} numberOfLines={1}>{shortDate(draftEndDate)}</Text>
+                    <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {hasUnappliedDateChange && (
+                <TouchableOpacity
+                  style={[styles.rangeApplyBtn, rangeLoading && { opacity: 0.6 }]}
+                  onPress={applyDateRange}
+                  disabled={rangeLoading}
+                  activeOpacity={0.8}
+                >
+                  {rangeLoading
+                    ? <ActivityIndicator size={15} color="#fff" />
+                    : <Feather name="check" size={15} color="#fff" />}
+                  <Text style={styles.applyBtnText}>{rangeLoading ? 'Loading…' : 'Apply'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.tableScrollWrap}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                bounces={false}
+                scrollEventThrottle={16}
+                onScroll={(event) => {
+                  const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+                  setShowTableScrollHint(
+                    contentOffset.x < 6 && contentSize.width > layoutMeasurement.width + 4,
+                  );
+                }}
+              >
+                <View style={{ width: TABLE_INNER_W }}>
                 <View style={[styles.tableRow, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.th, { width: NAME_W }]}>Consumer</Text>
+                  <Text style={[styles.th, { width: NAME_W }]}>Consumers ({consumers.length})</Text>
                   <Text style={[styles.th, styles.thR, { width: MEALS_W }]}>Meals</Text>
                   <Text style={[styles.th, styles.thR, { width: COST_W }]}>Cost</Text>
                   <Text style={[styles.th, styles.thR, { width: DEP_W }]}>Deposit</Text>
@@ -680,20 +786,52 @@ export default function HomeScreen() {
                     {netBalance >= 0 ? '+' : ''}৳{fmtAmt(Math.abs(netBalance))}
                   </Text>
                 </View>
+                </View>
+              </ScrollView>
+
+              <View pointerEvents="none" style={styles.fixedConsumerColumn}>
+                <View style={[styles.fixedConsumerHeader, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.th}>Consumers ({consumers.length})</Text>
+                </View>
+                {consumerRows.map((row, index) => (
+                  <View
+                    key={`fixed-${row.id}`}
+                    style={[
+                      styles.fixedConsumerRow,
+                      {
+                        backgroundColor: index % 2 === 0 ? colors.card : colors.rowAlt,
+                        borderBottomColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.td, { color: colors.foreground }]} numberOfLines={1}>
+                      {row.name}
+                    </Text>
+                  </View>
+                ))}
+                <View style={[styles.fixedConsumerTotal, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.tf}>Total</Text>
+                </View>
               </View>
-            </ScrollView>
+
+              {showTableScrollHint && (
+                <View pointerEvents="none" style={styles.tableScrollArrow}>
+                  <Feather name="chevrons-right" size={20} color="#0F766E" />
+                </View>
+              )}
+            </View>
 
             <View style={[styles.legend, { borderTopColor: colors.border }]}>
               <Text style={[styles.legendText, { color: colors.mutedForeground }]}>
-                {blendPhase === 'applied' && appliedMonths.length > 0
-                  ? `Blending ${1 + appliedMonths.length} months · rate ৳${fmtRate(mealRate)}/meal`
+                {appliedRange
+                  ? `${shortDate(appliedRange.startDate)} – ${shortDate(appliedRange.endDate)} (inclusive) · rate ৳${fmtRate(mealRate)}/meal`
                   : mealRate > 0 ? `Balance = Deposit − (Meals × ৳${fmtRate(mealRate)}/meal)` : 'Balance = Deposit − Cost'}
               </Text>
             </View>
           </View>
         )}
 
-        {isAdmin && blendPhase === 'off' && (
+        {isAdmin && !appliedRange && (
           <TouchableOpacity
             style={[styles.summaryBtn, { opacity: summarySending ? 0.6 : 1 }]}
             onPress={handleSendSummary}
@@ -706,25 +844,112 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         )}
-        {isAdmin && blendPhase === 'applied' && appliedMonths.length > 0 && (
-          <TouchableOpacity
-            style={[styles.summaryBtn, styles.summaryBtnBlend, { opacity: summarySending ? 0.6 : 1 }]}
-            onPress={handleSendBlendedSummary}
-            disabled={summarySending}
-            activeOpacity={0.8}
-          >
-            {summarySending ? <ActivityIndicator size={16} color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
-            <Text style={styles.summaryBtnText}>
-              {summarySending ? 'Sending…' : `Email ${1 + appliedMonths.length}-Month Blend to Members`}
-            </Text>
-          </TouchableOpacity>
-        )}
       </ScrollView>
+
+      <DashboardDatePicker
+        visible={datePickerTarget !== null}
+        value={datePickerTarget === 'end' ? draftEndDate : draftStartDate}
+        title={datePickerTarget === 'end' ? 'Select End Date' : 'Select Start Date'}
+        onClose={() => setDatePickerTarget(null)}
+        onSelect={(date) => {
+          if (datePickerTarget === 'start') setDraftStartDate(date);
+          else if (datePickerTarget === 'end') setDraftEndDate(date);
+          setDatePickerTarget(null);
+        }}
+      />
     </View>
   );
 }
 
 // ── SummaryCard ───────────────────────────────────────────────────────────────
+
+function DashboardDatePicker({
+  visible,
+  value,
+  title,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  value: string;
+  title: string;
+  onClose: () => void;
+  onSelect: (date: string) => void;
+}) {
+  const colors = useColors();
+  const [viewYearMonth, setViewYearMonth] = useState(value.slice(0, 7));
+
+  useEffect(() => {
+    if (visible) setViewYearMonth(value.slice(0, 7));
+  }, [visible, value]);
+
+  const [year, month] = viewYearMonth.split('-').map(Number);
+  const daysInMonth = new Date(year!, month!, 0).getDate();
+  const leadingBlanks = new Date(year!, month! - 1, 1).getDay();
+  const cells: Array<number | null> = [
+    ...Array.from({ length: leadingBlanks }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const changeMonth = (offset: number) => {
+    const next = new Date(year!, month! - 1 + offset, 1);
+    setViewYearMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const monthLabel = new Date(year!, month! - 1, 1).toLocaleDateString('en-US', {
+    month: 'long', year: 'numeric',
+  });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.pickerOverlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+        <View style={[styles.pickerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.pickerTitleRow}>
+            <Text style={[styles.pickerTitle, { color: colors.foreground }]}>{title}</Text>
+            <TouchableOpacity style={styles.pickerClose} onPress={onClose}>
+              <Feather name="x" size={19} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.pickerMonthRow}>
+            <TouchableOpacity style={styles.pickerArrow} onPress={() => changeMonth(-1)}>
+              <Feather name="chevron-left" size={21} color={colors.foreground} />
+            </TouchableOpacity>
+            <Text style={[styles.pickerMonth, { color: colors.foreground }]}>{monthLabel}</Text>
+            <TouchableOpacity style={styles.pickerArrow} onPress={() => changeMonth(1)}>
+              <Feather name="chevron-right" size={21} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.pickerWeekRow}>
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <Text key={day} style={[styles.pickerWeekday, { color: colors.mutedForeground }]}>{day}</Text>
+            ))}
+          </View>
+          <View style={styles.pickerGrid}>
+            {cells.map((day, index) => {
+              if (day === null) return <View key={`blank-${index}`} style={styles.pickerDayCell} />;
+              const date = `${viewYearMonth}-${String(day).padStart(2, '0')}`;
+              const selected = date === value;
+              return (
+                <TouchableOpacity
+                  key={date}
+                  style={styles.pickerDayCell}
+                  onPress={() => onSelect(date)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.pickerDayCircle, selected && { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.pickerDayText, { color: selected ? '#fff' : colors.foreground }]}>{day}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function SummaryCard({ icon, label, value, bg, iconColor, sub }: { icon: string; label: string; value: string; bg: string; iconColor: string; sub?: string }) {
   const colors = useColors();
@@ -790,8 +1015,14 @@ const styles = StyleSheet.create({
   mealHint: { fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'center', paddingBottom: 10 },
 
   // Cards
-  cardsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 16, marginBottom: 20 },
-  card: { width: '47%', borderRadius: 18, padding: 16, borderWidth: 1, gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  cardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, paddingHorizontal: 16, marginBottom: 20 },
+  balanceHeroCard: { width: '100%', minHeight: 88, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 18, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  balanceHeroIcon: { width: 48, height: 48, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  balanceHeroTextWrap: { flex: 1, marginLeft: 12, marginRight: 10 },
+  balanceHeroLabel: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  balanceHeroSub: { fontSize: 10, lineHeight: 14, fontFamily: 'Inter_400Regular', marginTop: 3 },
+  balanceHeroValue: { maxWidth: '42%', fontSize: 23, fontFamily: 'Inter_700Bold', letterSpacing: -0.4, textAlign: 'right' },
+  card: { width: '48%', borderRadius: 18, padding: 16, borderWidth: 1, gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   cardIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   cardLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   cardValue: { fontSize: 22, fontFamily: 'Inter_700Bold', letterSpacing: -0.3 },
@@ -799,20 +1030,31 @@ const styles = StyleSheet.create({
 
   // Table
   tableCard: { marginHorizontal: 16, borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 8 },
-  tableCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4 },
-  tableTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  blendToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#D1D5DB' },
-  blendToggleCancel: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
-  blendToggleText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  blendToggleCancelText: { color: '#DC2626' },
-  chipScroll: { marginBottom: 6, marginTop: 4 },
-  applyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#7C3AED', marginHorizontal: 14, marginBottom: 10, paddingVertical: 9, borderRadius: 10 },
+  tableCardHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
+  breakdownIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#CCFBF1', borderWidth: 1, borderColor: '#99F6E4' },
+  breakdownHeaderText: { flex: 1, marginLeft: 11 },
+  breakdownEyebrow: { fontSize: 9, lineHeight: 12, fontFamily: 'Inter_700Bold', letterSpacing: 1.1, marginBottom: 2 },
+  tableTitle: { fontSize: 16, lineHeight: 21, fontFamily: 'Inter_700Bold', letterSpacing: -0.15 },
+  customRangeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE' },
+  customRangeBadgeText: { color: '#6D28D9', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  appliedRangeStrip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 14, paddingTop: 10 },
+  appliedRangeLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#DDD6FE' },
+  appliedRangeText: { color: '#6D28D9', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  rangePanel: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8 },
+  rangeFields: { flexDirection: 'row', gap: 10 },
+  rangeFieldWrap: { flex: 1, gap: 5 },
+  rangeLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  rangeDropdown: { height: 42, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, borderWidth: 1, borderRadius: 10 },
+  rangeValue: { flex: 1, fontSize: 12, fontFamily: 'Inter_500Medium' },
+  rangeApplyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#7C3AED', marginTop: 10, paddingVertical: 10, borderRadius: 10 },
   applyBtnText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: '#D1D5DB', backgroundColor: '#F9FAFB' },
-  chipSel: { borderColor: '#7C3AED', backgroundColor: '#F5F3FF' },
-  chipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#6B7280' },
-  chipTextSel: { color: '#7C3AED' },
 
+  tableScrollWrap: { position: 'relative' },
+  fixedConsumerColumn: { position: 'absolute', top: 0, left: 0, width: NAME_W + ROW_PX, zIndex: 2, shadowColor: '#000', shadowOffset: { width: 3, height: 0 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3 },
+  fixedConsumerHeader: { height: 38, justifyContent: 'center', paddingLeft: ROW_PX, paddingRight: 8 },
+  fixedConsumerRow: { height: 46, justifyContent: 'center', paddingLeft: ROW_PX, paddingRight: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  fixedConsumerTotal: { height: 46, justifyContent: 'center', paddingLeft: ROW_PX, paddingRight: 8 },
+  tableScrollArrow: { position: 'absolute', right: 7, top: 5, zIndex: 3, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D1FAE5', borderWidth: 1, borderColor: '#6EE7B7' },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: ROW_PX, height: 38 },
   th:  { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#fff' },
   thR: { textAlign: 'right' },
@@ -824,8 +1066,22 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
 
   summaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#2563EB', marginHorizontal: 16, marginTop: 12, paddingVertical: 14, borderRadius: 14 },
-  summaryBtnBlend: { backgroundColor: '#7C3AED' },
   summaryBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+
+  pickerOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(15,23,42,0.45)' },
+  pickerCard: { width: '100%', maxWidth: 380, borderRadius: 18, borderWidth: 1, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 12 },
+  pickerTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  pickerTitle: { flex: 1, fontSize: 16, fontFamily: 'Inter_700Bold' },
+  pickerClose: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  pickerMonthRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  pickerArrow: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  pickerMonth: { flex: 1, textAlign: 'center', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  pickerWeekRow: { flexDirection: 'row' },
+  pickerWeekday: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 10, fontFamily: 'Inter_600SemiBold', paddingVertical: 7 },
+  pickerGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  pickerDayCell: { width: `${100 / 7}%`, height: 42, alignItems: 'center', justifyContent: 'center' },
+  pickerDayCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  pickerDayText: { fontSize: 13, lineHeight: 18, textAlign: 'center', fontFamily: 'Inter_500Medium', includeFontPadding: false },
 
   emptyState: { alignItems: 'center', gap: 10, paddingVertical: 40, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
