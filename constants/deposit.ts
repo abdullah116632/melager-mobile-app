@@ -1,0 +1,5 @@
+export const DEPOSIT_NAME_COLUMN_WIDTH = 120;
+export const DEPOSIT_TOTAL_COLUMN_WIDTH = 82;
+export const DEPOSIT_PRIMARY = "#0F766E";
+export const DEPOSIT_PRIMARY_DARK = "#0A5954";
+export const DEPOSIT_DOT_COLOR = "#14B8A6";
