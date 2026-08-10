@@ -2,13 +2,10 @@ import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import type { AppColors } from "@/types/theme";
-import { depositStyles as styles } from "./depositStyles";
 
 interface DepositTimePickerProps {
   visible: boolean;
   initialTime: string;
-  colors: AppColors;
   onClose: () => void;
   onSelect: (time: string) => void;
 }
@@ -16,7 +13,6 @@ interface DepositTimePickerProps {
 export const DepositTimePicker = ({
   visible,
   initialTime,
-  colors,
   onClose,
   onSelect,
 }: DepositTimePickerProps) => {
@@ -48,65 +44,48 @@ export const DepositTimePicker = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.pickerBackdrop} onPress={onClose}>
+      <Pressable
+        className="flex-1 justify-center bg-black/45 px-[22px]"
+        onPress={onClose}
+      >
         <Pressable
-          style={[styles.timePickerSheet, { backgroundColor: colors.card }]}
+          className="max-h-[88%] rounded-[20px] bg-white p-5"
           onPress={(event) => event.stopPropagation()}
         >
-          <View style={styles.pickerTitleRow}>
+          <View className="mb-3.5 flex-row items-center justify-between">
             <View>
-              <Text style={[styles.pickerTitle, { color: colors.foreground }]}>
+              <Text className="font-inter-bold text-base text-slate-900">
                 Select time
               </Text>
-              <Text
-                style={[styles.timePickerDisplay, { color: DEPOSIT_PRIMARY }]}
-              >
+              <Text className="mt-0.5 font-inter-bold text-[27px] text-teal-700">
                 {hour}:{String(minute).padStart(2, "0")} {period}
               </Text>
             </View>
-            <View style={styles.pickerHeaderActions}>
+            <View className="flex-row items-center gap-2.5">
               <Feather name="clock" size={26} color={DEPOSIT_PRIMARY} />
               <TouchableOpacity
-                style={[
-                  styles.pickerCloseButton,
-                  { backgroundColor: colors.secondary },
-                ]}
+                className="h-8 w-8 items-center justify-center rounded-full bg-slate-100"
                 onPress={onClose}
                 accessibilityLabel="Close time picker"
               >
-                <Feather name="x" size={18} color={colors.mutedForeground} />
+                <Feather name="x" size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
           </View>
 
-          <Text
-            style={[
-              styles.pickerSectionLabel,
-              { color: colors.mutedForeground },
-            ]}
-          >
+          <Text className="mb-2 font-inter-semibold text-xs text-slate-500">
             Hour
           </Text>
-          <View style={styles.timePickerGrid}>
+          <View className="mb-[15px] flex-row flex-wrap gap-[7px]">
             {Array.from({ length: 12 }, (_, index) => index + 1).map(
               (value) => (
                 <TouchableOpacity
                   key={value}
-                  style={[
-                    styles.timePickerOption,
-                    { borderColor: colors.border },
-                    hour === value && {
-                      backgroundColor: DEPOSIT_PRIMARY,
-                      borderColor: DEPOSIT_PRIMARY,
-                    },
-                  ]}
+                  className={`h-[34px] w-[14.3%] items-center justify-center rounded-lg border ${hour === value ? "border-teal-700 bg-teal-700" : "border-slate-200"}`}
                   onPress={() => setHour(value)}
                 >
                   <Text
-                    style={[
-                      styles.timePickerOptionText,
-                      { color: hour === value ? "#fff" : colors.foreground },
-                    ]}
+                    className={`font-inter-semibold text-xs ${hour === value ? "text-white" : "text-slate-900"}`}
                   >
                     {value}
                   </Text>
@@ -114,59 +93,34 @@ export const DepositTimePicker = ({
               ),
             )}
           </View>
-          <View style={styles.periodPickerRow}>
+          <View className="-mt-[7px] mb-[15px] flex-row gap-2.5">
             {(["AM", "PM"] as const).map((value) => (
               <TouchableOpacity
                 key={value}
-                style={[
-                  styles.periodPickerOption,
-                  { borderColor: colors.border },
-                  period === value && {
-                    backgroundColor: DEPOSIT_PRIMARY,
-                    borderColor: DEPOSIT_PRIMARY,
-                  },
-                ]}
+                className={`h-9 flex-1 items-center justify-center rounded-lg border ${period === value ? "border-teal-700 bg-teal-700" : "border-slate-200"}`}
                 onPress={() => setPeriod(value)}
               >
                 <Text
-                  style={[
-                    styles.periodPickerText,
-                    { color: period === value ? "#fff" : colors.foreground },
-                  ]}
+                  className={`font-inter-bold text-[13px] ${period === value ? "text-white" : "text-slate-900"}`}
                 >
                   {value}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
-          <Text
-            style={[
-              styles.pickerSectionLabel,
-              { color: colors.mutedForeground },
-            ]}
-          >
+          <Text className="mb-2 font-inter-semibold text-xs text-slate-500">
             Minute
           </Text>
-          <View style={styles.timePickerGrid}>
+          <View className="mb-[15px] flex-row flex-wrap gap-[7px]">
             {Array.from({ length: 12 }, (_, index) => index * 5).map(
               (value) => (
                 <TouchableOpacity
                   key={value}
-                  style={[
-                    styles.timePickerOption,
-                    { borderColor: colors.border },
-                    minute === value && {
-                      backgroundColor: DEPOSIT_PRIMARY,
-                      borderColor: DEPOSIT_PRIMARY,
-                    },
-                  ]}
+                  className={`h-[34px] w-[14.3%] items-center justify-center rounded-lg border ${minute === value ? "border-teal-700 bg-teal-700" : "border-slate-200"}`}
                   onPress={() => setMinute(value)}
                 >
                   <Text
-                    style={[
-                      styles.timePickerOptionText,
-                      { color: minute === value ? "#fff" : colors.foreground },
-                    ]}
+                    className={`font-inter-semibold text-xs ${minute === value ? "text-white" : "text-slate-900"}`}
                   >
                     {String(value).padStart(2, "0")}
                   </Text>
@@ -175,13 +129,10 @@ export const DepositTimePicker = ({
             )}
           </View>
           <TouchableOpacity
-            style={[
-              styles.pickerConfirmButton,
-              { backgroundColor: DEPOSIT_PRIMARY },
-            ]}
+            className="mt-px h-11 items-center justify-center rounded-[11px] bg-teal-700"
             onPress={selectTime}
           >
-            <Text style={styles.pickerConfirmText}>Set time</Text>
+            <Text className="font-inter-bold text-sm text-white">Set time</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

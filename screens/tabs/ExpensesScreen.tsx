@@ -1,10 +1,10 @@
 import * as Haptics from "expo-haptics";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useState } from "react";
 import { Alert, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExpenseDetailModal } from "@/components/expenses/ExpenseDetailModal";
 import { ExpenseEditorModal } from "@/components/expenses/ExpenseEditorModal";
-import { expenseStyles as styles } from "@/components/expenses/expenseStyles";
 import { ExpensesHeader } from "@/components/expenses/ExpensesHeader";
 import { ExpensesTable } from "@/components/expenses/ExpensesTable";
 import MonthPicker from "@/components/MonthPicker";
@@ -12,7 +12,6 @@ import { EXPENSE_PRIMARY } from "@/constants/expense";
 import { useAuth } from "@/context/AuthContext";
 import { useDrawer } from "@/context/DrawerContext";
 import { useMess } from "@/context/MessContext";
-import { useColors } from "@/hooks/useColors";
 import type { ExpenseDraftItem } from "@/types/expense";
 import {
   createExpenseDraftItem,
@@ -22,7 +21,6 @@ import {
 } from "@/utils/expense";
 
 export const ExpensesScreen = () => {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { role } = useAuth();
   const { openDrawer } = useDrawer();
@@ -140,30 +138,30 @@ export const ExpensesScreen = () => {
     }
   };
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 118 : insets.bottom + 49;
-
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-[#F4F8FC] ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
     >
+      <StatusBar style="light" backgroundColor="#075F5B" />
+      {Platform.OS !== "web" && (
+        <View
+          pointerEvents="none"
+          className="absolute left-0 right-0 top-0 z-50 bg-[#075F5B]"
+          style={{ height: insets.top }}
+        />
+      )}
       <ExpensesHeader
         monthTotal={monthTotal}
         isAdmin={isAdmin}
         onMenu={openDrawer}
       />
-      <MonthPicker accentColor={EXPENSE_PRIMARY} />
+      <MonthPicker accentColor={EXPENSE_PRIMARY} variant="dashboard" />
       <ExpensesTable
-        colors={colors}
         yearMonth={currentYearMonth}
         days={days}
         monthTotal={monthTotal}
         isAdmin={isAdmin}
         refreshing={refreshing}
-        bottomPadding={bottomPadding}
         getExpense={getExpense}
         onRefresh={() => void handleRefresh()}
         onViewDay={setViewingDay}
@@ -173,7 +171,6 @@ export const ExpensesScreen = () => {
         visible={viewingDay !== null}
         day={viewingDay}
         expense={viewedExpense}
-        colors={colors}
         isAdmin={isAdmin}
         onClose={() => setViewingDay(null)}
         onDeleteItem={deleteExpenseItem}
@@ -185,7 +182,6 @@ export const ExpensesScreen = () => {
         monthLabel={currentMonthLabel}
         drafts={draftItems}
         total={draftTotal}
-        colors={colors}
         onClose={closeEditor}
         onSave={saveExpenses}
         onAddItem={addDraftItem}

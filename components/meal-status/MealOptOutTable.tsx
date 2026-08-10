@@ -1,18 +1,16 @@
 import Feather from "@expo/vector-icons/Feather";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { MEAL_ICONS } from "@/constants/mealStatus";
 import type { MealStatusConsumer } from "@/types/mealStatus";
-import type { AppColors } from "@/types/theme";
-import { mealStatusStyles as styles } from "./mealStatusStyles";
 
 const MealCell = ({ opted }: { opted: boolean }) => (
-  <View style={styles.thMeal}>
+  <View className="w-[54px] items-center justify-center">
     {opted ? (
-      <View style={styles.optedOutCell}>
+      <View className="h-7 w-7 items-center justify-center rounded-full bg-red-50">
         <Feather name="x" size={14} color="#DC2626" />
       </View>
     ) : (
-      <View style={styles.activeCell}>
+      <View className="h-7 w-7 items-center justify-center rounded-full bg-emerald-50">
         <Feather name="check" size={14} color="#059669" />
       </View>
     )}
@@ -20,54 +18,41 @@ const MealCell = ({ opted }: { opted: boolean }) => (
 );
 
 interface MealOptOutTableProps {
-  colors: AppColors;
   consumers: MealStatusConsumer[];
 }
 
-export const MealOptOutTable = ({
-  colors,
-  consumers,
-}: MealOptOutTableProps) => {
+export const MealOptOutTable = ({ consumers }: MealOptOutTableProps) => {
   const optOutRows = consumers.filter(
     (consumer) => consumer.breakfast || consumer.lunch || consumer.dinner,
   );
   const hasOptOuts = optOutRows.length > 0;
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      <Text style={[styles.cardTitle, { color: colors.foreground }]}>
+    <View className="mx-4 mb-3.5 rounded-2xl border border-slate-200 bg-white p-4">
+      <Text className="mb-3.5 font-inter-bold text-[15px] text-slate-900">
         Meal On/Off {hasOptOuts ? `(${optOutRows.length})` : ""}
       </Text>
 
       {!hasOptOuts ? (
-        <View style={styles.emptyWrap}>
+        <View className="items-center gap-2.5 py-6">
           <Feather name="check-circle" size={28} color="#059669" />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          <Text className="text-center font-inter text-sm text-slate-500">
             Everyone is eating — no meals turned off.
           </Text>
         </View>
       ) : (
         <View>
-          <View
-            style={[
-              styles.tableRow,
-              styles.tableHeader,
-              { backgroundColor: colors.primary },
-            ]}
-          >
-            <Text style={[styles.thName, styles.thText]}>Name</Text>
-            <Text style={[styles.thMeal, styles.thText]}>
+          <View className="mb-1 flex-row items-center rounded-lg bg-teal-700 py-2.5">
+            <Text className="w-[140px] pl-3 text-left font-inter-semibold text-[13px] text-white">
+              Name
+            </Text>
+            <Text className="w-[54px] text-center font-inter-semibold text-[13px] text-white">
               {MEAL_ICONS.breakfast}
             </Text>
-            <Text style={[styles.thMeal, styles.thText]}>
+            <Text className="w-[54px] text-center font-inter-semibold text-[13px] text-white">
               {MEAL_ICONS.lunch}
             </Text>
-            <Text style={[styles.thMeal, styles.thText]}>
+            <Text className="w-[54px] text-center font-inter-semibold text-[13px] text-white">
               {MEAL_ICONS.dinner}
             </Text>
           </View>
@@ -75,18 +60,10 @@ export const MealOptOutTable = ({
           {optOutRows.map((row, index) => (
             <View
               key={row.consumerId}
-              style={[
-                styles.tableRow,
-                {
-                  backgroundColor:
-                    index % 2 === 0 ? colors.card : colors.rowAlt,
-                  borderBottomColor: colors.border,
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                },
-              ]}
+              className={`flex-row items-center border-b-[0.5px] border-slate-200 ${index % 2 === 0 ? "bg-white" : "bg-slate-50"}`}
             >
               <Text
-                style={[styles.tdName, { color: colors.foreground }]}
+                className="w-[140px] py-3 pl-3 font-inter text-sm text-slate-900"
                 numberOfLines={1}
               >
                 {row.consumerName}

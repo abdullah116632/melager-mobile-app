@@ -1,15 +1,12 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MemberRequestList } from "@/components/member-requests/MemberRequestList";
 import { MemberRequestSearch } from "@/components/member-requests/MemberRequestSearch";
 import { MemberRequestsEmptyState } from "@/components/member-requests/MemberRequestsEmptyState";
 import { MemberRequestsHeader } from "@/components/member-requests/MemberRequestsHeader";
-import { memberRequestStyles as styles } from "@/components/member-requests/memberRequestStyles";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
-import { useColors } from "@/hooks/useColors";
 import {
   acceptMemberRequest,
   getMemberRequests,
@@ -22,8 +19,6 @@ interface MemberRequestsScreenProps {
 }
 
 export const MemberRequestsScreen = ({ onBack }: MemberRequestsScreenProps) => {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
   const { token, refreshMe, activeMess } = useAuth();
   const { refreshCount } = useNotifications();
   const [requests, setRequests] = useState<MemberRequest[]>([]);
@@ -95,41 +90,29 @@ export const MemberRequestsScreen = ({ onBack }: MemberRequestsScreenProps) => {
       (request.email?.toLowerCase().includes(query) ?? false)
     );
   });
-  const topPadding = Platform.OS === "web" ? 0 : insets.top;
-
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "" : "pt-safe"}`}
     >
       <MemberRequestsHeader
-        colors={colors}
         onBack={onBack}
         onRefresh={() => void fetchRequests()}
       />
-      <MemberRequestSearch
-        colors={colors}
-        value={search}
-        onChange={setSearch}
-      />
+      <MemberRequestSearch value={search} onChange={setSearch} />
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <ActivityIndicator size="large" color="#0F766E" />
         </View>
       ) : requests.length === 0 ? (
-        <MemberRequestsEmptyState colors={colors} variant="empty" />
+        <MemberRequestsEmptyState variant="empty" />
       ) : filteredRequests.length === 0 ? (
-        <MemberRequestsEmptyState colors={colors} variant="no-results" />
+        <MemberRequestsEmptyState variant="no-results" />
       ) : (
         <MemberRequestList
-          colors={colors}
           requests={filteredRequests}
           search={search}
           actingOn={actingOn}
-          bottomPadding={insets.bottom + 24}
           onAccept={(requestId) => void handleAccept(requestId)}
           onReject={(requestId) => void handleReject(requestId)}
         />

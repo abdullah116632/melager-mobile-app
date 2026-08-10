@@ -7,7 +7,6 @@ import {
   View,
 } from "react-native";
 
-import { authStyles as styles } from "./authStyles";
 import { BackRow, ErrorBox } from "./AuthFeedback";
 
 type ResetPasswordCardProps = {
@@ -23,6 +22,9 @@ type ResetPasswordCardProps = {
   onSubmit: () => void;
 };
 
+const inputClassName =
+  "h-[50px] rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF] px-[15px] font-inter text-[15px] text-gray-900";
+
 export const ResetPasswordCard = ({
   newPassword,
   confirmPassword,
@@ -35,18 +37,24 @@ export const ResetPasswordCard = ({
   onTogglePassword,
   onSubmit,
 }: ResetPasswordCardProps) => (
-  <View style={styles.card}>
+  <View className="rounded-3xl bg-white p-[26px] shadow-2xl shadow-black/20">
     <BackRow onPress={onBack} label="Back" />
-    <View style={[styles.iconCircle, styles.resetIconCircle]}>
+    <View className="mb-[18px] h-[68px] w-[68px] items-center justify-center self-center rounded-full border-[1.5px] border-teal-100 bg-orange-50">
       <Feather name="key" size={28} color="#EA580C" />
     </View>
-    <Text style={styles.cardTitle}>Set New Password</Text>
-    <Text style={styles.subtitle}>Choose a new password for your account.</Text>
-    <View style={styles.field}>
-      <Text style={styles.label}>New Password</Text>
-      <View style={styles.passwordRow}>
+    <Text className="mb-2 text-center font-inter-bold text-[21px] text-gray-900">
+      Set New Password
+    </Text>
+    <Text className="mb-6 text-center font-inter text-sm leading-[22px] text-gray-500">
+      Choose a new password for your account.
+    </Text>
+    <View className="mb-[18px]">
+      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
+        New Password
+      </Text>
+      <View className="flex-row items-center gap-2">
         <TextInput
-          style={[styles.input, styles.flexibleInput]}
+          className={`${inputClassName} flex-1`}
           placeholder="Min. 6 characters"
           placeholderTextColor="#9CA3AF"
           value={newPassword}
@@ -55,7 +63,10 @@ export const ResetPasswordCard = ({
           returnKeyType="next"
           autoFocus
         />
-        <TouchableOpacity style={styles.eyeBtn} onPress={onTogglePassword}>
+        <TouchableOpacity
+          className="h-[50px] w-[50px] items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF]"
+          onPress={onTogglePassword}
+        >
           <Feather
             name={showNewPassword ? "eye-off" : "eye"}
             size={20}
@@ -64,10 +75,12 @@ export const ResetPasswordCard = ({
         </TouchableOpacity>
       </View>
     </View>
-    <View style={styles.field}>
-      <Text style={styles.label}>Confirm New Password</Text>
+    <View className="mb-[18px]">
+      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
+        Confirm New Password
+      </Text>
       <TextInput
-        style={styles.input}
+        className={inputClassName}
         placeholder="Re-enter new password"
         placeholderTextColor="#9CA3AF"
         value={confirmPassword}
@@ -79,14 +92,16 @@ export const ResetPasswordCard = ({
     </View>
     <ErrorBox error={error} />
     <TouchableOpacity
-      style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+      className={`mt-1.5 h-[54px] items-center justify-center rounded-[14px] bg-teal-700 ${loading ? "opacity-50 shadow-none" : "opacity-100 shadow-lg shadow-teal-700/35"}`}
       onPress={onSubmit}
       disabled={loading}
     >
       {loading ? (
         <ActivityIndicator color="#fff" />
       ) : (
-        <Text style={styles.submitBtnText}>Reset Password</Text>
+        <Text className="font-inter-bold text-base tracking-[0.2px] text-white">
+          Reset Password
+        </Text>
       )}
     </TouchableOpacity>
   </View>

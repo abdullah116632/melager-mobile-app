@@ -1,4 +1,5 @@
 import * as Clipboard from "expo-clipboard";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -12,7 +13,6 @@ import { DashboardConsumerBreakdown } from "@/components/dashboard/DashboardCons
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardMealSection } from "@/components/dashboard/DashboardMealSection";
-import { dashboardStyles as styles } from "@/components/dashboard/dashboardStyles";
 import { DashboardSummaryButton } from "@/components/dashboard/DashboardSummaryButton";
 import { DashboardSummaryCards } from "@/components/dashboard/DashboardSummaryCards";
 import MonthPicker from "@/components/MonthPicker";
@@ -23,7 +23,6 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useDrawer } from "@/context/DrawerContext";
 import { useMess } from "@/context/MessContext";
-import { useColors } from "@/hooks/useColors";
 import { exportDashboardBreakdownPdf } from "@/services/dashboardPdfService";
 import {
   getDashboardRangeData,
@@ -52,7 +51,6 @@ interface DashboardScreenProps {
 export const DashboardScreen = ({
   onManageMealStatus,
 }: DashboardScreenProps) => {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { mess, role, token } = useAuth();
   const { openDrawer } = useDrawer();
@@ -314,33 +312,30 @@ export const DashboardScreen = ({
     );
   };
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 118 : insets.bottom + 49;
-
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-[#F4F8FC] ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
     >
+      <StatusBar style="light" backgroundColor="#075F5B" />
+      {Platform.OS !== "web" && (
+        <View
+          pointerEvents="none"
+          className="absolute left-0 right-0 top-0 z-50 bg-[#075F5B]"
+          style={{ height: insets.top }}
+        />
+      )}
       <DashboardHeader
-        colors={colors}
-        messName={mess?.name}
         messKey={mess?.messKey}
         keyCopied={keyCopied}
         onMenu={openDrawer}
         onCopyKey={() => void copyMessKey()}
       />
-      <MonthPicker />
+      <MonthPicker variant="dashboard" />
 
       <ScrollView
-        style={styles.flex}
+        className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: bottomPadding },
-        ]}
+        contentContainerClassName={`pt-2 ${Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"}`}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -351,7 +346,6 @@ export const DashboardScreen = ({
         }
       >
         <DashboardMealSection
-          colors={colors}
           selectedDate={selectedDate}
           today={today}
           isPast={isPast}
@@ -374,9 +368,8 @@ export const DashboardScreen = ({
           onManage={() => onManageMealStatus(selectedDate)}
           onToggleMeal={handleMealToggle}
         />
-        <DashboardSummaryCards colors={colors} accounting={accounting} />
+        <DashboardSummaryCards accounting={accounting} />
         <DashboardConsumerBreakdown
-          colors={colors}
           accounting={accounting}
           consumerCount={consumers.length}
           appliedRange={appliedRange}
@@ -398,7 +391,6 @@ export const DashboardScreen = ({
       </ScrollView>
 
       <DashboardDatePicker
-        colors={colors}
         visible={datePickerTarget !== null}
         value={datePickerTarget === "end" ? draftEndDate : draftStartDate}
         title={

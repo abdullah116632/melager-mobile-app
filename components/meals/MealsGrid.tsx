@@ -6,7 +6,6 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,14 +21,20 @@ import {
   TOTAL_COL_W,
 } from "@/constants/meal";
 import type { Consumer } from "@/context/MessContext";
-import type { useColors } from "@/hooks/useColors";
 import type { ActiveMealCell } from "@/types/meal";
 import { isMealDayToday } from "@/utils/meal";
-import { mealStyles as styles } from "./mealStyles";
 import { MealsEmptyState } from "./MealsEmptyState";
 
+const CONSUMER_ACCENTS = [
+  { color: "#10B981", backgroundColor: "#DDFBF0" },
+  { color: "#0EA5E9", backgroundColor: "#E0F3FF" },
+  { color: "#8B5CF6", backgroundColor: "#F0E9FF" },
+  { color: "#F97316", backgroundColor: "#FFF0E3" },
+  { color: "#EC4899", backgroundColor: "#FFE5F1" },
+  { color: "#EAB308", backgroundColor: "#FFF7D6" },
+] as const;
+
 interface MealsGridProps {
-  colors: ReturnType<typeof useColors>;
   consumers: Consumer[];
   yearMonth: string;
   days: number[];
@@ -39,7 +44,8 @@ interface MealsGridProps {
   inputValue: string;
   fillMode: boolean;
   refreshing: boolean;
-  bottomPadding: number;
+  viewportWidth: number;
+  onViewportWidthChange: (width: number) => void;
   headerScrollRef: RefObject<ScrollView | null>;
   bodyScrollRef: RefObject<ScrollView | null>;
   outerScrollRef: RefObject<ScrollView | null>;
@@ -62,7 +68,6 @@ interface MealsGridProps {
 }
 
 export const MealsGrid = ({
-  colors,
   consumers,
   yearMonth,
   days,
@@ -72,7 +77,8 @@ export const MealsGrid = ({
   inputValue,
   fillMode,
   refreshing,
-  bottomPadding,
+  viewportWidth,
+  onViewportWidthChange,
   headerScrollRef,
   bodyScrollRef,
   outerScrollRef,
@@ -95,8 +101,9 @@ export const MealsGrid = ({
 }: MealsGridProps) => {
   const fillHandleScale = useRef(new Animated.Value(1)).current;
   const tableWidth = NAME_COL_W + days.length * DAY_CELL_W + TOTAL_COL_W;
+  const tableBodyHeight = (consumers.length + 1) * DAY_CELL_H + 4;
 
-  if (consumers.length === 0) return <MealsEmptyState colors={colors} />;
+  if (consumers.length === 0) return <MealsEmptyState />;
 
   const animateFillHandle = (
     scale: number,
@@ -118,10 +125,10 @@ export const MealsGrid = ({
 
   return (
     <KeyboardAvoidingView
-      style={styles.gridWrapper}
+      className="flex-1 overflow-hidden bg-white"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+      <View className="h-[40px] flex-row border-b border-slate-200">
         <ScrollView
           ref={headerScrollRef}
           horizontal
@@ -129,52 +136,38 @@ export const MealsGrid = ({
           showsHorizontalScrollIndicator={false}
           onScroll={onHeaderScroll}
           scrollEventThrottle={16}
-          style={styles.flex}
-          contentContainerStyle={{ width: tableWidth, flexDirection: "row" }}
+          className="flex-1"
+          contentContainerClassName="flex-row"
+          contentContainerStyle={{ width: tableWidth }}
         >
-          <View
-            style={[
-              styles.cornerCell,
-              { width: NAME_COL_W, backgroundColor: colors.primary },
-            ]}
-          />
+          <View className="h-[40px] w-[110px] items-center justify-center bg-[#08766E] px-1.5" />
           {days.map((day) => (
             <View
               key={day}
-              style={[
-                styles.headerDayCell,
-                { backgroundColor: colors.primary },
-                isMealDayToday(yearMonth, day) && {
-                  backgroundColor: colors.accent,
-                },
-              ]}
+              className={`h-[40px] w-[48px] items-center justify-center border-l border-white/10 ${isMealDayToday(yearMonth, day) ? "bg-teal-500" : "bg-[#08766E]"}`}
             >
-              <Text style={styles.headerDayText}>{day}</Text>
+              <Text className="font-inter-semibold text-xs text-white">
+                {day}
+              </Text>
             </View>
           ))}
-          <View
-            style={[
-              styles.totalHeaderCell,
-              { backgroundColor: MEAL_TOTAL_DARK },
-            ]}
-          >
-            <Text style={styles.totalHeaderText}>Total</Text>
+          <View className="h-[40px] w-[54px] items-center justify-center bg-[#0A5954]">
+            <Text className="font-inter-bold text-[11px] text-white">
+              Total
+            </Text>
           </View>
         </ScrollView>
         <View
           pointerEvents="none"
-          style={[
-            styles.frozenHeaderCell,
-            {
-              width: NAME_COL_W,
-              backgroundColor: colors.primary,
-              borderRightColor: colors.border,
-            },
-          ]}
+          className="absolute left-0 top-0 z-30 h-[40px] w-[110px] items-center justify-center border-r border-white/20 bg-[#08766E] shadow-md shadow-black/10"
         >
-          <View style={styles.cornerDiagonal} />
-          <Text style={styles.cornerDateText}>Date</Text>
-          <Text style={styles.cornerConsumerText}>Consumers</Text>
+          <View className="absolute left-[-4px] top-[19px] h-px w-[118px] rotate-[20deg] bg-white/70" />
+          <Text className="absolute right-2 top-1 font-inter-semibold text-[10px] text-white">
+            Date
+          </Text>
+          <Text className="absolute bottom-1 left-2 font-inter-semibold text-[10px] text-white">
+            Consumers
+          </Text>
         </View>
       </View>
 
@@ -183,9 +176,11 @@ export const MealsGrid = ({
         onScroll={onOuterScroll}
         scrollEventThrottle={16}
         automaticallyAdjustKeyboardInsets={false}
-        style={styles.flex}
+        className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPadding }}
+        contentContainerClassName={
+          Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"
+        }
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -196,37 +191,41 @@ export const MealsGrid = ({
           />
         }
       >
-        <View style={{ height: (consumers.length + 1) * DAY_CELL_H + 4 }}>
+        <View
+          className="w-full"
+          style={{ height: tableBodyHeight }}
+          onLayout={(event) => {
+            const width = event.nativeEvent.layout.width;
+            if (width > 0 && Math.abs(width - viewportWidth) > 0.5) {
+              onViewportWidthChange(width);
+            }
+          }}
+        >
           <ScrollView
             ref={bodyScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
+            bounces={false}
+            alwaysBounceHorizontal={false}
+            overScrollMode="never"
             onScroll={onBodyScroll}
             scrollEventThrottle={16}
             keyboardShouldPersistTaps="handled"
             scrollEnabled={!fillMode}
-            contentContainerStyle={{
-              width: tableWidth,
-              flexDirection: "column",
-            }}
-            style={{ height: (consumers.length + 1) * DAY_CELL_H + 4 }}
+            contentContainerClassName="flex-col"
+            contentContainerStyle={{ width: tableWidth }}
+            style={{ width: "100%", height: tableBodyHeight }}
           >
             {consumers.map((consumer, index) => (
               <View
                 key={consumer.id}
-                style={[
-                  styles.dataRow,
-                  {
-                    backgroundColor:
-                      index % 2 === 0 ? colors.card : colors.rowAlt,
-                    borderBottomColor: colors.border,
-                    width: tableWidth,
-                  },
-                ]}
+                className={`h-[48px] flex-row border-b-[0.5px] border-slate-200 ${index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"}`}
+                style={{ width: tableWidth }}
               >
-                <View style={[styles.nameCell, { width: NAME_COL_W }]} />
+                <View className="h-[48px] w-[110px] justify-center border-r border-slate-200 px-2" />
                 {days.map((day) => {
                   const count = getMealCount(yearMonth, consumer.id, day);
+                  const isToday = isMealDayToday(yearMonth, day);
                   const isActive =
                     activeCell?.consumerId === consumer.id &&
                     activeCell.day === day;
@@ -239,11 +238,7 @@ export const MealsGrid = ({
                     return (
                       <View
                         key={day}
-                        style={[
-                          styles.dayCell,
-                          styles.activeDayCell,
-                          { borderColor: colors.primary },
-                        ]}
+                        className="relative z-10 h-[48px] w-[48px] items-stretch justify-center overflow-visible border-2 border-teal-700 bg-[#E5FAF3]"
                       >
                         <TextInput
                           ref={activeCellInputRef}
@@ -253,10 +248,7 @@ export const MealsGrid = ({
                           onSubmitEditing={onSubmitEditing}
                           keyboardType="number-pad"
                           returnKeyType="next"
-                          style={[
-                            styles.cellInput,
-                            { color: colors.primary, paddingRight: 16 },
-                          ]}
+                          className="flex-1 py-0 pl-0.5 pr-4 text-center font-inter-semibold text-sm text-teal-700"
                           maxLength={2}
                           selectTextOnFocus
                         />
@@ -264,7 +256,7 @@ export const MealsGrid = ({
                           <TouchableOpacity
                             activeOpacity={0.7}
                             hitSlop={8}
-                            style={styles.fillHandlePressable}
+                            className="absolute bottom-0 right-0 z-30 h-4 w-4 items-center justify-center"
                             onPressIn={() => {
                               onFillHandlePress();
                               animateFillHandle(0.85, 40, 4);
@@ -273,21 +265,12 @@ export const MealsGrid = ({
                           >
                             <Animated.View
                               pointerEvents="none"
-                              style={[
-                                styles.fillHandleBtn,
-                                {
-                                  backgroundColor: "#fff",
-                                  borderColor: colors.primary,
-                                  shadowColor: colors.primary,
-                                  transform: [{ scale: fillHandleScale }],
-                                },
-                              ]}
+                              className="h-4 w-4 items-center justify-center rounded border border-teal-700 bg-white shadow-sm shadow-teal-700"
+                              style={{
+                                transform: [{ scale: fillHandleScale }],
+                              }}
                             >
-                              <Feather
-                                name="copy"
-                                size={10}
-                                color={colors.primary}
-                              />
+                              <Feather name="copy" size={10} color="#0F766E" />
                             </Animated.View>
                           </TouchableOpacity>
                         )}
@@ -298,47 +281,20 @@ export const MealsGrid = ({
                   return (
                     <TouchableOpacity
                       key={day}
-                      style={[
-                        styles.dayCell,
-                        count > 0 && {
-                          backgroundColor: colors.cellFilled,
-                        },
-                        isMealDayToday(yearMonth, day) && styles.todayCell,
-                        fillMode && styles.fillModeCell,
-                        isSelected && {
-                          borderColor: colors.primary,
-                          borderWidth: 2,
-                        },
-                      ]}
+                      className={`h-[48px] w-[48px] items-center justify-center overflow-visible ${count > 0 ? "bg-[#E5FAF3]" : ""} ${fillMode ? "bg-[#DDF8F0]" : ""} ${isSelected ? "border-2 border-teal-700" : `border-r-[0.5px] border-slate-200 ${isToday ? "border-b-2 border-b-teal-500" : ""}`}`}
                       onPress={() => onCellPress(consumer.id, day)}
                       activeOpacity={isAdmin ? (fillMode ? 0.5 : 0.65) : 1}
                     >
                       <Text
-                        style={[
-                          styles.dayCellText,
-                          {
-                            color:
-                              count > 0
-                                ? colors.cellFilledText
-                                : colors.mutedForeground,
-                            fontWeight: count > 0 ? "700" : "400",
-                          },
-                        ]}
+                        className={`text-[13px] ${count > 0 ? "font-inter-bold text-teal-700" : "font-inter text-slate-500"}`}
                       >
                         {count > 0 ? count.toString() : "-"}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
-                <View
-                  style={[
-                    styles.rowTotalCell,
-                    { backgroundColor: colors.secondary },
-                  ]}
-                >
-                  <Text
-                    style={[styles.rowTotalText, { color: colors.primary }]}
-                  >
+                <View className="h-[48px] w-[54px] items-center justify-center bg-slate-100">
+                  <Text className="font-inter-bold text-sm text-teal-700">
                     {getConsumerTotal(yearMonth, consumer.id)}
                   </Text>
                 </View>
@@ -346,29 +302,25 @@ export const MealsGrid = ({
             ))}
 
             <View
-              style={[
-                styles.totalRow,
-                { backgroundColor: colors.primary, width: tableWidth },
-              ]}
+              className="h-[52px] flex-row bg-[#08766E]"
+              style={{ width: tableWidth }}
             >
-              <View style={[styles.totalNameCell, { width: NAME_COL_W }]} />
+              <View className="h-[52px] w-[110px] items-center justify-center border-r border-white/20" />
               {days.map((day) => {
                 const total = getDayTotal(yearMonth, day);
                 return (
-                  <View key={day} style={styles.dayTotalCell}>
-                    <Text style={[styles.dayTotalText, styles.whiteText]}>
+                  <View
+                    key={day}
+                    className="h-[52px] w-[48px] items-center justify-center border-l border-white/10"
+                  >
+                    <Text className="font-inter-semibold text-xs text-white">
                       {total > 0 ? total.toString() : "-"}
                     </Text>
                   </View>
                 );
               })}
-              <View
-                style={[
-                  styles.grandTotalCell,
-                  { backgroundColor: MEAL_TOTAL_DARK },
-                ]}
-              >
-                <Text style={[styles.grandTotalText, styles.whiteText]}>
+              <View className="h-[52px] w-[54px] items-center justify-center bg-[#0A5954]">
+                <Text className="font-inter-bold text-[15px] text-white">
                   {getGrandTotal(yearMonth)}
                 </Text>
               </View>
@@ -377,58 +329,45 @@ export const MealsGrid = ({
 
           <View
             pointerEvents="box-none"
-            style={[styles.frozenNameColumn, { width: NAME_COL_W }]}
+            className="absolute left-0 top-0 z-30 w-[110px] shadow-md shadow-black/10"
           >
-            {consumers.map((consumer, index) => (
-              <TouchableOpacity
-                key={consumer.id}
-                style={[
-                  styles.nameCell,
-                  {
-                    width: NAME_COL_W,
-                    backgroundColor:
-                      index % 2 === 0 ? colors.card : colors.rowAlt,
-                    borderRightColor: colors.border,
-                    borderBottomColor: colors.border,
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                  },
-                ]}
-                onLongPress={() => onRemoveConsumer(consumer.id, consumer.name)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[styles.nameText, { color: colors.foreground }]}
-                  numberOfLines={2}
+            {consumers.map((consumer, index) => {
+              const accent = CONSUMER_ACCENTS[index % CONSUMER_ACCENTS.length];
+              return (
+                <TouchableOpacity
+                  key={consumer.id}
+                  className={`h-[48px] w-[110px] flex-row items-center border-b-[0.5px] border-r border-slate-200 px-2 ${index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"}`}
+                  onLongPress={() =>
+                    onRemoveConsumer(consumer.id, consumer.name)
+                  }
+                  activeOpacity={0.7}
                 >
-                  {consumer.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            <View
-              style={[
-                styles.totalNameCell,
-                {
-                  width: NAME_COL_W,
-                  backgroundColor: colors.primary,
-                  borderRightColor: "rgba(255,255,255,0.2)",
-                },
-              ]}
-            >
-              <Text style={[styles.totalNameText, styles.whiteText]}>
-                Total
-              </Text>
+                  <View
+                    className="mr-2 h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: accent.backgroundColor }}
+                  >
+                    <Feather name="user" size={15} color={accent.color} />
+                  </View>
+                  <Text
+                    className="flex-1 font-inter-medium text-[11px] text-slate-900"
+                    numberOfLines={1}
+                  >
+                    {consumer.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            <View className="h-[52px] w-[110px] items-center justify-center border-r border-white/20 bg-[#08766E]">
+              <Text className="font-inter-bold text-xs text-white">Total</Text>
             </View>
           </View>
 
           {fillMode && isAdmin && (
             <View
+              className="absolute left-0 top-0 z-10"
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
                 width: tableWidth,
-                height: consumers.length * DAY_CELL_H + (DAY_CELL_H + 4),
-                zIndex: 10,
+                height: tableBodyHeight,
               }}
               onStartShouldSetResponder={() => true}
               onMoveShouldSetResponder={() => true}
@@ -447,7 +386,7 @@ export const MealsGrid = ({
             />
           )}
         </View>
-        <View pointerEvents="none" style={styles.keyboardScrollSpacer} />
+        <View pointerEvents="none" className="h-80" />
       </ScrollView>
     </KeyboardAvoidingView>
   );

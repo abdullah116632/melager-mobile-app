@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { JoinRequestSuccess } from "@/components/mess-setup/JoinRequestSuccess";
 import { MessSetupChoice } from "@/components/mess-setup/MessSetupChoice";
 import { MessSetupForm } from "@/components/mess-setup/MessSetupForm";
 import { MessSetupHeader } from "@/components/mess-setup/MessSetupHeader";
-import { messSetupStyles as styles } from "@/components/mess-setup/messSetupStyles";
 import { useAuth } from "@/context/AuthContext";
 import type { MessSetupMode, MessSetupStep } from "@/types/messSetup";
 
@@ -20,7 +18,6 @@ export const MessSetupScreen = ({
   onBack,
   onBackToHub,
 }: MessSetupScreenProps) => {
-  const insets = useSafeAreaInsets();
   const { user, createMess, joinMess } = useAuth();
   const [step, setStep] = useState<MessSetupStep>(initialMode ?? "choose");
   const [messName, setMessName] = useState("");
@@ -85,19 +82,19 @@ export const MessSetupScreen = ({
 
   return (
     <KeyboardAvoidingView
-      style={styles.keyboardView}
+      className="flex-1 bg-[#0B5E57]"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View pointerEvents="none" style={styles.decorationLarge} />
-      <View pointerEvents="none" style={styles.decorationSmall} />
+      <View
+        pointerEvents="none"
+        className="absolute right-[-70px] top-[-80px] h-[300px] w-[300px] rounded-full bg-white/[0.07]"
+      />
+      <View
+        pointerEvents="none"
+        className="absolute bottom-[60px] left-[-40px] h-40 w-40 rounded-full bg-white/[0.05]"
+      />
       <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          {
-            paddingTop: insets.top + 16,
-            paddingBottom: insets.bottom + 24,
-          },
-        ]}
+        contentContainerClassName="flex-grow gap-4 px-6 pb-safe-offset-6 pt-safe-offset-4"
         keyboardShouldPersistTaps="handled"
       >
         <MessSetupHeader firstName={firstName} onBack={onBack} />

@@ -13,15 +13,12 @@ import {
   View,
 } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import type { AppColors } from "@/types/theme";
 import { formatDepositPickerDate, formatDepositTime } from "@/utils/deposit";
 import { DepositDatePicker } from "./DepositDatePicker";
 import { DepositTimePicker } from "./DepositTimePicker";
-import { depositStyles as styles } from "./depositStyles";
 
 interface AddDepositModalProps {
   visible: boolean;
-  colors: AppColors;
   consumerName: string;
   amount: string;
   date: string;
@@ -39,7 +36,6 @@ interface AddDepositModalProps {
 
 export const AddDepositModal = ({
   visible,
-  colors,
   consumerName,
   amount,
   date,
@@ -96,103 +92,64 @@ export const AddDepositModal = ({
         onRequestClose={close}
       >
         <KeyboardAvoidingView
-          style={styles.flex}
+          className="flex-1"
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.modalOverlay}>
+          <View className="flex-1 justify-end bg-black/40">
             <TouchableOpacity
-              style={styles.modalSpacer}
+              className="flex-1"
               activeOpacity={1}
               onPress={() => Keyboard.dismiss()}
             />
             <View
-              style={[
-                styles.bottomSheet,
-                {
-                  backgroundColor: colors.card,
-                  marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
-                },
-              ]}
+              className="rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10"
+              style={{
+                marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
+              }}
             >
-              <View
-                style={[styles.sheetHandle, { backgroundColor: colors.border }]}
-              />
-              <View style={styles.sheetTitleRow}>
-                <Text
-                  style={[
-                    styles.sheetTitle,
-                    styles.sheetTitleNoMargin,
-                    { color: colors.foreground },
-                  ]}
-                >
+              <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
+              <View className="mb-1 flex-row items-center justify-between">
+                <Text className="font-inter-bold text-lg text-slate-900">
                   Add Deposit
                 </Text>
                 <TouchableOpacity
-                  style={[
-                    styles.sheetCloseButton,
-                    { backgroundColor: colors.secondary },
-                  ]}
+                  className="h-[34px] w-[34px] items-center justify-center rounded-full bg-slate-100"
                   onPress={close}
                   accessibilityLabel="Close add deposit form"
                 >
-                  <Feather name="x" size={20} color={colors.mutedForeground} />
+                  <Feather name="x" size={20} color="#64748B" />
                 </TouchableOpacity>
               </View>
-              <Text
-                style={[
-                  styles.sheetSubtitle,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+              <Text className="mb-4 font-inter text-[13px] text-slate-500">
                 {consumerName}
               </Text>
 
               <ScrollView
-                style={styles.sheetFormList}
+                className="max-h-80"
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
               >
-                <Text
-                  style={[styles.fieldLabel, { color: colors.mutedForeground }]}
-                >
+                <Text className="mb-1 mt-2.5 font-inter-medium text-xs text-slate-500">
                   Amount (৳) *
                 </Text>
                 <TextInput
                   ref={amountInputRef}
-                  style={[
-                    styles.sheetInput,
-                    {
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
+                  className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
                   placeholder="e.g. 500"
-                  placeholderTextColor={colors.mutedForeground}
+                  placeholderTextColor="#64748B"
                   value={amount}
                   onChangeText={onAmountChange}
                   keyboardType="number-pad"
                 />
 
-                <View style={styles.dateTimeRow}>
-                  <View style={styles.dateField}>
-                    <Text
-                      style={[
-                        styles.fieldLabel,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
+                <View className="flex-row">
+                  <View className="mr-2 flex-1">
+                    <Text className="mb-1 mt-2.5 font-inter-medium text-xs text-slate-500">
                       Date
                     </Text>
                     <TouchableOpacity
-                      style={[
-                        styles.pickerInput,
-                        {
-                          borderColor: colors.border,
-                          backgroundColor: colors.background,
-                        },
-                      ]}
+                      className="h-11 flex-row items-center gap-1.5 rounded-[10px] border border-slate-200 bg-slate-50 px-2.5"
                       onPress={() => {
                         Keyboard.dismiss();
                         setShowDatePicker(true);
@@ -204,33 +161,19 @@ export const AddDepositModal = ({
                         color={DEPOSIT_PRIMARY}
                       />
                       <Text
-                        style={[
-                          styles.pickerInputText,
-                          { color: colors.foreground },
-                        ]}
+                        className="flex-1 font-inter-medium text-[13px] text-slate-900"
                         numberOfLines={1}
                       >
                         {formatDepositPickerDate(date)}
                       </Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.timeField}>
-                    <Text
-                      style={[
-                        styles.fieldLabel,
-                        { color: colors.mutedForeground },
-                      ]}
-                    >
+                  <View className="flex-1">
+                    <Text className="mb-1 mt-2.5 font-inter-medium text-xs text-slate-500">
                       Time
                     </Text>
                     <TouchableOpacity
-                      style={[
-                        styles.pickerInput,
-                        {
-                          borderColor: colors.border,
-                          backgroundColor: colors.background,
-                        },
-                      ]}
+                      className="h-11 flex-row items-center gap-1.5 rounded-[10px] border border-slate-200 bg-slate-50 px-2.5"
                       onPress={() => {
                         Keyboard.dismiss();
                         setShowTimePicker(true);
@@ -238,10 +181,7 @@ export const AddDepositModal = ({
                     >
                       <Feather name="clock" size={15} color={DEPOSIT_PRIMARY} />
                       <Text
-                        style={[
-                          styles.pickerInputText,
-                          { color: colors.foreground },
-                        ]}
+                        className="flex-1 font-inter-medium text-[13px] text-slate-900"
                         numberOfLines={1}
                       >
                         {formatDepositTime(time)}
@@ -250,41 +190,35 @@ export const AddDepositModal = ({
                   </View>
                 </View>
 
-                <Text
-                  style={[styles.fieldLabel, { color: colors.mutedForeground }]}
-                >
+                <Text className="mb-1 mt-2.5 font-inter-medium text-xs text-slate-500">
                   Note (optional)
                 </Text>
                 <TextInput
-                  style={[
-                    styles.sheetInput,
-                    {
-                      borderColor: colors.border,
-                      color: colors.foreground,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
+                  className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
                   placeholder="e.g. Cash payment"
-                  placeholderTextColor={colors.mutedForeground}
+                  placeholderTextColor="#64748B"
                   value={note}
                   onChangeText={onNoteChange}
                 />
-                {error ? <Text style={styles.sheetError}>{error}</Text> : null}
+                {error ? (
+                  <Text className="mt-2 font-inter text-[13px] text-red-600">
+                    {error}
+                  </Text>
+                ) : null}
               </ScrollView>
 
-              <View style={styles.sheetActions}>
+              <View className="mt-5 flex-row gap-2.5">
                 <TouchableOpacity
-                  style={[
-                    styles.sheetButton,
-                    { backgroundColor: DEPOSIT_PRIMARY },
-                  ]}
+                  className="flex-1 items-center justify-center rounded-xl bg-teal-700 px-4 py-[13px]"
                   onPress={onSubmit}
                   disabled={saving}
                 >
                   {saving ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.sheetButtonText}>Add Deposit</Text>
+                    <Text className="font-inter-semibold text-white">
+                      Add Deposit
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -296,7 +230,6 @@ export const AddDepositModal = ({
       <DepositDatePicker
         visible={showDatePicker}
         initialDate={date}
-        colors={colors}
         onClose={() => setShowDatePicker(false)}
         onSelect={(value) => {
           onDateChange(value);
@@ -306,7 +239,6 @@ export const AddDepositModal = ({
       <DepositTimePicker
         visible={showTimePicker}
         initialTime={time}
-        colors={colors}
         onClose={() => setShowTimePicker(false)}
         onSelect={(value) => {
           onTimeChange(value);

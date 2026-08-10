@@ -1,29 +1,20 @@
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
-import type { useColors } from "@/hooks/useColors";
-import { profileStyles as styles } from "./profileStyles";
 
 interface ProfileSectionCardProps {
   title: string;
   children: ReactNode;
-  colors: ReturnType<typeof useColors>;
 }
 
 export const ProfileSectionCard = ({
   title,
   children,
-  colors,
 }: ProfileSectionCardProps) => (
-  <View style={styles.sectionWrapper}>
-    <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+  <View className="gap-1.5 px-4">
+    <Text className="pl-1 font-inter-semibold text-[11px] tracking-[0.8px] text-slate-500">
       {title.toUpperCase()}
     </Text>
-    <View
-      style={[
-        styles.sectionCard,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
+    <View className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
       {children}
     </View>
   </View>

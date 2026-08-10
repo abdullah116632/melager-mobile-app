@@ -3,30 +3,22 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  DASHBOARD_TABLE_INNER_WIDTH,
-  DASHBOARD_TABLE_WIDTHS,
-} from "@/constants/dashboard";
 import type {
   DashboardAccounting,
   DashboardDatePickerTarget,
   DashboardDateRange,
 } from "@/types/dashboard";
-import type { AppColors } from "@/types/theme";
 import {
   formatDashboardAmount,
   formatDashboardRate,
   formatDashboardShortDate,
 } from "@/utils/dashboard";
-import { dashboardStyles as styles } from "./dashboardStyles";
 
 interface DashboardConsumerBreakdownProps {
-  colors: AppColors;
   accounting: DashboardAccounting;
   consumerCount: number;
   appliedRange: DashboardDateRange | null;
@@ -40,60 +32,27 @@ interface DashboardConsumerBreakdownProps {
   onDownloadPdf: () => void;
 }
 
-const TableHeader = ({
-  consumerCount,
-  primaryColor,
-}: {
-  consumerCount: number;
-  primaryColor: string;
-}) => (
-  <View style={[styles.tableRow, { backgroundColor: primaryColor }]}>
-    <Text
-      style={[styles.tableHeaderText, { width: DASHBOARD_TABLE_WIDTHS.name }]}
-    >
+const TableHeader = ({ consumerCount }: { consumerCount: number }) => (
+  <View className="h-[42px] flex-row items-center bg-[#08766E] px-2.5">
+    <Text className="w-[110px] font-inter-semibold text-[11px] text-white">
       Consumers ({consumerCount})
     </Text>
-    <Text
-      style={[
-        styles.tableHeaderText,
-        styles.textRight,
-        { width: DASHBOARD_TABLE_WIDTHS.meals },
-      ]}
-    >
+    <Text className="w-[52px] text-right font-inter-semibold text-[11px] text-white">
       Meals
     </Text>
-    <Text
-      style={[
-        styles.tableHeaderText,
-        styles.textRight,
-        { width: DASHBOARD_TABLE_WIDTHS.cost },
-      ]}
-    >
+    <Text className="w-[82px] text-right font-inter-semibold text-[11px] text-white">
       Cost
     </Text>
-    <Text
-      style={[
-        styles.tableHeaderText,
-        styles.textRight,
-        { width: DASHBOARD_TABLE_WIDTHS.deposit },
-      ]}
-    >
+    <Text className="w-[82px] text-right font-inter-semibold text-[11px] text-white">
       Deposit
     </Text>
-    <Text
-      style={[
-        styles.tableHeaderText,
-        styles.textRight,
-        { width: DASHBOARD_TABLE_WIDTHS.balance },
-      ]}
-    >
+    <Text className="w-[90px] text-right font-inter-semibold text-[11px] text-white">
       Balance
     </Text>
   </View>
 );
 
 export const DashboardConsumerBreakdown = ({
-  colors,
   accounting,
   consumerCount,
   appliedRange,
@@ -118,12 +77,12 @@ export const DashboardConsumerBreakdown = ({
 
   if (consumerCount === 0) {
     return (
-      <View style={styles.emptyState}>
-        <Feather name="users" size={40} color={colors.mutedForeground} />
-        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+      <View className="items-center gap-2.5 px-10 py-10">
+        <Feather name="users" size={40} color="#64748B" />
+        <Text className="font-inter-semibold text-base text-slate-900">
           No consumers yet
         </Text>
-        <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
+        <Text className="text-center font-inter text-[13px] text-slate-500">
           Add consumers from the Meals tab
         </Text>
       </View>
@@ -132,42 +91,49 @@ export const DashboardConsumerBreakdown = ({
 
   return (
     <View
-      style={[
-        styles.tableCard,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
+      className="mx-4 mb-2 overflow-hidden rounded-[20px] border border-slate-200 bg-white"
+      style={{
+        shadowColor: "#94A3B8",
+        shadowOpacity: 0.16,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 3,
+      }}
     >
-      <View
-        style={[
-          styles.tableCardHeader,
-          {
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <View style={styles.breakdownIcon}>
-          <Feather name="bar-chart-2" size={19} color="#0F766E" />
+      <View className="flex-row items-center border-b border-teal-100 bg-[#F0FCFA] px-3.5 py-[14px]">
+        <View className="h-[46px] w-[46px] items-center justify-center rounded-[14px] bg-teal-100">
+          <Feather name="bar-chart-2" size={22} color="#047857" />
         </View>
-        <View style={styles.breakdownHeaderText}>
-          <Text
-            style={[styles.breakdownEyebrow, { color: colors.mutedForeground }]}
-          >
+        <View className="ml-3 flex-1">
+          <Text className="mb-0.5 font-inter-bold text-[9px] leading-3 tracking-[1.4px] text-slate-500">
             ACCOUNTING OVERVIEW
           </Text>
-          <Text style={[styles.tableTitle, { color: colors.foreground }]}>
+          <Text className="font-inter-bold text-[18px] leading-[23px] tracking-[-0.2px] text-slate-950">
             Consumer Breakdown
           </Text>
         </View>
-        <View style={styles.breakdownHeaderActions}>
+        <View className="flex-row items-center gap-1.5">
           {appliedRange && (
-            <View style={styles.customRangeBadge}>
+            <View
+              key="custom-range-badge"
+              className="flex-row items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-[9px] py-[5px]"
+            >
               <Feather name="calendar" size={12} color="#6D28D9" />
-              <Text style={styles.customRangeBadgeText}>Custom</Text>
+              <Text className="font-inter-bold text-[10px] text-violet-700">
+                Custom
+              </Text>
             </View>
           )}
           <TouchableOpacity
-            style={[styles.pdfButton, pdfGenerating && { opacity: 0.6 }]}
+            key="pdf-button"
+            className={`h-[38px] flex-row items-center justify-center gap-1.5 rounded-[11px] border border-emerald-300 bg-white px-3 ${pdfGenerating ? "opacity-60" : "opacity-100"}`}
+            style={{
+              shadowColor: "#6EE7B7",
+              shadowOpacity: 0.18,
+              shadowRadius: 3,
+              shadowOffset: { width: 0, height: 1 },
+              elevation: 1,
+            }}
             onPress={onDownloadPdf}
             disabled={pdfGenerating}
             activeOpacity={0.75}
@@ -179,69 +145,70 @@ export const DashboardConsumerBreakdown = ({
             ) : (
               <Feather name="download" size={16} color="#0F766E" />
             )}
-            <Text style={styles.pdfButtonText}>PDF</Text>
+            <Text className="font-inter-bold text-[12px] text-teal-700">
+              PDF
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {appliedRange && (
-        <View style={styles.appliedRangeStrip}>
-          <View style={styles.appliedRangeLine} />
-          <Text style={styles.appliedRangeText}>
+        <View
+          key="applied-range-summary"
+          className="flex-row items-center justify-center gap-[7px] px-3.5 pt-2.5"
+        >
+          <View className="h-[0.5px] flex-1 bg-violet-200" />
+          <Text className="font-inter-semibold text-[11px] text-violet-700">
             {formatDashboardShortDate(appliedRange.startDate)}
           </Text>
           <Feather name="arrow-right" size={13} color="#7C3AED" />
-          <Text style={styles.appliedRangeText}>
+          <Text className="font-inter-semibold text-[11px] text-violet-700">
             {formatDashboardShortDate(appliedRange.endDate)}
           </Text>
-          <View style={styles.appliedRangeLine} />
+          <View className="h-[0.5px] flex-1 bg-violet-200" />
         </View>
       )}
 
-      <View style={[styles.rangePanel, { borderTopColor: colors.border }]}>
-        <View style={styles.rangeFields}>
+      <View className="px-3.5 pb-3.5 pt-3">
+        <View className="flex-row gap-2.5">
           {[
             ["start", "Start Date", draftStartDate],
             ["end", "End Date", draftEndDate],
           ].map(([target, label, value]) => (
-            <View key={target} style={styles.rangeField}>
-              <Text
-                style={[styles.rangeLabel, { color: colors.mutedForeground }]}
-              >
+            <View key={target} className="flex-1 gap-[5px]">
+              <Text className="font-inter-semibold text-[12px] text-slate-600">
                 {label}
               </Text>
               <TouchableOpacity
-                style={[
-                  styles.rangeDropdown,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                  },
-                ]}
+                className="h-[48px] flex-row items-center gap-2 rounded-[11px] border border-slate-200 bg-white px-3"
+                style={{
+                  shadowColor: "#94A3B8",
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                  shadowOffset: { width: 0, height: 1 },
+                  elevation: 1,
+                }}
                 onPress={() =>
                   onOpenDatePicker(target as DashboardDatePickerTarget)
                 }
                 activeOpacity={0.75}
               >
-                <Feather name="calendar" size={14} color={colors.primary} />
+                <Feather name="calendar" size={16} color="#0F766E" />
                 <Text
-                  style={[styles.rangeValue, { color: colors.foreground }]}
+                  className="flex-1 font-inter-semibold text-[12px] text-slate-900"
                   numberOfLines={1}
                 >
                   {formatDashboardShortDate(value)}
                 </Text>
-                <Feather
-                  name="chevron-down"
-                  size={14}
-                  color={colors.mutedForeground}
-                />
+                <Feather name="chevron-down" size={14} color="#64748B" />
               </TouchableOpacity>
             </View>
           ))}
         </View>
         {hasUnappliedDateChange && (
           <TouchableOpacity
-            style={[styles.rangeApplyButton, rangeLoading && { opacity: 0.6 }]}
+            key="apply-range-button"
+            className={`mt-2.5 flex-row items-center justify-center gap-1.5 rounded-[11px] bg-teal-700 py-3 ${rangeLoading ? "opacity-60" : "opacity-100"}`}
             onPress={onApplyRange}
             disabled={rangeLoading}
             activeOpacity={0.8}
@@ -251,14 +218,14 @@ export const DashboardConsumerBreakdown = ({
             ) : (
               <Feather name="check" size={15} color="#fff" />
             )}
-            <Text style={styles.applyButtonText}>
+            <Text className="font-inter-semibold text-[13px] text-white">
               {rangeLoading ? "Loading…" : "Apply"}
             </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.tableScrollWrapper}>
+      <View className="relative">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -273,140 +240,71 @@ export const DashboardConsumerBreakdown = ({
             );
           }}
         >
-          <View style={{ width: DASHBOARD_TABLE_INNER_WIDTH }}>
-            <TableHeader
-              consumerCount={consumerCount}
-              primaryColor={colors.primary}
-            />
+          <View className="w-[436px]">
+            <TableHeader consumerCount={consumerCount} />
             {consumerRows.map((row, index) => {
               const positive = row.balance > 0.005;
               const negative = row.balance < -0.005;
-              const balanceColor = positive
-                ? "#059669"
+              const balanceClassName = positive
+                ? "text-emerald-600"
                 : negative
-                  ? "#DC2626"
-                  : colors.mutedForeground;
+                  ? "text-red-600"
+                  : "text-slate-500";
               return (
                 <View
                   key={row.id}
-                  style={[
-                    styles.tableRow,
-                    styles.tableBodyRow,
-                    {
-                      backgroundColor:
-                        index % 2 === 0 ? colors.card : colors.rowAlt,
-                      borderBottomColor: colors.border,
-                      borderBottomWidth: StyleSheet.hairlineWidth,
-                    },
-                  ]}
+                  className={`h-[43px] flex-row items-center border-b-[0.5px] border-slate-200 px-2.5 ${index % 2 === 0 ? "bg-white" : "bg-slate-50"}`}
                 >
                   <Text
-                    style={[
-                      styles.tableData,
-                      {
-                        width: DASHBOARD_TABLE_WIDTHS.name,
-                        color: colors.foreground,
-                      },
-                    ]}
+                    className="w-[110px] font-inter text-[13px] text-slate-900"
                     numberOfLines={1}
                   >
                     {row.name}
                   </Text>
-                  <Text
-                    style={[
-                      styles.tableData,
-                      styles.tableDataRight,
-                      {
-                        width: DASHBOARD_TABLE_WIDTHS.meals,
-                        color: colors.foreground,
-                      },
-                    ]}
-                  >
+                  <Text className="w-[52px] text-right font-inter-medium text-[13px] text-slate-900">
                     {row.meals}
                   </Text>
                   {[
-                    [row.cost, DASHBOARD_TABLE_WIDTHS.cost, colors.foreground],
-                    [
-                      row.deposits,
-                      DASHBOARD_TABLE_WIDTHS.deposit,
-                      colors.foreground,
-                    ],
-                    [
-                      Math.abs(row.balance),
-                      DASHBOARD_TABLE_WIDTHS.balance,
-                      balanceColor,
-                    ],
-                  ].map(([amount, width, color], amountIndex) => (
+                    { amount: row.cost, widthClassName: "w-[82px]" },
+                    { amount: row.deposits, widthClassName: "w-[82px]" },
+                    {
+                      amount: Math.abs(row.balance),
+                      widthClassName: "w-[90px]",
+                    },
+                  ].map(({ amount, widthClassName }, amountIndex) => (
                     <Text
                       key={amountIndex}
-                      style={[
-                        styles.tableData,
-                        styles.tableDataRight,
-                        {
-                          width: width as number,
-                          color: color as string,
-                          fontFamily:
-                            amountIndex === 2
-                              ? "Inter_700Bold"
-                              : "Inter_500Medium",
-                        },
-                      ]}
+                      className={`${widthClassName} text-right text-[13px] ${amountIndex === 2 ? `font-inter-bold ${balanceClassName}` : "font-inter-medium text-slate-900"}`}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.7}
                     >
                       {amountIndex === 2 && positive ? "+" : ""}৳
-                      {formatDashboardAmount(amount as number)}
+                      {formatDashboardAmount(amount)}
                     </Text>
                   ))}
                 </View>
               );
             })}
 
-            <View
-              style={[
-                styles.tableRow,
-                styles.tableBodyRow,
-                { backgroundColor: colors.primary },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tableFooter,
-                  { width: DASHBOARD_TABLE_WIDTHS.name },
-                ]}
-              >
+            <View className="h-[44px] flex-row items-center bg-[#08766E] px-2.5">
+              <Text className="w-[110px] font-inter-bold text-[13px] text-white">
                 Total
               </Text>
-              <Text
-                style={[
-                  styles.tableFooter,
-                  styles.textRight,
-                  { width: DASHBOARD_TABLE_WIDTHS.meals },
-                ]}
-              >
+              <Text className="w-[52px] text-right font-inter-bold text-[13px] text-white">
                 {totalMeals}
               </Text>
               {[
-                [totalExpenses, DASHBOARD_TABLE_WIDTHS.cost],
-                [totalDeposits, DASHBOARD_TABLE_WIDTHS.deposit],
-                [Math.abs(netBalance), DASHBOARD_TABLE_WIDTHS.balance],
-              ].map(([amount, width], index) => (
+                { amount: totalExpenses, widthClassName: "w-[82px]" },
+                { amount: totalDeposits, widthClassName: "w-[82px]" },
+                {
+                  amount: Math.abs(netBalance),
+                  widthClassName: "w-[90px]",
+                },
+              ].map(({ amount, widthClassName }, index) => (
                 <Text
                   key={index}
-                  style={[
-                    styles.tableFooter,
-                    styles.textRight,
-                    {
-                      width,
-                      color:
-                        index === 2
-                          ? netBalance >= 0
-                            ? "#A7F3D0"
-                            : "#FCA5A5"
-                          : "#fff",
-                    },
-                  ]}
+                  className={`${widthClassName} text-right font-inter-bold text-[13px] ${index === 2 ? (netBalance >= 0 ? "text-emerald-200" : "text-red-300") : "text-white"}`}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
@@ -419,56 +317,48 @@ export const DashboardConsumerBreakdown = ({
           </View>
         </ScrollView>
 
-        <View pointerEvents="none" style={styles.fixedConsumerColumn}>
-          <View
-            style={[
-              styles.fixedConsumerHeader,
-              { backgroundColor: colors.primary },
-            ]}
-          >
-            <Text style={styles.tableHeaderText}>
+        <View
+          pointerEvents="none"
+          className="absolute left-0 top-0 z-[2] w-[120px] shadow-md"
+        >
+          <View className="h-[42px] justify-center bg-[#08766E] pl-2.5 pr-2">
+            <Text className="font-inter-semibold text-[11px] text-white">
               Consumers ({consumerCount})
             </Text>
           </View>
           {consumerRows.map((row, index) => (
             <View
               key={`fixed-${row.id}`}
-              style={[
-                styles.fixedConsumerRow,
-                {
-                  backgroundColor:
-                    index % 2 === 0 ? colors.card : colors.rowAlt,
-                  borderBottomColor: colors.border,
-                },
-              ]}
+              className={`h-[43px] justify-center border-b-[0.5px] border-slate-200 pl-2.5 pr-2 ${index % 2 === 0 ? "bg-white" : "bg-slate-50"}`}
             >
               <Text
-                style={[styles.tableData, { color: colors.foreground }]}
+                className="font-inter text-[13px] text-slate-900"
                 numberOfLines={1}
               >
                 {row.name}
               </Text>
             </View>
           ))}
-          <View
-            style={[
-              styles.fixedConsumerTotal,
-              { backgroundColor: colors.primary },
-            ]}
-          >
-            <Text style={styles.tableFooter}>Total</Text>
+          <View className="h-[44px] justify-center bg-[#08766E] pl-2.5 pr-2">
+            <Text className="font-inter-bold text-[13px] text-white">
+              Total
+            </Text>
           </View>
         </View>
 
         {showScrollHint && (
-          <View pointerEvents="none" style={styles.tableScrollArrow}>
+          <View
+            key="table-scroll-hint"
+            pointerEvents="none"
+            className="absolute right-[7px] top-[5px] z-[3] h-7 w-7 items-center justify-center rounded-full border border-emerald-300 bg-emerald-100"
+          >
             <Feather name="chevrons-right" size={20} color="#0F766E" />
           </View>
         )}
       </View>
 
-      <View style={[styles.legend, { borderTopColor: colors.border }]}>
-        <Text style={[styles.legendText, { color: colors.mutedForeground }]}>
+      <View className="border-t-[0.5px] border-slate-200 px-3.5 py-2.5">
+        <Text className="font-inter text-[11px] text-slate-500">
           {appliedRange
             ? `${formatDashboardShortDate(appliedRange.startDate)} – ${formatDashboardShortDate(appliedRange.endDate)} (inclusive) · rate ৳${formatDashboardRate(mealRate)}/meal`
             : mealRate > 0

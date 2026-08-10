@@ -6,8 +6,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { useColors } from "@/hooks/useColors";
-import { profileStyles as styles } from "./profileStyles";
 
 interface ProfileInviteRowProps {
   expanded: boolean;
@@ -15,7 +13,6 @@ interface ProfileInviteRowProps {
   sending: boolean;
   error: string;
   sent: boolean;
-  colors: ReturnType<typeof useColors>;
   onOpen: () => void;
   onClose: () => void;
   onEmailChange: (value: string) => void;
@@ -28,7 +25,6 @@ export const ProfileInviteRow = ({
   sending,
   error,
   sent,
-  colors,
   onOpen,
   onClose,
   onEmailChange,
@@ -36,31 +32,25 @@ export const ProfileInviteRow = ({
 }: ProfileInviteRowProps) => {
   if (!expanded) {
     return (
-      <View
-        style={[
-          styles.rowItem,
-          styles.rowDivider,
-          { borderBottomColor: colors.border },
-        ]}
-      >
-        <View style={[styles.rowIconWrapper, styles.inviteIconWrapper]}>
+      <View className="flex-row items-center gap-3 border-b-[0.5px] border-slate-200 px-3.5 py-[13px]">
+        <View className="h-[34px] w-[34px] items-center justify-center rounded-lg bg-blue-50">
           <Feather name="send" size={16} color="#3B82F6" />
         </View>
-        <View style={styles.rowContent}>
-          <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
+        <View className="flex-1">
+          <Text className="font-inter-medium text-[11px] text-slate-500">
             Invite Member
           </Text>
-          <Text style={[styles.rowValue, { color: colors.foreground }]}>
+          <Text className="mt-px font-inter-medium text-sm text-slate-900">
             Send join key via email
           </Text>
         </View>
         <TouchableOpacity
-          style={[styles.actionButton, styles.inviteButton]}
+          className="flex-row items-center gap-[5px] rounded-lg bg-blue-50 px-2.5 py-[7px]"
           onPress={onOpen}
           activeOpacity={0.7}
         >
           <Feather name="send" size={15} color="#3B82F6" />
-          <Text style={[styles.actionButtonText, styles.inviteButtonText]}>
+          <Text className="font-inter-semibold text-xs text-blue-500">
             Invite
           </Text>
         </TouchableOpacity>
@@ -69,13 +59,13 @@ export const ProfileInviteRow = ({
   }
 
   return (
-    <View style={[styles.rowDivider, { borderBottomColor: colors.border }]}>
-      <View style={styles.rowItem}>
-        <View style={[styles.rowIconWrapper, styles.inviteIconWrapper]}>
+    <View className="border-b-[0.5px] border-slate-200">
+      <View className="flex-row items-center gap-3 px-3.5 py-[13px]">
+        <View className="h-[34px] w-[34px] items-center justify-center rounded-lg bg-blue-50">
           <Feather name="send" size={16} color="#3B82F6" />
         </View>
-        <View style={styles.rowContent}>
-          <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
+        <View className="flex-1">
+          <Text className="font-inter-medium text-[11px] text-slate-500">
             Invite Email
           </Text>
           <TextInput
@@ -84,31 +74,25 @@ export const ProfileInviteRow = ({
             onChangeText={onEmailChange}
             onSubmitEditing={onSubmit}
             placeholder="someone@example.com"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor="#64748B"
             keyboardType="email-address"
             autoCapitalize="none"
             returnKeyType="send"
-            style={[
-              styles.editInput,
-              { color: colors.foreground, borderBottomColor: "#3B82F6" },
-            ]}
+            className="mt-0.5 border-b-[1.5px] border-blue-500 py-0.5 font-inter-medium text-[15px] text-slate-900"
             editable={!sending}
           />
         </View>
-        <View style={styles.editActions}>
+        <View className="flex-row items-center gap-2">
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: colors.secondary }]}
+            className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100"
             onPress={onClose}
             disabled={sending}
             activeOpacity={0.7}
           >
-            <Feather name="x" size={16} color={colors.mutedForeground} />
+            <Feather name="x" size={16} color="#64748B" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[
-              styles.iconButton,
-              { backgroundColor: sent ? "#059669" : "#3B82F6" },
-            ]}
+            className={`h-8 w-8 items-center justify-center rounded-lg ${sent ? "bg-emerald-600" : "bg-blue-500"}`}
             onPress={onSubmit}
             disabled={sending || sent}
             activeOpacity={0.7}
@@ -121,8 +105,16 @@ export const ProfileInviteRow = ({
           </TouchableOpacity>
         </View>
       </View>
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
-      {sent && <Text style={styles.successText}>Invite sent!</Text>}
+      {!!error && (
+        <Text className="-mt-1 px-3.5 pb-2.5 font-inter text-xs text-red-600">
+          {error}
+        </Text>
+      )}
+      {sent && (
+        <Text className="-mt-1 px-3.5 pb-2.5 font-inter text-xs text-emerald-600">
+          Invite sent!
+        </Text>
+      )}
     </View>
   );
 };

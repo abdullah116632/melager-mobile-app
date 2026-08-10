@@ -1,11 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Text, TouchableOpacity, View } from "react-native";
-import type { AppColors } from "@/types/theme";
 import { formatDateLabel } from "@/utils/mealStatus";
-import { mealStatusStyles as styles } from "./mealStatusStyles";
 
 interface MealStatusHeaderProps {
-  colors: AppColors;
   selectedDate: string;
   today: string;
   isAtFutureLimit: boolean;
@@ -17,7 +14,6 @@ interface MealStatusHeaderProps {
 }
 
 export const MealStatusHeader = ({
-  colors,
   selectedDate,
   today,
   isAtFutureLimit,
@@ -30,20 +26,20 @@ export const MealStatusHeader = ({
   const isToday = selectedDate === today;
 
   return (
-    <View style={[styles.header, { backgroundColor: colors.primary }]}>
+    <View className="flex-row items-center gap-2 bg-teal-700 px-3 py-3">
       <TouchableOpacity
-        style={styles.iconBtn}
+        className="h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-white/10"
         onPress={onBack}
         activeOpacity={0.7}
       >
         <Feather name="arrow-left" size={20} color="#fff" />
       </TouchableOpacity>
 
-      <View style={styles.dateNav}>
+      <View className="flex-1 flex-row items-center justify-center">
         <TouchableOpacity
           onPress={onPreviousDate}
           activeOpacity={0.7}
-          style={styles.navArrow}
+          className="p-1.5"
         >
           <Feather
             name="chevron-left"
@@ -54,17 +50,21 @@ export const MealStatusHeader = ({
         <TouchableOpacity
           onPress={isToday ? undefined : onToday}
           activeOpacity={isToday ? 1 : 0.7}
-          style={styles.dateCenter}
+          className="min-w-[100px] items-center px-2"
         >
-          <Text style={styles.datePrimary}>
+          <Text className="font-inter-bold text-base text-white">
             {formatDateLabel(selectedDate, today)}
           </Text>
-          {!isToday && <Text style={styles.dateSub}>Tap → Today</Text>}
+          {!isToday && (
+            <Text className="mt-px font-inter text-[10px] text-white/65">
+              Tap → Today
+            </Text>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onNextDate}
           activeOpacity={0.7}
-          style={[styles.navArrow, isAtFutureLimit && { opacity: 0.35 }]}
+          className={`p-1.5 ${isAtFutureLimit ? "opacity-35" : "opacity-100"}`}
           disabled={isAtFutureLimit}
         >
           <Feather
@@ -76,7 +76,7 @@ export const MealStatusHeader = ({
       </View>
 
       <TouchableOpacity
-        style={styles.iconBtn}
+        className="h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-white/10"
         onPress={onRefresh}
         activeOpacity={0.7}
       >

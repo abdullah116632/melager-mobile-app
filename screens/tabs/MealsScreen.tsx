@@ -5,13 +5,15 @@ import {
   Alert,
   Platform,
   Pressable,
+  View,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
+import { StatusBar } from "expo-status-bar";
 
-import { useColors } from "@/hooks/useColors";
 import { useMess } from "@/context/MessContext";
 import { useAuth } from "@/context/AuthContext";
 import { useDrawer } from "@/context/DrawerContext";
@@ -20,12 +22,12 @@ import { AddMealConsumerModal } from "@/components/meals/AddMealConsumerModal";
 import { MealFillBanner } from "@/components/meals/MealFillBanner";
 import { MealsHeader } from "@/components/meals/MealsHeader";
 import { MealsGrid } from "@/components/meals/MealsGrid";
-import { mealStyles as styles } from "@/components/meals/mealStyles";
-import { DAY_CELL_W, NAME_COL_W } from "@/constants/meal";
+import { DAY_CELL_W, NAME_COL_W, TOTAL_COL_W } from "@/constants/meal";
 import type { ActiveMealCell, MealCellDirection } from "@/types/meal";
 
 export const MealsScreen = () => {
-  const colors = useColors();
+  const { width: windowWidth } = useWindowDimensions();
+  const [gridViewportWidth, setGridViewportWidth] = useState(windowWidth);
   const insets = useSafeAreaInsets();
   const { role } = useAuth();
   const isAdmin = role === "admin";
@@ -107,11 +109,26 @@ export const MealsScreen = () => {
 
   const daysCount = getDaysInMonth(currentYearMonth);
   const days = Array.from({ length: daysCount }, (_, i) => i + 1);
+  const tableWidth = NAME_COL_W + daysCount * DAY_CELL_W + TOTAL_COL_W;
+  const maxBodyScrollX = Math.max(0, tableWidth - gridViewportWidth);
 
   const handleBodyScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const x = e.nativeEvent.contentOffset.x;
+      const { contentOffset, layoutMeasurement } = e.nativeEvent;
+      // Use the ScrollView's measured dimensions for the live boundary. The
+      // grid can be narrower than the window (safe-area/navigation layouts),
+      // and a window-based limit leaves scrollable space after the Total
+      // column has reached the right edge.
+      const measuredMaxX = Math.max(
+        0,
+        tableWidth - layoutMeasurement.width,
+      );
+      const x = Math.min(Math.max(contentOffset.x, 0), measuredMaxX);
       bodyScrollX.current = x;
+
+      if (Math.abs(contentOffset.x - x) > 0.5) {
+        bodyScrollRef.current?.scrollTo({ x, animated: false });
+      }
       // While the activation pin is in effect, ignore body scroll events
       // so RN's auto-scroll-into-view (triggered by the TextInput focus)
       // does not yank the header. The pin logic re-asserts the user's
@@ -124,7 +141,7 @@ export const MealsScreen = () => {
         isSyncing.current = false;
       });
     },
-    [],
+    [tableWidth],
   );
 
   const handleOuterScroll = useCallback(
@@ -136,14 +153,24 @@ export const MealsScreen = () => {
   );
 
   const restoreGridPosition = useCallback(() => {
-    const x = scrollBeforeActivateXRef.current ?? bodyScrollX.current;
+    const requestedX = scrollBeforeActivateXRef.current ?? bodyScrollX.current;
+    const x = Math.min(Math.max(requestedX, 0), maxBodyScrollX);
     const y = scrollBeforeActivateYRef.current ?? outerScrollY.current;
     bodyScrollRef.current?.scrollTo({ x, animated: false });
     headerScrollRef.current?.scrollTo({ x, animated: false });
     outerScrollRef.current?.scrollTo({ y, animated: false });
     bodyScrollX.current = x;
     outerScrollY.current = y;
-  }, []);
+  }, [maxBodyScrollX]);
+
+  React.useEffect(() => {
+    const clampedX = Math.min(Math.max(bodyScrollX.current, 0), maxBodyScrollX);
+    if (Math.abs(bodyScrollX.current - clampedX) <= 0.5) return;
+
+    bodyScrollX.current = clampedX;
+    bodyScrollRef.current?.scrollTo({ x: clampedX, animated: false });
+    headerScrollRef.current?.scrollTo({ x: clampedX, animated: false });
+  }, [maxBodyScrollX]);
 
   // Header ScrollView is scrollEnabled={false} but its onScroll still fires
   // when we programmatically scrollTo it. This is a defensive RAF guard.
@@ -460,26 +487,28 @@ export const MealsScreen = () => {
     setAddError("");
   };
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 34 + 84 : insets.bottom + 49;
-
   return (
     <Pressable
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-[#F4F8FC] ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
       onPress={deselectAll}
       android_disableSound
     >
+      <StatusBar style="light" backgroundColor="#075F5B" />
+      {Platform.OS !== "web" && (
+        <View
+          pointerEvents="none"
+          className="absolute left-0 right-0 top-0 z-50 bg-[#075F5B]"
+          style={{ height: insets.top }}
+        />
+      )}
       <MealsHeader
-        backgroundColor={colors.primary}
         isAdmin={isAdmin}
         onMenu={openDrawer}
         onAddConsumer={() => setShowAddConsumer(true)}
       />
 
       <MonthPicker
+        variant="dashboard"
         onCellLeft={isAdmin ? () => moveSelectedCell("left") : undefined}
         onCellRight={isAdmin ? () => moveSelectedCell("right") : undefined}
         onCellUp={isAdmin ? () => moveSelectedCell("up") : undefined}
@@ -490,12 +519,10 @@ export const MealsScreen = () => {
       <MealFillBanner
         visible={fillMode}
         value={fillValue}
-        backgroundColor={colors.accent}
         onDone={exitFillMode}
       />
 
       <MealsGrid
-        colors={colors}
         consumers={consumers}
         yearMonth={currentYearMonth}
         days={days}
@@ -505,7 +532,8 @@ export const MealsScreen = () => {
         inputValue={inputValue}
         fillMode={fillMode}
         refreshing={refreshing}
-        bottomPadding={bottomPadding}
+        viewportWidth={gridViewportWidth}
+        onViewportWidthChange={setGridViewportWidth}
         headerScrollRef={headerScrollRef}
         bodyScrollRef={bodyScrollRef}
         outerScrollRef={outerScrollRef}
@@ -532,7 +560,6 @@ export const MealsScreen = () => {
 
       <AddMealConsumerModal
         visible={showAddConsumer}
-        colors={colors}
         bottomInset={insets.bottom}
         name={newName}
         email={newEmail}

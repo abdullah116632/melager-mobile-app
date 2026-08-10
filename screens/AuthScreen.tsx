@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 
 import { AuthBrand } from "@/components/auth/AuthBrand";
-import { authStyles as styles } from "@/components/auth/authStyles";
 import { ForgotPasswordCard } from "@/components/auth/ForgotPasswordCard";
 import { LoginSignupCard } from "@/components/auth/LoginSignupCard";
 import { ResetOtpCard } from "@/components/auth/ResetOtpCard";
@@ -26,7 +24,6 @@ const GOOGLE_DISCOVERY = {
 };
 
 const AuthScreen = () => {
-  const insets = useSafeAreaInsets();
   const { login, loginWithGoogle, signup, verifyOtp, resendOtp } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>("signup");
@@ -336,20 +333,23 @@ const AuthScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      className="flex-1 bg-[#0B5E57]"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View pointerEvents="none" style={styles.deco1} />
-      <View pointerEvents="none" style={styles.deco2} />
-      <View pointerEvents="none" style={styles.deco3} />
+      <View
+        pointerEvents="none"
+        className="absolute -right-[90px] -top-[110px] h-[340px] w-[340px] rounded-full bg-white/[0.07]"
+      />
+      <View
+        pointerEvents="none"
+        className="absolute -left-[60px] bottom-20 h-[200px] w-[200px] rounded-full bg-white/[0.05]"
+      />
+      <View
+        pointerEvents="none"
+        className="absolute -left-5 top-[140px] h-[90px] w-[90px] rounded-full bg-white/[0.06]"
+      />
       <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          {
-            paddingTop: insets.top + 40,
-            paddingBottom: insets.bottom + 24,
-          },
-        ]}
+        contentContainerClassName="flex-grow justify-center px-6 pb-safe-offset-6 pt-safe-offset-10"
         keyboardShouldPersistTaps="handled"
       >
         <AuthBrand />

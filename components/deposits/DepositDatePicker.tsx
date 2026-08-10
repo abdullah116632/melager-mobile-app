@@ -2,14 +2,11 @@ import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import type { AppColors } from "@/types/theme";
 import { getCurrentDepositDate } from "@/utils/deposit";
-import { depositStyles as styles } from "./depositStyles";
 
 interface DepositDatePickerProps {
   visible: boolean;
   initialDate: string;
-  colors: AppColors;
   onClose: () => void;
   onSelect: (date: string) => void;
 }
@@ -17,7 +14,6 @@ interface DepositDatePickerProps {
 export const DepositDatePicker = ({
   visible,
   initialDate,
-  colors,
   onClose,
   onSelect,
 }: DepositDatePickerProps) => {
@@ -44,66 +40,64 @@ export const DepositDatePicker = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.pickerBackdrop} onPress={onClose}>
+      <Pressable
+        className="flex-1 justify-center bg-black/45 px-[22px]"
+        onPress={onClose}
+      >
         <Pressable
-          style={[styles.datePickerSheet, { backgroundColor: colors.card }]}
+          className="rounded-[20px] bg-white p-[18px]"
           onPress={(event) => event.stopPropagation()}
         >
-          <View style={styles.pickerTitleRow}>
-            <Text style={[styles.pickerTitle, { color: colors.foreground }]}>
+          <View className="mb-3.5 flex-row items-center justify-between">
+            <Text className="font-inter-bold text-base text-slate-900">
               Select date
             </Text>
-            <View style={styles.pickerHeaderActions}>
+            <View className="flex-row items-center gap-2.5">
               <Feather name="calendar" size={23} color={DEPOSIT_PRIMARY} />
               <TouchableOpacity
-                style={[
-                  styles.pickerCloseButton,
-                  { backgroundColor: colors.secondary },
-                ]}
+                className="h-8 w-8 items-center justify-center rounded-full bg-slate-100"
                 onPress={onClose}
                 accessibilityLabel="Close date picker"
               >
-                <Feather name="x" size={18} color={colors.mutedForeground} />
+                <Feather name="x" size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.monthSelectRow}>
+          <View className="mb-3 flex-row items-center justify-between">
             <TouchableOpacity
-              style={styles.monthArrow}
+              className="h-[34px] w-[34px] items-center justify-center rounded-full"
               onPress={() => setCursor(new Date(year, month - 1, 1))}
             >
               <Feather name="chevron-left" size={20} color={DEPOSIT_PRIMARY} />
             </TouchableOpacity>
-            <Text
-              style={[styles.monthSelectTitle, { color: colors.foreground }]}
-            >
+            <Text className="font-inter-bold text-[15px] text-slate-900">
               {cursor.toLocaleDateString("en-US", {
                 month: "long",
                 year: "numeric",
               })}
             </Text>
             <TouchableOpacity
-              style={styles.monthArrow}
+              className="h-[34px] w-[34px] items-center justify-center rounded-full"
               onPress={() => setCursor(new Date(year, month + 1, 1))}
             >
               <Feather name="chevron-right" size={20} color={DEPOSIT_PRIMARY} />
             </TouchableOpacity>
           </View>
-          <View style={styles.weekdayRow}>
+          <View className="mb-1 flex-row">
             {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
               <Text
                 key={`${day}-${index}`}
-                style={[styles.weekdayText, { color: colors.mutedForeground }]}
+                className="w-[14.285%] text-center font-inter-semibold text-[11px] text-slate-500"
               >
                 {day}
               </Text>
             ))}
           </View>
-          <View style={styles.dateGrid}>
+          <View className="flex-row flex-wrap">
             {Array.from({ length: 42 }, (_, index) => {
               const day = index - firstDay + 1;
               if (day < 1 || day > daysInMonth) {
-                return <View key={index} style={styles.dateCell} />;
+                return <View key={index} className="h-10 w-[14.285%]" />;
               }
               const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const selected = date === initialDate;
@@ -111,25 +105,14 @@ export const DepositDatePicker = ({
               return (
                 <TouchableOpacity
                   key={date}
-                  style={styles.dateCell}
+                  className="h-10 w-[14.285%] items-center justify-center"
                   onPress={() => onSelect(date)}
                 >
                   <View
-                    style={[
-                      styles.dateNumber,
-                      selected && { backgroundColor: DEPOSIT_PRIMARY },
-                      isToday &&
-                        !selected && {
-                          borderColor: DEPOSIT_PRIMARY,
-                          borderWidth: 1,
-                        },
-                    ]}
+                    className={`h-[34px] w-[34px] items-center justify-center rounded-full ${selected ? "bg-teal-700" : isToday ? "border border-teal-700" : ""}`}
                   >
                     <Text
-                      style={[
-                        styles.dateCellText,
-                        { color: selected ? "#fff" : colors.foreground },
-                      ]}
+                      className={`font-inter-medium text-[13px] leading-[18px] [include-font-padding:false] ${selected ? "text-white" : "text-slate-900"}`}
                     >
                       {day}
                     </Text>

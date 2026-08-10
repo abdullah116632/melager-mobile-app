@@ -2,7 +2,6 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, Clipboard, Platform, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MessKeyRow } from "@/components/profile/MessKeyRow";
 import { ProfileActions } from "@/components/profile/ProfileActions";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
@@ -13,16 +12,12 @@ import {
   ProfileRow,
 } from "@/components/profile/ProfileRows";
 import { ProfileSectionCard } from "@/components/profile/ProfileSectionCard";
-import { profileStyles as styles } from "@/components/profile/profileStyles";
 import { useAuth } from "@/context/AuthContext";
-import { useColors } from "@/hooks/useColors";
 import { sendMessInvite } from "@/services/profileService";
 import type { ProfileEditField } from "@/types/profile";
 import { isValidInviteEmail } from "@/utils/profile";
 
 export const ProfileScreen = () => {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
     user,
@@ -49,8 +44,6 @@ export const ProfileScreen = () => {
   const isAdmin = role === "admin";
   const displayName = user?.name ?? "User";
   const displayEmail = user?.email ?? "";
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 118 : insets.bottom + 49;
 
   const closeInvite = () => {
     setInviting(false);
@@ -173,28 +166,21 @@ export const ProfileScreen = () => {
 
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
     >
       <ProfileHeader
         name={displayName}
         email={displayEmail}
         isAdmin={isAdmin}
-        backgroundColor={colors.primary}
         onBack={() => router.back()}
       />
       <ScrollView
-        style={styles.flex}
+        className="flex-1"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: bottomPadding },
-        ]}
+        contentContainerClassName={`gap-4 pt-5 ${Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"}`}
         keyboardShouldPersistTaps="handled"
       >
-        <ProfileSectionCard title="Account" colors={colors}>
+        <ProfileSectionCard title="Account">
           {editing === "name" ? (
             <ProfileEditRow
               icon="user"
@@ -205,7 +191,6 @@ export const ProfileScreen = () => {
               onCancel={cancelEdit}
               saving={editSaving}
               error={editError}
-              colors={colors}
               showDivider
             />
           ) : (
@@ -214,20 +199,14 @@ export const ProfileScreen = () => {
               label="Name"
               value={displayName}
               onEdit={() => startEdit("name")}
-              colors={colors}
               showDivider
             />
           )}
-          <ProfileRow
-            icon="mail"
-            label="Email"
-            value={displayEmail}
-            colors={colors}
-          />
+          <ProfileRow icon="mail" label="Email" value={displayEmail} />
         </ProfileSectionCard>
 
         {mess && (
-          <ProfileSectionCard title="Mess" colors={colors}>
+          <ProfileSectionCard title="Mess">
             {editing === "mess" ? (
               <ProfileEditRow
                 icon="home"
@@ -238,7 +217,6 @@ export const ProfileScreen = () => {
                 onCancel={cancelEdit}
                 saving={editSaving}
                 error={editError}
-                colors={colors}
                 showDivider
               />
             ) : (
@@ -247,14 +225,12 @@ export const ProfileScreen = () => {
                 label="Mess Name"
                 value={mess.name}
                 onEdit={isAdmin ? () => startEdit("mess") : undefined}
-                colors={colors}
                 showDivider
               />
             )}
             <MessKeyRow
               messKey={mess.messKey}
               copied={keyCopied}
-              colors={colors}
               onCopy={handleCopyKey}
             />
             {isAdmin && (
@@ -264,7 +240,6 @@ export const ProfileScreen = () => {
                 sending={inviteSending}
                 error={inviteError}
                 sent={inviteSent}
-                colors={colors}
                 onOpen={() => {
                   setInviting(true);
                   setInviteError("");
@@ -282,26 +257,19 @@ export const ProfileScreen = () => {
               icon="shield"
               label="Your Role"
               value={isAdmin ? "Admin — can edit data" : "Member — view only"}
-              valueColor={isAdmin ? "#059669" : colors.mutedForeground}
-              colors={colors}
+              valueClassName={isAdmin ? "text-emerald-600" : "text-slate-500"}
             />
           </ProfileSectionCard>
         )}
 
-        <ProfileSectionCard title="About" colors={colors}>
+        <ProfileSectionCard title="About">
           <ProfileRow
             icon="info"
             label="App"
             value="Mess Manager"
-            colors={colors}
             showDivider
           />
-          <ProfileRow
-            icon="code"
-            label="Version"
-            value="1.0.0"
-            colors={colors}
-          />
+          <ProfileRow icon="code" label="Version" value="1.0.0" />
         </ProfileSectionCard>
 
         <ProfileActions

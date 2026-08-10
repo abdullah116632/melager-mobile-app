@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require("expo/metro-config");
+const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
@@ -10,7 +11,10 @@ if (Array.isArray(existing)) {
 } else if (existing instanceof RegExp) {
   config.resolver.blockList = [existing, ...blockListPatterns];
 } else {
-  config.resolver = { ...(config.resolver ?? {}), blockList: blockListPatterns };
+  config.resolver = {
+    ...(config.resolver ?? {}),
+    blockList: blockListPatterns,
+  };
 }
 
-module.exports = config;
+module.exports = withNativeWind(config, { input: "./global.css" });

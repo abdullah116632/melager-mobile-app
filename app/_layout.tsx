@@ -1,27 +1,34 @@
-import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
-import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
-import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
-import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { useFonts } from 'expo-font';
-import { Stack, useSegments, useRouter } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import "../global.css";
 
-import { AppDrawer } from '@/components/AppDrawer';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { NotificationPanel } from '@/components/NotificationPanel';
-import { OfflineBanner } from '@/components/OfflineBanner';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
-import { DrawerProvider } from '@/context/DrawerContext';
-import { MessProvider } from '@/context/MessContext';
-import { NetworkProvider } from '@/context/NetworkContext';
-import { NotificationProvider } from '@/context/NotificationContext';
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
+import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
+import { useFonts } from "expo-font";
+import { Stack, useSegments, useRouter } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import React, { useEffect } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { cssInterop } from "nativewind";
+
+import { AppDrawer } from "@/components/AppDrawer";
+import { ConnectivityGate } from "@/components/ConnectivityGate";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { NotificationPanel } from "@/components/NotificationPanel";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { DrawerProvider } from "@/context/DrawerContext";
+import { MessProvider } from "@/context/MessContext";
+import { NetworkProvider } from "@/context/NetworkContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 SplashScreen.preventAutoHideAsync();
+
+const NativeWindGestureHandlerRootView = cssInterop(GestureHandlerRootView, {
+  className: "style",
+});
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, activeMess, authLoading } = useAuth();
@@ -32,22 +39,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (authLoading) return;
 
     const first = segments[0] as string | undefined;
-    const inAuth = first === 'auth';
-    const inMessHub = first === 'mess-hub';
-    const inMessSetup = first === 'mess-setup';
+    const inAuth = first === "auth";
+    const inMessHub = first === "mess-hub";
+    const inMessSetup = first === "mess-setup";
 
     if (!user) {
-      if (!inAuth) router.replace('/auth');
+      if (!inAuth) router.replace("/auth");
     } else if (!activeMess) {
-      if (!inMessHub && !inMessSetup) router.replace('/mess-hub');
+      if (!inMessHub && !inMessSetup) router.replace("/mess-hub");
     } else {
-      if (inAuth || inMessHub || inMessSetup || !first) router.replace('/(tabs)/dashboard');
+      if (inAuth || inMessHub || inMessSetup || !first)
+        router.replace("/(tabs)/dashboard");
     }
   }, [user, activeMess, authLoading, segments]);
 
   if (authLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F766E' }}>
+      <View className="flex-1 items-center justify-center bg-teal-700">
         <ActivityIndicator size="large" color="#fff" />
       </View>
     );
@@ -90,23 +98,24 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <NetworkProvider>
-        <ErrorBoundary>
-          <AuthProvider>
-            <MessProvider>
-              <NotificationProvider>
-                <DrawerProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }}>
-                    <KeyboardProvider>
-                      <RootLayoutNav />
-                    </KeyboardProvider>
-                    <OfflineBanner />
-                    <NotificationPanel />
-                  </GestureHandlerRootView>
-                </DrawerProvider>
-              </NotificationProvider>
-            </MessProvider>
-          </AuthProvider>
-        </ErrorBoundary>
+        <ConnectivityGate>
+          <ErrorBoundary>
+            <AuthProvider>
+              <MessProvider>
+                <NotificationProvider>
+                  <DrawerProvider>
+                    <NativeWindGestureHandlerRootView className="flex-1">
+                      <KeyboardProvider>
+                        <RootLayoutNav />
+                      </KeyboardProvider>
+                      <NotificationPanel />
+                    </NativeWindGestureHandlerRootView>
+                  </DrawerProvider>
+                </NotificationProvider>
+              </MessProvider>
+            </AuthProvider>
+          </ErrorBoundary>
+        </ConnectivityGate>
       </NetworkProvider>
     </SafeAreaProvider>
   );

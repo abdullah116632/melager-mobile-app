@@ -3,7 +3,6 @@ import { api, clearApiCache, type MonthData } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useNetwork } from '@/context/NetworkContext';
 import { saveToCache, loadFromCache } from '@/lib/cache';
-import { enqueue } from '@/lib/offlineQueue';
 
 export interface Consumer {
   id: string;
@@ -196,6 +195,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addConsumer = async (name: string, email: string, mobileNumber?: string) => {
+    if (!isOnline) throw new Error('Internet connection required.');
     if (!token || !activeMess) return;
     const { consumer } = await api.addConsumer(name, email, mobileNumber, token, activeMess.id);
     setState((prev) => ({
@@ -205,6 +205,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeConsumer = async (id: string) => {
+    if (!isOnline) throw new Error('Internet connection required.');
     if (!token || !activeMess) return;
     await api.removeConsumer(parseInt(id, 10), token, activeMess.id);
     setState((prev) => {
@@ -233,6 +234,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     state.meals[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
 
   const setMeal = (yearMonth: string, consumerId: string, day: number, count: number) => {
+    if (!isOnline) return;
     setState((prev) => ({
       ...prev,
       meals: {
@@ -244,16 +246,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       },
     }));
     if (!token || !activeMess) return;
-    if (isOnline) {
-      api.setMeal(consumerId, yearMonth, day, count, token, activeMess.id).catch(() => {});
-    } else {
-      enqueue({
-        type: 'SET_MEAL',
-        key: `meal:${activeMess.id}:${yearMonth}:${consumerId}:${day}`,
-        payload: { consumerId, yearMonth, day, count, messId: activeMess.id },
-        token,
-      }).catch(() => {});
-    }
+    api.setMeal(consumerId, yearMonth, day, count, token, activeMess.id).catch(() => {});
   };
 
   const getConsumerTotal = (yearMonth: string, consumerId: string): number =>
@@ -278,6 +271,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setExpense = (yearMonth: string, day: number, items: DayExpenseItem[]) => {
+    if (!isOnline) return;
     setState((prev) => ({
       ...prev,
       expenses: {
@@ -286,16 +280,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       },
     }));
     if (!token || !activeMess) return;
-    if (isOnline) {
-      api.setExpense(yearMonth, day, items, token, activeMess.id).catch(() => {});
-    } else {
-      enqueue({
-        type: 'SET_EXPENSE',
-        key: `expense:${activeMess.id}:${yearMonth}:${day}`,
-        payload: { yearMonth, day, items, messId: activeMess.id },
-        token,
-      }).catch(() => {});
-    }
+    api.setExpense(yearMonth, day, items, token, activeMess.id).catch(() => {});
   };
 
   const getMonthExpenseTotal = (yearMonth: string): number =>
@@ -308,6 +293,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     state.deposits[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
 
   const setDeposit = (yearMonth: string, consumerId: string, day: number, amount: number) => {
+    if (!isOnline) return;
     setState((prev) => ({
       ...prev,
       deposits: {

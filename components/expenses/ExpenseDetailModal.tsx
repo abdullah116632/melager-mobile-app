@@ -1,16 +1,13 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { EXPENSE_DARK, EXPENSE_PRIMARY } from "@/constants/expense";
-import type { useColors } from "@/hooks/useColors";
+import { EXPENSE_PRIMARY } from "@/constants/expense";
 import type { DayExpenseSummary } from "@/types/expense";
 import { formatExpenseAmount } from "@/utils/expense";
-import { expenseStyles as styles } from "./expenseStyles";
 
 interface ExpenseDetailModalProps {
   visible: boolean;
   day: number | null;
   expense: DayExpenseSummary | null;
-  colors: ReturnType<typeof useColors>;
   isAdmin: boolean;
   onClose: () => void;
   onDeleteItem: (id: string) => void;
@@ -21,7 +18,6 @@ export const ExpenseDetailModal = ({
   visible,
   day,
   expense,
-  colors,
   isAdmin,
   onClose,
   onDeleteItem,
@@ -33,29 +29,27 @@ export const ExpenseDetailModal = ({
     animationType="slide"
     onRequestClose={onClose}
   >
-    <View style={styles.modalOverlay}>
+    <View className="flex-1 justify-end bg-black/45">
       <TouchableOpacity
-        style={styles.modalSpacer}
+        className="flex-1"
         activeOpacity={1}
         onPress={onClose}
       />
-      <View style={[styles.detailSheet, { backgroundColor: colors.card }]}>
-        <View
-          style={[styles.sheetHandle, { backgroundColor: colors.border }]}
-        />
-        <View style={styles.sheetHeader}>
+      <View className="max-h-[72%] rounded-t-3xl bg-white px-5 pb-6 pt-3">
+        <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
+        <View className="mb-3.5 flex-row items-start justify-between">
           <View>
-            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>
+            <Text className="font-inter-bold text-[17px] text-slate-900">
               Expenses · Day {day}
             </Text>
-            <Text style={[styles.sheetSubtotal, { color: EXPENSE_PRIMARY }]}>
+            <Text className="mt-0.5 font-inter-semibold text-[13px] text-teal-700">
               ৳{formatExpenseAmount(expense?.total ?? 0)}
             </Text>
           </View>
-          <View style={styles.sheetHeaderActions}>
+          <View className="flex-row items-center gap-2">
             {isAdmin && (expense?.items.length ?? 0) > 0 && (
               <TouchableOpacity
-                style={[styles.clearButton, styles.deleteAllButton]}
+                className="h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50"
                 onPress={onDeleteAll}
                 accessibilityLabel="Delete all expenses for this day"
               >
@@ -63,53 +57,40 @@ export const ExpenseDetailModal = ({
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[
-                styles.clearButton,
-                { backgroundColor: colors.secondary },
-              ]}
+              className="h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-100"
               onPress={onClose}
               accessibilityLabel="Close expense list"
             >
-              <Feather name="x" size={19} color={colors.mutedForeground} />
+              <Feather name="x" size={19} color="#64748B" />
             </TouchableOpacity>
           </View>
         </View>
 
         {expense?.items.length ? (
           <ScrollView
-            style={styles.detailList}
+            className="max-h-[360px]"
             showsVerticalScrollIndicator={false}
           >
             {expense.items.map((item) => (
               <View
                 key={item.id}
-                style={[
-                  styles.detailItemRow,
-                  { borderBottomColor: colors.border },
-                ]}
+                className="flex-row items-center gap-2.5 border-b-[0.5px] border-slate-200 py-3"
               >
-                <View
-                  style={[
-                    styles.detailItemIcon,
-                    { backgroundColor: "#F0FDFA" },
-                  ]}
-                >
+                <View className="h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-teal-50">
                   <Feather name="tag" size={15} color={EXPENSE_PRIMARY} />
                 </View>
                 <Text
-                  style={[styles.detailItemName, { color: colors.foreground }]}
+                  className="flex-1 font-inter-medium text-sm text-slate-900"
                   numberOfLines={1}
                 >
                   {item.name || "Untitled item"}
                 </Text>
-                <Text
-                  style={[styles.detailItemAmount, { color: EXPENSE_DARK }]}
-                >
+                <Text className="font-inter-bold text-sm text-[#0A5954]">
                   ৳{formatExpenseAmount(item.amount)}
                 </Text>
                 {isAdmin && (
                   <TouchableOpacity
-                    style={styles.detailItemDeleteButton}
+                    className="ml-0.5 h-8 w-8 items-center justify-center rounded-full bg-red-50"
                     onPress={() => onDeleteItem(item.id)}
                     accessibilityLabel={`Delete ${item.name || "expense item"}`}
                   >
@@ -120,18 +101,9 @@ export const ExpenseDetailModal = ({
             ))}
           </ScrollView>
         ) : (
-          <View style={styles.detailEmptyState}>
-            <Feather
-              name="file-text"
-              size={28}
-              color={colors.mutedForeground}
-            />
-            <Text
-              style={[
-                styles.detailEmptyText,
-                { color: colors.mutedForeground },
-              ]}
-            >
+          <View className="items-center gap-2.5 py-[34px]">
+            <Feather name="file-text" size={28} color="#64748B" />
+            <Text className="font-inter text-sm text-slate-500">
               No expense items for this day.
             </Text>
           </View>

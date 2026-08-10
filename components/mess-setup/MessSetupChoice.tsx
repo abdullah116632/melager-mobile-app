@@ -1,7 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Text, TouchableOpacity, View } from "react-native";
 import type { MessSetupMode } from "@/types/messSetup";
-import { messSetupStyles as styles } from "./messSetupStyles";
 
 interface ChoiceCardProps {
   mode: MessSetupMode;
@@ -12,12 +11,12 @@ const ChoiceCard = ({ mode, onChoose }: ChoiceCardProps) => {
   const isCreate = mode === "create";
 
   return (
-    <TouchableOpacity style={styles.optionCard} onPress={() => onChoose(mode)}>
+    <TouchableOpacity
+      className="rounded-[20px] bg-white p-[22px] shadow-lg shadow-black/10"
+      onPress={() => onChoose(mode)}
+    >
       <View
-        style={[
-          styles.optionIcon,
-          { backgroundColor: isCreate ? "#ECFDF5" : "#EFF6FF" },
-        ]}
+        className={`mb-3.5 h-[58px] w-[58px] items-center justify-center rounded-[14px] ${isCreate ? "bg-emerald-50" : "bg-blue-50"}`}
       >
         <Feather
           name={isCreate ? "plus-circle" : "log-in"}
@@ -25,10 +24,10 @@ const ChoiceCard = ({ mode, onChoose }: ChoiceCardProps) => {
           color={isCreate ? "#0F766E" : "#3B82F6"}
         />
       </View>
-      <Text style={styles.optionTitle}>
+      <Text className="mb-1.5 font-inter-bold text-[17px] text-gray-900">
         {isCreate ? "Create a Mess" : "Join a Mess"}
       </Text>
-      <Text style={styles.optionDescription}>
+      <Text className="font-inter text-[13px] leading-5 text-gray-500">
         {isCreate
           ? "Start a new mess. You'll be the admin and get a shareable key."
           : "Enter the mess key shared by your admin to request to join."}
@@ -42,7 +41,7 @@ export const MessSetupChoice = ({
 }: {
   onChoose: (mode: MessSetupMode) => void;
 }) => (
-  <View style={styles.choiceGrid}>
+  <View className="gap-3.5">
     <ChoiceCard mode="create" onChoose={onChoose} />
     <ChoiceCard mode="join" onChoose={onChoose} />
   </View>

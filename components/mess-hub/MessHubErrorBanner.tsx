@@ -1,10 +1,11 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Text, View } from "react-native";
-import { messHubStyles as styles } from "./messHubStyles";
 
 export const MessHubErrorBanner = ({ message }: { message: string }) => (
-  <View style={styles.errorBanner}>
+  <View className="mb-1 flex-row items-center gap-2 rounded-[10px] border border-red-200 bg-red-50 p-3">
     <Feather name="alert-circle" size={14} color="#DC2626" />
-    <Text style={styles.errorBannerText}>{message}</Text>
+    <Text className="flex-1 font-inter text-[13px] text-red-600">
+      {message}
+    </Text>
   </View>
 );

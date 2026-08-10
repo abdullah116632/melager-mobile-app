@@ -1,11 +1,11 @@
 import * as Haptics from "expo-haptics";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AddDepositConsumerModal } from "@/components/deposits/AddDepositConsumerModal";
 import { AddDepositModal } from "@/components/deposits/AddDepositModal";
 import { DepositHistoryModal } from "@/components/deposits/DepositHistoryModal";
-import { depositStyles as styles } from "@/components/deposits/depositStyles";
 import { DepositsHeader } from "@/components/deposits/DepositsHeader";
 import { DepositsTable } from "@/components/deposits/DepositsTable";
 import MonthPicker from "@/components/MonthPicker";
@@ -14,12 +14,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useDrawer } from "@/context/DrawerContext";
 import { useMess } from "@/context/MessContext";
 import { useNetwork } from "@/context/NetworkContext";
-import { useColors } from "@/hooks/useColors";
 import {
   addDepositEntry,
   deleteDepositEntry,
   getDepositEntries,
-  queueDepositEntry,
 } from "@/services/depositService";
 import type { DepositEntry } from "@/types/deposit";
 import {
@@ -30,7 +28,6 @@ import {
 } from "@/utils/deposit";
 
 export const DepositsScreen = () => {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { role, token, activeMess } = useAuth();
   const { isOnline } = useNetwork();
@@ -116,6 +113,11 @@ export const DepositsScreen = () => {
 
     setAddSaving(true);
     setAddError("");
+    if (!isOnline) {
+      setAddError("Internet connection required.");
+      setAddSaving(false);
+      return;
+    }
     const data = {
       messId,
       consumerId: parseInt(addConsumerId, 10),
@@ -123,19 +125,6 @@ export const DepositsScreen = () => {
       depositedAt: depositedAt.toISOString(),
       note: addNote.trim() || undefined,
     };
-
-    if (!isOnline) {
-      const temporaryEntry = await queueDepositEntry(data, token);
-      setEntries((current) => [...current, temporaryEntry]);
-      setShowAdd(false);
-      setAddSaving(false);
-      if (Platform.OS !== "web") {
-        void Haptics.notificationAsync(
-          Haptics.NotificationFeedbackType.Success,
-        );
-      }
-      return;
-    }
 
     try {
       const entry = await addDepositEntry(data, token);
@@ -255,35 +244,35 @@ export const DepositsScreen = () => {
             new Date(first.depositedAt).getTime(),
         )
     : [];
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 118 : insets.bottom + 49;
-
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-[#F4F8FC] ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
     >
+      <StatusBar style="light" backgroundColor="#075F5B" />
+      {Platform.OS !== "web" && (
+        <View
+          pointerEvents="none"
+          className="absolute left-0 right-0 top-0 z-50 bg-[#075F5B]"
+          style={{ height: insets.top }}
+        />
+      )}
       <DepositsHeader
         grandTotal={getDepositTotal(entries)}
         isAdmin={isAdmin}
         onMenu={openDrawer}
         onAddConsumer={() => setShowAddConsumer(true)}
       />
-      <MonthPicker accentColor={DEPOSIT_PRIMARY} />
+      <MonthPicker accentColor={DEPOSIT_PRIMARY} variant="dashboard" />
       {loading && (
-        <View style={styles.loadingRow}>
+        <View className="items-center py-3">
           <ActivityIndicator size="small" color={DEPOSIT_PRIMARY} />
         </View>
       )}
       <DepositsTable
-        colors={colors}
         consumers={consumers}
         entries={entries}
         isAdmin={isAdmin}
         refreshing={refreshing}
-        bottomPadding={bottomPadding}
         onRefresh={() => void handleRefresh()}
         onAddDeposit={openAddDeposit}
         onOpenHistory={openHistory}
@@ -292,7 +281,6 @@ export const DepositsScreen = () => {
 
       <AddDepositModal
         visible={showAdd}
-        colors={colors}
         consumerName={
           consumers.find((consumer) => consumer.id === addConsumerId)?.name ??
           ""
@@ -312,7 +300,6 @@ export const DepositsScreen = () => {
       />
       <DepositHistoryModal
         visible={showHistory}
-        colors={colors}
         consumerName={historyConsumer?.name ?? ""}
         entries={historyEntries}
         isAdmin={isAdmin}
@@ -322,7 +309,6 @@ export const DepositsScreen = () => {
       />
       <AddDepositConsumerModal
         visible={showAddConsumer}
-        colors={colors}
         name={newName}
         email={newEmail}
         phone={newPhone}

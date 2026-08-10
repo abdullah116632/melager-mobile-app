@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import type { useColors } from "@/hooks/useColors";
-import { profileStyles as styles } from "./profileStyles";
 
 type FeatherIconName = ComponentProps<typeof Feather>["name"];
 
@@ -16,38 +14,32 @@ interface ProfileRowProps {
   icon: FeatherIconName;
   label: string;
   value: string;
-  valueColor?: string;
-  colors: ReturnType<typeof useColors>;
+  valueClassName?: string;
   showDivider?: boolean;
 }
+
+const RowIcon = ({ icon }: { icon: FeatherIconName }) => (
+  <View className="h-[34px] w-[34px] items-center justify-center rounded-lg bg-slate-100">
+    <Feather name={icon} size={16} color="#0F766E" />
+  </View>
+);
 
 export const ProfileRow = ({
   icon,
   label,
   value,
-  valueColor,
-  colors,
+  valueClassName = "text-slate-900",
   showDivider,
 }: ProfileRowProps) => (
   <View
-    style={[
-      styles.rowItem,
-      showDivider && styles.rowDivider,
-      showDivider && { borderBottomColor: colors.border },
-    ]}
+    className={`flex-row items-center gap-3 px-3.5 py-[13px] ${showDivider ? "border-b-[0.5px] border-slate-200" : ""}`}
   >
-    <View
-      style={[styles.rowIconWrapper, { backgroundColor: colors.secondary }]}
-    >
-      <Feather name={icon} size={16} color={colors.primary} />
-    </View>
-    <View style={styles.rowContent}>
-      <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
+    <RowIcon icon={icon} />
+    <View className="flex-1">
+      <Text className="font-inter-medium text-[11px] text-slate-500">
         {label}
       </Text>
-      <Text
-        style={[styles.rowValue, { color: valueColor ?? colors.foreground }]}
-      >
+      <Text className={`mt-px font-inter-medium text-sm ${valueClassName}`}>
         {value}
       </Text>
     </View>
@@ -62,44 +54,31 @@ export const ProfileEditableRow = ({
   icon,
   label,
   value,
-  valueColor,
-  colors,
+  valueClassName = "text-slate-900",
   showDivider,
   onEdit,
 }: ProfileEditableRowProps) => (
   <View
-    style={[
-      styles.rowItem,
-      showDivider && styles.rowDivider,
-      showDivider && { borderBottomColor: colors.border },
-    ]}
+    className={`flex-row items-center gap-3 px-3.5 py-[13px] ${showDivider ? "border-b-[0.5px] border-slate-200" : ""}`}
   >
-    <View
-      style={[styles.rowIconWrapper, { backgroundColor: colors.secondary }]}
-    >
-      <Feather name={icon} size={16} color={colors.primary} />
-    </View>
-    <View style={styles.rowContent}>
-      <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
+    <RowIcon icon={icon} />
+    <View className="flex-1">
+      <Text className="font-inter-medium text-[11px] text-slate-500">
         {label}
       </Text>
-      <Text
-        style={[styles.rowValue, { color: valueColor ?? colors.foreground }]}
-      >
+      <Text className={`mt-px font-inter-medium text-sm ${valueClassName}`}>
         {value}
       </Text>
     </View>
     {onEdit && (
       <TouchableOpacity
-        style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+        className="flex-row items-center gap-[5px] rounded-lg bg-slate-100 px-2.5 py-[7px]"
         onPress={onEdit}
         activeOpacity={0.7}
         hitSlop={8}
       >
-        <Feather name="edit-2" size={14} color={colors.primary} />
-        <Text style={[styles.actionButtonText, { color: colors.primary }]}>
-          Edit
-        </Text>
+        <Feather name="edit-2" size={14} color="#0F766E" />
+        <Text className="font-inter-semibold text-xs text-teal-700">Edit</Text>
       </TouchableOpacity>
     )}
   </View>
@@ -111,7 +90,6 @@ interface ProfileEditRowProps {
   value: string;
   saving: boolean;
   error: string;
-  colors: ReturnType<typeof useColors>;
   showDivider?: boolean;
   onChange: (value: string) => void;
   onSave: () => void;
@@ -124,26 +102,16 @@ export const ProfileEditRow = ({
   value,
   saving,
   error,
-  colors,
   showDivider,
   onChange,
   onSave,
   onCancel,
 }: ProfileEditRowProps) => (
-  <View
-    style={[
-      showDivider && styles.rowDivider,
-      showDivider && { borderBottomColor: colors.border },
-    ]}
-  >
-    <View style={styles.rowItem}>
-      <View
-        style={[styles.rowIconWrapper, { backgroundColor: colors.secondary }]}
-      >
-        <Feather name={icon} size={16} color={colors.primary} />
-      </View>
-      <View style={styles.rowContent}>
-        <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
+  <View className={showDivider ? "border-b-[0.5px] border-slate-200" : ""}>
+    <View className="flex-row items-center gap-3 px-3.5 py-[13px]">
+      <RowIcon icon={icon} />
+      <View className="flex-1">
+        <Text className="font-inter-medium text-[11px] text-slate-500">
           {label}
         </Text>
         <TextInput
@@ -152,28 +120,22 @@ export const ProfileEditRow = ({
           onChangeText={onChange}
           onSubmitEditing={onSave}
           returnKeyType="done"
-          style={[
-            styles.editInput,
-            {
-              color: colors.foreground,
-              borderBottomColor: colors.primary,
-            },
-          ]}
+          className="mt-0.5 border-b-[1.5px] border-teal-700 py-0.5 font-inter-medium text-[15px] text-slate-900"
           maxLength={100}
           editable={!saving}
         />
       </View>
-      <View style={styles.editActions}>
+      <View className="flex-row items-center gap-2">
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: colors.secondary }]}
+          className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100"
           onPress={onCancel}
           disabled={saving}
           activeOpacity={0.7}
         >
-          <Feather name="x" size={16} color={colors.mutedForeground} />
+          <Feather name="x" size={16} color="#64748B" />
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: colors.primary }]}
+          className="h-8 w-8 items-center justify-center rounded-lg bg-teal-700"
           onPress={onSave}
           disabled={saving}
           activeOpacity={0.7}
@@ -186,6 +148,10 @@ export const ProfileEditRow = ({
         </TouchableOpacity>
       </View>
     </View>
-    {!!error && <Text style={styles.errorText}>{error}</Text>}
+    {!!error && (
+      <Text className="-mt-1 px-3.5 pb-2.5 font-inter text-xs text-red-600">
+        {error}
+      </Text>
+    )}
   </View>
 );

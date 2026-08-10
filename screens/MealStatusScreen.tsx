@@ -6,10 +6,8 @@ import {
   ScrollView,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MealOptOutTable } from "@/components/meal-status/MealOptOutTable";
 import { MealStatusHeader } from "@/components/meal-status/MealStatusHeader";
-import { mealStatusStyles as styles } from "@/components/meal-status/mealStatusStyles";
 import { ScheduleEditor } from "@/components/meal-status/ScheduleEditor";
 import { TimePickerModal } from "@/components/meal-status/TimePickerModal";
 import {
@@ -20,7 +18,6 @@ import {
   MEAL_TYPES,
 } from "@/constants/mealStatus";
 import { useAuth } from "@/context/AuthContext";
-import { useColors } from "@/hooks/useColors";
 import {
   getMealStatus,
   updateMealSchedule,
@@ -76,8 +73,6 @@ export const MealStatusScreen = ({
   initialDate,
   onBack,
 }: MealStatusScreenProps) => {
-  const insets = useSafeAreaInsets();
-  const colors = useColors();
   const { mess, token } = useAuth();
   const today = getTodayDate();
   const maxFutureDate = addDays(today, MEAL_STATUS_MAX_FUTURE_DAYS);
@@ -274,17 +269,11 @@ export const MealStatusScreen = ({
     mess?.id,
   ]);
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-
   return (
     <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
     >
       <MealStatusHeader
-        colors={colors}
         selectedDate={selectedDate}
         today={today}
         isAtFutureLimit={isAtFutureLimit}
@@ -300,19 +289,15 @@ export const MealStatusScreen = ({
       />
 
       {loading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#0F766E" />
         </View>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + 32 },
-          ]}
+          contentContainerClassName="pb-safe-offset-8 pt-4"
         >
           <ScheduleEditor
-            colors={colors}
             draft={draft}
             isPast={isPast}
             saving={saving}
@@ -322,14 +307,13 @@ export const MealStatusScreen = ({
               setTimePicker({ value, onChange })
             }
           />
-          <MealOptOutTable colors={colors} consumers={consumers} />
+          <MealOptOutTable consumers={consumers} />
         </ScrollView>
       )}
 
       <TimePickerModal
         visible={Boolean(timePicker)}
         initialValue={timePicker?.value ?? ""}
-        colors={colors}
         onClose={() => setTimePicker(null)}
         onSelect={(value) => {
           timePicker?.onChange(value);

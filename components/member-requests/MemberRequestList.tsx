@@ -7,26 +7,29 @@ import {
   View,
 } from "react-native";
 import type { MemberRequest } from "@/types/memberRequest";
-import type { AppColors } from "@/types/theme";
 import { getAvatarColor, getInitials } from "@/utils/memberRequest";
-import { memberRequestStyles as styles } from "./memberRequestStyles";
+
+const AVATAR_CLASS_BY_COLOR: Record<string, string> = {
+  "#0D9488": "bg-teal-600",
+  "#0284C7": "bg-sky-600",
+  "#7C3AED": "bg-violet-600",
+  "#DB2777": "bg-pink-600",
+  "#EA580C": "bg-orange-600",
+  "#059669": "bg-emerald-600",
+};
 
 interface MemberRequestListProps {
-  colors: AppColors;
   requests: MemberRequest[];
   search: string;
   actingOn: number | null;
-  bottomPadding: number;
   onAccept: (requestId: number) => void;
   onReject: (requestId: number) => void;
 }
 
 export const MemberRequestList = ({
-  colors,
   requests,
   search,
   actingOn,
-  bottomPadding,
   onAccept,
   onReject,
 }: MemberRequestListProps) => {
@@ -34,47 +37,43 @@ export const MemberRequestList = ({
 
   return (
     <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
+      className="flex-1"
+      contentContainerClassName="gap-3 px-4 pb-safe-offset-6 pt-4"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.countLabel, { color: colors.mutedForeground }]}>
+      <Text className="mb-1 font-inter-medium text-xs tracking-[0.3px] text-slate-500">
         {requests.length} {requests.length === 1 ? "request" : "requests"}
         {hasQuery ? ` matching "${search.trim()}"` : " pending"}
       </Text>
 
       {requests.map((request) => {
         const isActing = actingOn === request.id;
+        const avatarClassName =
+          AVATAR_CLASS_BY_COLOR[getAvatarColor(request.name)] ?? "bg-teal-600";
 
         return (
           <View
             key={request.id}
-            style={[
-              styles.card,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
+            className="gap-3 rounded-[14px] border border-slate-200 bg-white p-3.5"
           >
-            <View style={styles.cardIdentity}>
+            <View className="flex-row items-center gap-3">
               <View
-                style={[
-                  styles.avatar,
-                  { backgroundColor: getAvatarColor(request.name) },
-                ]}
+                className={`h-[46px] w-[46px] items-center justify-center rounded-full ${avatarClassName}`}
               >
-                <Text style={styles.avatarText}>
+                <Text className="font-inter-bold text-base text-white">
                   {getInitials(request.name)}
                 </Text>
               </View>
-              <View style={styles.identityText}>
+              <View className="flex-1">
                 <Text
-                  style={[styles.name, { color: colors.foreground }]}
+                  className="font-inter-semibold text-[15px] text-slate-900"
                   numberOfLines={1}
                 >
                   {request.name}
                 </Text>
                 {request.email ? (
                   <Text
-                    style={[styles.email, { color: colors.mutedForeground }]}
+                    className="mt-0.5 font-inter text-xs text-slate-500"
                     numberOfLines={1}
                   >
                     {request.email}
@@ -83,9 +82,9 @@ export const MemberRequestList = ({
               </View>
             </View>
 
-            <View style={styles.actions}>
+            <View className="flex-row gap-2.5">
               <TouchableOpacity
-                style={[styles.actionButton, styles.rejectButton]}
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] border border-red-200 bg-red-50 py-2.5"
                 onPress={() => onReject(request.id)}
                 disabled={isActing}
                 activeOpacity={0.8}
@@ -95,13 +94,15 @@ export const MemberRequestList = ({
                 ) : (
                   <>
                     <Feather name="x" size={15} color="#DC2626" />
-                    <Text style={styles.rejectText}>Reject</Text>
+                    <Text className="font-inter-semibold text-[13px] text-red-600">
+                      Reject
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.actionButton, styles.acceptButton]}
+                className="flex-1 flex-row items-center justify-center gap-1.5 rounded-[10px] bg-teal-700 py-2.5"
                 onPress={() => onAccept(request.id)}
                 disabled={isActing}
                 activeOpacity={0.8}
@@ -111,7 +112,9 @@ export const MemberRequestList = ({
                 ) : (
                   <>
                     <Feather name="check" size={15} color="#fff" />
-                    <Text style={styles.acceptText}>Accept</Text>
+                    <Text className="font-inter-semibold text-[13px] text-white">
+                      Accept
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>

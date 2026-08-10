@@ -5,6 +5,7 @@ import { flushQueue, subscribeQueueSize } from '@/lib/offlineQueue';
 
 interface NetworkContextType {
   isOnline: boolean;
+  isCheckingNetwork: boolean;
   pendingCount: number;
   isSyncing: boolean;
   syncNow: () => Promise<void>;
@@ -12,13 +13,15 @@ interface NetworkContextType {
 
 const NetworkContext = createContext<NetworkContextType>({
   isOnline: true,
+  isCheckingNetwork: true,
   pendingCount: 0,
   isSyncing: false,
   syncNow: async () => {},
 });
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+  const [isCheckingNetwork, setIsCheckingNetwork] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const wasOfflineRef = useRef(false);
@@ -42,10 +45,10 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = NetInfo.addEventListener((state) => {
-      // Treat null/unknown as online — only go offline when explicitly false
       const online =
-        state.isConnected !== false && state.isInternetReachable !== false;
+        state.isConnected === true && state.isInternetReachable !== false;
       setIsOnline(online);
+      setIsCheckingNetwork(false);
       if (online && wasOfflineRef.current) {
         syncNow();
       }
@@ -55,7 +58,15 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   }, [syncNow]);
 
   return (
-    <NetworkContext.Provider value={{ isOnline, pendingCount, isSyncing, syncNow }}>
+    <NetworkContext.Provider
+      value={{
+        isOnline,
+        isCheckingNetwork,
+        pendingCount,
+        isSyncing,
+        syncNow,
+      }}
+    >
       {children}
     </NetworkContext.Provider>
   );

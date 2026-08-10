@@ -1,7 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import type { MessHubJoinRequest } from "@/types/messHub";
-import { messHubStyles as styles } from "./messHubStyles";
 
 interface JoinRequestCardProps {
   request: MessHubJoinRequest;
@@ -17,13 +16,10 @@ export const JoinRequestCard = ({
   const isPending = request.status === "pending";
 
   return (
-    <View style={[styles.card, styles.requestCard]}>
-      <View style={styles.cardLeft}>
+    <View className="flex-row items-center gap-3 rounded-2xl border-l-[3px] border-gray-200 bg-white p-3.5 shadow-sm shadow-black/[0.06]">
+      <View className="flex-1 flex-row items-center gap-3">
         <View
-          style={[
-            styles.messIconCircle,
-            { backgroundColor: isPending ? "#FFFBEB" : "#FEF2F2" },
-          ]}
+          className={`h-[42px] w-[42px] items-center justify-center rounded-full ${isPending ? "bg-amber-50" : "bg-red-50"}`}
         >
           <Feather
             name={isPending ? "clock" : "x-circle"}
@@ -31,24 +27,18 @@ export const JoinRequestCard = ({
             color={isPending ? "#D97706" : "#DC2626"}
           />
         </View>
-        <View style={styles.cardInfo}>
-          <Text style={styles.messName} numberOfLines={1}>
+        <View className="flex-1 gap-[5px]">
+          <Text
+            className="font-inter-semibold text-[15px] text-gray-900"
+            numberOfLines={1}
+          >
             {request.messName}
           </Text>
           <View
-            style={[
-              styles.badge,
-              {
-                backgroundColor: isPending ? "#FFFBEB" : "#FEF2F2",
-                borderColor: isPending ? "#FDE68A" : "#FECACA",
-              },
-            ]}
+            className={`self-start rounded-md border px-2 py-[3px] ${isPending ? "border-amber-200 bg-amber-50" : "border-red-200 bg-red-50"}`}
           >
             <Text
-              style={[
-                styles.badgeText,
-                { color: isPending ? "#92400E" : "#991B1B" },
-              ]}
+              className={`font-inter-semibold text-[11px] ${isPending ? "text-amber-800" : "text-red-800"}`}
             >
               {isPending ? "Pending approval" : "Request rejected"}
             </Text>
@@ -58,7 +48,7 @@ export const JoinRequestCard = ({
 
       {!isPending && (
         <TouchableOpacity
-          style={[styles.retryButton, retrying && styles.retryButtonDisabled]}
+          className={`min-w-[116px] flex-row items-center justify-center gap-[5px] rounded-[10px] border border-violet-200 bg-purple-100 px-2.5 py-2 ${retrying ? "opacity-60" : "opacity-100"}`}
           onPress={() => onRetry(request)}
           disabled={retrying}
           activeOpacity={0.8}
@@ -68,7 +58,9 @@ export const JoinRequestCard = ({
           ) : (
             <>
               <Feather name="refresh-cw" size={13} color="#7C3AED" />
-              <Text style={styles.retryButtonText}>Request Again</Text>
+              <Text className="font-inter-semibold text-xs text-violet-700">
+                Request Again
+              </Text>
             </>
           )}
         </TouchableOpacity>

@@ -7,7 +7,6 @@ import {
   View,
 } from "react-native";
 
-import { authStyles as styles } from "./authStyles";
 import { ErrorBox } from "./AuthFeedback";
 
 type LoginSignupCardProps = {
@@ -30,6 +29,9 @@ type LoginSignupCardProps = {
   onToggleMode: () => void;
 };
 
+const inputClassName =
+  "h-[50px] rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF] px-[15px] font-inter text-[15px] text-gray-900";
+
 export const LoginSignupCard = ({
   mode,
   name,
@@ -49,16 +51,18 @@ export const LoginSignupCard = ({
   onGoogleSignIn,
   onToggleMode,
 }: LoginSignupCardProps) => (
-  <View style={styles.card}>
-    <Text style={styles.cardTitle}>
+  <View className="rounded-3xl bg-white p-[26px] shadow-2xl shadow-black/20">
+    <Text className="mb-2 text-center font-inter-bold text-[21px] text-gray-900">
       {mode === "signup" ? "Create your account" : "Welcome back"}
     </Text>
 
     {mode === "signup" && (
-      <View style={styles.field}>
-        <Text style={styles.label}>Your Name</Text>
+      <View className="mb-[18px]">
+        <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
+          Your Name
+        </Text>
         <TextInput
-          style={styles.input}
+          className={inputClassName}
           placeholder="e.g. Rahul"
           placeholderTextColor="#9CA3AF"
           value={name}
@@ -69,10 +73,12 @@ export const LoginSignupCard = ({
       </View>
     )}
 
-    <View style={styles.field}>
-      <Text style={styles.label}>Email</Text>
+    <View className="mb-[18px]">
+      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
+        Email
+      </Text>
       <TextInput
-        style={styles.input}
+        className={inputClassName}
         placeholder="you@example.com"
         placeholderTextColor="#9CA3AF"
         value={email}
@@ -84,12 +90,13 @@ export const LoginSignupCard = ({
     </View>
 
     {mode === "signup" && (
-      <View style={styles.field}>
-        <Text style={styles.label}>
-          Mobile Number <Text style={styles.optionalLabel}>(Optional)</Text>
+      <View className="mb-[18px]">
+        <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
+          Mobile Number{" "}
+          <Text className="font-inter text-gray-400">(Optional)</Text>
         </Text>
         <TextInput
-          style={styles.input}
+          className={inputClassName}
           placeholder="11-digit number"
           placeholderTextColor="#9CA3AF"
           value={mobileNumber}
@@ -100,11 +107,13 @@ export const LoginSignupCard = ({
       </View>
     )}
 
-    <View style={styles.field}>
-      <Text style={styles.label}>Password</Text>
-      <View style={styles.passwordRow}>
+    <View className="mb-[18px]">
+      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
+        Password
+      </Text>
+      <View className="flex-row items-center gap-2">
         <TextInput
-          style={[styles.input, styles.flexibleInput]}
+          className={`${inputClassName} flex-1`}
           placeholder="Min. 6 characters"
           placeholderTextColor="#9CA3AF"
           value={password}
@@ -113,7 +122,10 @@ export const LoginSignupCard = ({
           returnKeyType="done"
           onSubmitEditing={onSubmit}
         />
-        <TouchableOpacity style={styles.eyeBtn} onPress={onTogglePassword}>
+        <TouchableOpacity
+          className="h-[50px] w-[50px] items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF]"
+          onPress={onTogglePassword}
+        >
           <Feather
             name={showPassword ? "eye-off" : "eye"}
             size={20}
@@ -124,49 +136,58 @@ export const LoginSignupCard = ({
     </View>
 
     {mode === "login" && (
-      <TouchableOpacity style={styles.forgotRow} onPress={onForgotPassword}>
-        <Text style={styles.forgotText}>Forgot password?</Text>
+      <TouchableOpacity
+        className="-mt-1.5 mb-2.5 items-end"
+        onPress={onForgotPassword}
+      >
+        <Text className="font-inter-semibold text-[13px] text-teal-700">
+          Forgot password?
+        </Text>
       </TouchableOpacity>
     )}
 
     <ErrorBox error={error} />
 
     <TouchableOpacity
-      style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+      className={`mt-1.5 h-[54px] items-center justify-center rounded-[14px] bg-teal-700 ${loading ? "opacity-50 shadow-none" : "opacity-100 shadow-lg shadow-teal-700/35"}`}
       onPress={onSubmit}
       disabled={loading}
     >
       {loading ? (
         <ActivityIndicator color="#fff" />
       ) : (
-        <Text style={styles.submitBtnText}>
+        <Text className="font-inter-bold text-base tracking-[0.2px] text-white">
           {mode === "signup" ? "Sign Up" : "Log In"}
         </Text>
       )}
     </TouchableOpacity>
 
-    <View style={styles.orRow}>
-      <View style={styles.orLine} />
-      <Text style={styles.orText}>OR</Text>
-      <View style={styles.orLine} />
+    <View className="mb-3.5 mt-5 flex-row items-center gap-2.5">
+      <View className="h-px flex-1 bg-gray-200" />
+      <Text className="font-inter-semibold text-[11px] tracking-[0.8px] text-gray-400">
+        OR
+      </Text>
+      <View className="h-px flex-1 bg-gray-200" />
     </View>
 
     <TouchableOpacity
-      style={[styles.googleBtn, loading && styles.googleBtnDisabled]}
+      className={`h-[52px] flex-row items-center justify-center gap-2.5 rounded-[14px] border-[1.5px] border-gray-200 bg-white ${loading ? "opacity-50" : "opacity-100"}`}
       onPress={onGoogleSignIn}
       disabled={loading}
       activeOpacity={0.8}
     >
       <Feather name="chrome" size={20} color="#4285F4" />
-      <Text style={styles.googleBtnText}>Continue with Google</Text>
+      <Text className="font-inter-semibold text-[15px] text-gray-700">
+        Continue with Google
+      </Text>
     </TouchableOpacity>
 
-    <TouchableOpacity style={styles.toggleRow} onPress={onToggleMode}>
-      <Text style={styles.toggleText}>
+    <TouchableOpacity className="mt-[18px] items-center" onPress={onToggleMode}>
+      <Text className="font-inter text-sm text-gray-500">
         {mode === "signup"
           ? "Already have an account? "
           : "Don't have an account? "}
-        <Text style={styles.toggleLink}>
+        <Text className="font-inter-bold text-teal-700">
           {mode === "signup" ? "Log In" : "Sign Up"}
         </Text>
       </Text>

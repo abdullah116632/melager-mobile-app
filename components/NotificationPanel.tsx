@@ -1,94 +1,99 @@
-import Feather from '@expo/vector-icons/Feather';
-import { useRouter } from 'expo-router';
-import React, { useCallback } from 'react';
+import Feather from "@expo/vector-icons/Feather";
+import { useRouter } from "expo-router";
+import { useCallback } from "react";
 import {
   FlatList,
   Modal,
   Platform,
   Pressable,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
 
-import { type AppNotification, useNotifications } from '@/context/NotificationContext';
-import { useColors } from '@/hooks/useColors';
+import {
+  type AppNotification,
+  useNotifications,
+} from "@/context/NotificationContext";
 
-function timeAgo(ts: number): string {
-  const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 5) return 'just now';
-  if (diff < 60) return `${diff}s ago`;
-  const m = Math.floor(diff / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
+const timeAgo = (timestamp: number): string => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
 
-function NotifIcon({ type }: { type: AppNotification['type'] }) {
-  if (type === 'member_request') {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
+const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
+  if (type === "member_request") {
     return (
-      <View style={[styles.icon, { backgroundColor: '#DBEAFE' }]}>
+      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-blue-100">
         <Feather name="user-plus" size={16} color="#1D4ED8" />
       </View>
     );
   }
+
   return (
-    <View style={[styles.icon, { backgroundColor: '#FEF3C7' }]}>
+    <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-amber-100">
       <Feather name="coffee" size={16} color="#B45309" />
     </View>
   );
-}
+};
 
-function NotifItem({ item }: { item: AppNotification }) {
+const NotificationItem = ({ item }: { item: AppNotification }) => {
   const router = useRouter();
   const { markRead, closePanel } = useNotifications();
-  const colors = useColors();
 
   const handlePress = useCallback(() => {
     markRead(item.id);
     closePanel();
     router.push(item.route as never);
-  }, [item, markRead, closePanel, router]);
+  }, [closePanel, item, markRead, router]);
 
   return (
     <TouchableOpacity
-      style={[
-        styles.item,
-        {
-          backgroundColor: item.read ? colors.card : colors.background,
-          borderBottomColor: colors.border,
-        },
-      ]}
+      className={`flex-row items-center gap-3 border-b-[0.5px] border-slate-200 px-4 py-[13px] ${item.read ? "bg-white" : "bg-slate-50"}`}
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      <NotifIcon type={item.type} />
-      <View style={styles.itemBody}>
-        <View style={styles.itemTop}>
-          <Text style={[styles.itemTitle, { color: colors.foreground }]} numberOfLines={1}>
+      <NotificationIcon type={item.type} />
+      <View className="flex-1 gap-0.5">
+        <View className="flex-row items-center gap-1.5">
+          <Text
+            className="flex-1 font-inter-semibold text-sm text-slate-900"
+            numberOfLines={1}
+          >
             {item.title}
           </Text>
-          {!item.read && <View style={styles.dot} />}
+          {!item.read && (
+            <View className="h-2 w-2 shrink-0 rounded-full bg-teal-700" />
+          )}
         </View>
-        <Text style={[styles.itemBody2, { color: colors.mutedForeground }]} numberOfLines={2}>
+        <Text
+          className="font-inter text-[13px] leading-[18px] text-slate-500"
+          numberOfLines={2}
+        >
           {item.body}
         </Text>
-        <Text style={[styles.itemTime, { color: colors.mutedForeground }]}>
+        <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
           {timeAgo(item.timestamp)}
         </Text>
       </View>
-      <Feather name="chevron-right" size={14} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+      <View className="ml-1">
+        <Feather name="chevron-right" size={14} color="#64748B" />
+      </View>
     </TouchableOpacity>
   );
-}
+};
 
 export function NotificationPanel() {
-  const { notifications, unreadCount, markAllRead, panelVisible, closePanel } = useNotifications();
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
+  const { notifications, unreadCount, markAllRead, panelVisible, closePanel } =
+    useNotifications();
 
   return (
     <Modal
@@ -98,60 +103,65 @@ export function NotificationPanel() {
       onRequestClose={closePanel}
       statusBarTranslucent
     >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={closePanel} />
+      <View className="flex-1 justify-end bg-black/45">
+        <Pressable className="absolute inset-0" onPress={closePanel} />
         <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.card,
-              paddingBottom: Platform.OS !== 'web' ? insets.bottom + 8 : 16,
-            },
-          ]}
+          className={`max-h-[80%] min-h-[300px] rounded-t-[20px] bg-white shadow-2xl shadow-black/15 ${Platform.OS === "web" ? "pb-4" : "pb-safe-offset-2"}`}
         >
-          {/* Handle bar */}
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <View className="mb-1 mt-2.5 h-1 w-10 self-center rounded-sm bg-slate-200" />
 
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
-            <View style={styles.headerLeft}>
-              <Feather name="bell" size={18} color={colors.foreground} />
-              <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          <View className="flex-row items-center justify-between border-b-[0.5px] border-slate-200 px-4 py-3.5">
+            <View className="flex-row items-center gap-2">
+              <Feather name="bell" size={18} color="#0F172A" />
+              <Text className="font-inter-bold text-[17px] text-slate-900">
                 Notifications
               </Text>
               {unreadCount > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                <View className="h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-[5px]">
+                  <Text className="font-inter-bold text-[11px] text-white">
+                    {unreadCount}
+                  </Text>
                 </View>
               )}
             </View>
-            <View style={styles.headerActions}>
+            <View className="flex-row items-center gap-3">
               {unreadCount > 0 && (
-                <TouchableOpacity onPress={markAllRead} style={styles.markBtn} activeOpacity={0.7}>
-                  <Text style={styles.markBtnText}>Mark all read</Text>
+                <TouchableOpacity
+                  className="rounded-lg bg-teal-50 px-2.5 py-[5px]"
+                  onPress={markAllRead}
+                  activeOpacity={0.7}
+                >
+                  <Text className="font-inter-semibold text-xs text-teal-700">
+                    Mark all read
+                  </Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity onPress={closePanel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Feather name="x" size={20} color={colors.mutedForeground} />
+              <TouchableOpacity
+                onPress={closePanel}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="x" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* List */}
           {notifications.length === 0 ? (
-            <View style={styles.empty}>
-              <Feather name="bell-off" size={40} color={colors.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No notifications yet</Text>
-              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
-                You'll be notified when members join or change their meal status.
+            <View className="flex-1 items-center justify-center gap-2.5 p-10">
+              <Feather name="bell-off" size={40} color="#64748B" />
+              <Text className="mt-2 font-inter-semibold text-base text-slate-900">
+                No notifications yet
+              </Text>
+              <Text className="text-center font-inter text-[13px] leading-5 text-slate-500">
+                You&apos;ll be notified when members join or change their meal
+                status.
               </Text>
             </View>
           ) : (
             <FlatList
+              className="flex-1"
               data={notifications}
-              keyExtractor={(n) => n.id}
-              renderItem={({ item }) => <NotifItem item={item} />}
-              style={{ flex: 1 }}
+              keyExtractor={(notification) => notification.id}
+              renderItem={({ item }) => <NotificationItem item={item} />}
               showsVerticalScrollIndicator={false}
             />
           )}
@@ -160,137 +170,3 @@ export function NotificationPanel() {
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    minHeight: 300,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: 'Inter_700Bold',
-  },
-  unreadBadge: {
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-  },
-  unreadBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontFamily: 'Inter_700Bold',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  markBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#F0FDFA',
-  },
-  markBtnText: {
-    color: '#0F766E',
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
-  },
-  icon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  itemBody: {
-    flex: 1,
-    gap: 2,
-  },
-  itemTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    flex: 1,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#0F766E',
-    flexShrink: 0,
-  },
-  itemBody2: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 18,
-  },
-  itemTime: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 2,
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    gap: 10,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    marginTop: 8,
-  },
-  emptyBody: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});

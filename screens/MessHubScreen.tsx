@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { JoinRequestCard } from "@/components/mess-hub/JoinRequestCard";
 import { MessCard } from "@/components/mess-hub/MessCard";
 import { MessHubActions } from "@/components/mess-hub/MessHubActions";
 import { MessHubEmptyState } from "@/components/mess-hub/MessHubEmptyState";
 import { MessHubErrorBanner } from "@/components/mess-hub/MessHubErrorBanner";
 import { MessHubHeader } from "@/components/mess-hub/MessHubHeader";
-import { messHubStyles as styles } from "@/components/mess-hub/messHubStyles";
 import { useAuth } from "@/context/AuthContext";
 import type { MessHubJoinRequest, MessHubMess } from "@/types/messHub";
 
@@ -22,7 +20,6 @@ export const MessHubScreen = ({
 }: MessHubScreenProps) => {
   const { user, messes, requests, selectMess, retryJoin, refreshMe, logout } =
     useAuth();
-  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [retryingId, setRetryingId] = useState<number | null>(null);
@@ -56,20 +53,16 @@ export const MessHubScreen = ({
   const firstName = user?.name?.split(" ")[0];
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-gray-50">
       <MessHubHeader
-        topPadding={insets.top}
         firstName={firstName}
         loading={initialLoading}
         onLogout={() => void logout()}
       />
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 40 },
-        ]}
+        className="flex-1"
+        contentContainerClassName="gap-2 px-4 pb-safe-offset-10 pt-4"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -82,8 +75,10 @@ export const MessHubScreen = ({
         {retryError ? <MessHubErrorBanner message={retryError} /> : null}
 
         {messes.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>MY MESSES</Text>
+          <View className="mb-2 gap-2.5">
+            <Text className="mb-1 px-0.5 font-inter-semibold text-[11px] tracking-[0.8px] text-gray-500">
+              MY MESSES
+            </Text>
             {messes.map((mess) => (
               <MessCard
                 key={mess.id}
@@ -97,8 +92,10 @@ export const MessHubScreen = ({
         )}
 
         {requests.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>JOIN REQUESTS</Text>
+          <View className="mb-2 gap-2.5">
+            <Text className="mb-1 px-0.5 font-inter-semibold text-[11px] tracking-[0.8px] text-gray-500">
+              JOIN REQUESTS
+            </Text>
             {requests.map((request) => (
               <JoinRequestCard
                 key={request.id}

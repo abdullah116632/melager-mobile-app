@@ -2,11 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import type { ComponentProps } from "react";
 import { Text, View } from "react-native";
 
-import type { AppColors } from "@/types/theme";
-import { consumerStyles as styles } from "./consumerStyles";
-
 type ConsumersEmptyStateProps = {
-  colors: AppColors;
   icon: ComponentProps<typeof Feather>["name"];
   iconSize: number;
   title: string;
@@ -14,18 +10,15 @@ type ConsumersEmptyStateProps = {
 };
 
 export const ConsumersEmptyState = ({
-  colors,
   icon,
   iconSize,
   title,
   description,
 }: ConsumersEmptyStateProps) => (
-  <View style={styles.centered}>
-    <Feather name={icon} size={iconSize} color={colors.mutedForeground} />
-    <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-      {title}
-    </Text>
-    <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
+  <View className="flex-1 items-center justify-center gap-3 px-8">
+    <Feather name={icon} size={iconSize} color="#64748B" />
+    <Text className="mt-1 font-inter-bold text-lg text-slate-900">{title}</Text>
+    <Text className="text-center font-inter text-sm text-slate-500">
       {description}
     </Text>
   </View>

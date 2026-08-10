@@ -5,17 +5,14 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import type { useColors } from "@/hooks/useColors";
 
 interface AddMealConsumerModalProps {
   visible: boolean;
-  colors: ReturnType<typeof useColors>;
   bottomInset: number;
   name: string;
   email: string;
@@ -30,7 +27,6 @@ interface AddMealConsumerModalProps {
 
 export const AddMealConsumerModal = ({
   visible,
-  colors,
   bottomInset,
   name,
   email,
@@ -62,72 +58,54 @@ export const AddMealConsumerModal = ({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <KeyboardAvoidingView
-        style={styles.overlay}
+        className="flex-1 justify-end bg-black/45"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <TouchableOpacity
-          style={StyleSheet.absoluteFill}
+          className="absolute inset-0"
           activeOpacity={1}
           onPress={onClose}
         />
         <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.card,
-              paddingBottom:
-                24 +
-                (Platform.OS === "android" ? keyboardHeight : 0) +
-                (Platform.OS === "android" ? bottomInset : 0),
-            },
-          ]}
+          className="gap-4 rounded-t-3xl bg-white p-6 pt-3"
+          style={{
+            paddingBottom:
+              24 +
+              (Platform.OS === "android" ? keyboardHeight : 0) +
+              (Platform.OS === "android" ? bottomInset : 0),
+          }}
         >
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.foreground }]}>
+          <View className="mb-2 h-1 w-11 self-center rounded-sm bg-slate-200" />
+          <View className="flex-row items-center justify-between gap-3">
+            <Text className="flex-1 font-inter-bold text-lg text-slate-900">
               Add Consumer
             </Text>
             <TouchableOpacity
-              style={styles.closeButton}
+              className="h-8 w-8 items-center justify-center rounded-full bg-teal-700/[0.06]"
               onPress={onClose}
               activeOpacity={0.7}
               hitSlop={10}
               accessibilityLabel="Close add consumer form"
             >
-              <Feather name="x" size={20} color={colors.mutedForeground} />
+              <Feather name="x" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          <Text className="my-1 font-inter text-[13px] text-slate-500">
             A login account will be created and credentials sent by email.
           </Text>
           <TextInput
-            style={[
-              styles.input,
-              {
-                borderColor: colors.border,
-                color: colors.foreground,
-                backgroundColor: colors.background,
-              },
-            ]}
+            className="rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 font-inter text-base text-slate-900"
             placeholder="Full name *"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor="#64748B"
             value={name}
             onChangeText={onNameChange}
             autoFocus
             returnKeyType="next"
           />
           <TextInput
-            style={[
-              styles.input,
-              styles.spacedInput,
-              {
-                borderColor: colors.border,
-                color: colors.foreground,
-                backgroundColor: colors.background,
-              },
-            ]}
+            className="mt-2.5 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 font-inter text-base text-slate-900"
             placeholder="Email *"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor="#64748B"
             value={email}
             onChangeText={onEmailChange}
             keyboardType="email-address"
@@ -135,17 +113,9 @@ export const AddMealConsumerModal = ({
             returnKeyType="next"
           />
           <TextInput
-            style={[
-              styles.input,
-              styles.spacedInput,
-              {
-                borderColor: colors.border,
-                color: colors.foreground,
-                backgroundColor: colors.background,
-              },
-            ]}
+            className="mt-2.5 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 font-inter text-base text-slate-900"
             placeholder="Phone number (optional, 11 digits)"
-            placeholderTextColor={colors.mutedForeground}
+            placeholderTextColor="#64748B"
             value={phone}
             onChangeText={(value) =>
               onPhoneChange(value.replace(/\D/g, "").slice(0, 11))
@@ -154,80 +124,21 @@ export const AddMealConsumerModal = ({
             returnKeyType="done"
             onSubmitEditing={onSubmit}
           />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <Text className="mt-2 font-inter text-[13px] text-red-600">
+              {error}
+            </Text>
+          ) : null}
           <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: colors.primary }]}
+            className="items-center justify-center rounded-[10px] bg-teal-700 py-3.5"
             onPress={onSubmit}
           >
-            <Text style={styles.submitText}>Add &amp; Send Credentials</Text>
+            <Text className="font-inter-semibold text-white">
+              Add &amp; Send Credentials
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingTop: 12,
-    gap: 16,
-  },
-  handle: {
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(15,118,110,0.06)",
-  },
-  title: { flex: 1, fontSize: 18, fontFamily: "Inter_700Bold" },
-  subtitle: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-  },
-  spacedInput: { marginTop: 10 },
-  error: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#DC2626",
-    marginTop: 8,
-  },
-  submitButton: {
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  submitText: { color: "#fff", fontFamily: "Inter_600SemiBold" },
-});

@@ -1,11 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Text, TouchableOpacity, View } from "react-native";
 
-import type { AppColors } from "@/types/theme";
-import { consumerStyles as styles } from "./consumerStyles";
-
 type ConsumersHeaderProps = {
-  colors: AppColors;
   loading: boolean;
   totalConsumers: number;
   onBack: () => void;
@@ -13,29 +9,28 @@ type ConsumersHeaderProps = {
 };
 
 export const ConsumersHeader = ({
-  colors,
   loading,
   totalConsumers,
   onBack,
   onRefresh,
 }: ConsumersHeaderProps) => (
-  <View style={[styles.header, { backgroundColor: colors.primary }]}>
+  <View className="flex-row items-center gap-3 bg-teal-700 px-4 py-3.5">
     <TouchableOpacity
-      style={styles.backBtn}
+      className="h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-white/10"
       onPress={onBack}
       activeOpacity={0.7}
     >
       <Feather name="arrow-left" size={22} color="#fff" />
     </TouchableOpacity>
-    <View style={styles.headerContent}>
-      <Text style={styles.headerTitle}>Consumers</Text>
-      {!loading && <Text style={styles.headerSub}>{totalConsumers} total</Text>}
+    <View className="flex-1">
+      <Text className="font-inter-bold text-lg text-white">Consumers</Text>
+      {!loading && (
+        <Text className="mt-px font-inter text-xs text-white/70">
+          {totalConsumers} total
+        </Text>
+      )}
     </View>
-    <TouchableOpacity
-      style={styles.refreshBtn}
-      onPress={onRefresh}
-      activeOpacity={0.7}
-    >
+    <TouchableOpacity className="p-1.5" onPress={onRefresh} activeOpacity={0.7}>
       <Feather name="refresh-cw" size={18} color="rgba(255,255,255,0.8)" />
     </TouchableOpacity>
   </View>

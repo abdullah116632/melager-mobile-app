@@ -1,96 +1,62 @@
 import Feather from "@expo/vector-icons/Feather";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
 
 interface MealsHeaderProps {
-  backgroundColor: string;
   isAdmin: boolean;
   onMenu: () => void;
   onAddConsumer: () => void;
 }
 
 export const MealsHeader = ({
-  backgroundColor,
   isAdmin,
   onMenu,
   onAddConsumer,
 }: MealsHeaderProps) => (
-  <View style={[styles.header, { backgroundColor }]}>
-    <TouchableOpacity
-      style={styles.iconButton}
-      onPress={onMenu}
-      activeOpacity={0.7}
-      accessibilityLabel="Open menu"
-    >
-      <Feather name="menu" size={22} color="#fff" />
-    </TouchableOpacity>
-    <Text style={styles.title}>Meal Tracker</Text>
-    <NotificationBell />
-    {isAdmin ? (
+  <LinearGradient
+    colors={["#075F5B", "#00796F", "#019D83"]}
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    className="relative overflow-hidden px-4 pb-5 pt-2"
+  >
+    <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
+    <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
+    <View className="flex-row items-center gap-3">
       <TouchableOpacity
-        style={styles.addButton}
-        onPress={onAddConsumer}
-        accessibilityLabel="Add consumer"
+        className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
+        onPress={onMenu}
+        activeOpacity={0.7}
+        accessibilityLabel="Open menu"
       >
-        <Feather name="user-plus" size={20} color="#fff" />
+        <Feather name="menu" size={21} color="#fff" />
       </TouchableOpacity>
-    ) : (
-      <View style={styles.viewOnlyBadge}>
-        <Text style={styles.viewOnlyText}>View{"\n"}Only</Text>
+      <View className="h-[40px] w-[40px] items-center justify-center rounded-full border-2 border-white bg-emerald-50 shadow-lg shadow-black/20">
+        <Feather name="coffee" size={19} color="#047857" />
       </View>
-    )}
-  </View>
+      <Text
+        className="flex-1 font-inter-bold text-[18px] tracking-[0.1px] text-white"
+        numberOfLines={1}
+      >
+        Meals
+      </Text>
+      <NotificationBell badgeBorderColor="#00796F" />
+      {isAdmin ? (
+        <TouchableOpacity
+          className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
+          onPress={onAddConsumer}
+          activeOpacity={0.75}
+          accessibilityLabel="Add consumer"
+        >
+          <Feather name="user-plus" size={20} color="#fff" />
+        </TouchableOpacity>
+      ) : (
+        <View className="rounded-lg bg-white/20 px-2 py-1.5">
+          <Text className="font-inter-semibold text-[9px] text-white">
+            View only
+          </Text>
+        </View>
+      )}
+    </View>
+  </LinearGradient>
 );
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 15,
-    gap: 8,
-    borderRadius: 22,
-    shadowColor: "#0F766E",
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
-  },
-  iconButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  title: {
-    flex: 1,
-    color: "#fff",
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-    letterSpacing: -0.2,
-  },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  viewOnlyBadge: {
-    backgroundColor: "rgba(255,255,255,0.25)",
-    paddingHorizontal: 5,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  viewOnlyText: {
-    color: "#fff",
-    fontSize: 7,
-    lineHeight: 8,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-  },
-});

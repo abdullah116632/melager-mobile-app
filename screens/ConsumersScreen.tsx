@@ -7,7 +7,6 @@ import {
   ToastAndroid,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 
@@ -15,10 +14,8 @@ import { ConsumerSearchBar } from "@/components/consumers/ConsumerSearchBar";
 import { ConsumerTableSection } from "@/components/consumers/ConsumerTableSection";
 import { ConsumersEmptyState } from "@/components/consumers/ConsumersEmptyState";
 import { ConsumersHeader } from "@/components/consumers/ConsumersHeader";
-import { consumerStyles as styles } from "@/components/consumers/consumerStyles";
 import { DeleteConsumerModal } from "@/components/consumers/DeleteConsumerModal";
 import { useAuth } from "@/context/AuthContext";
-import { useColors } from "@/hooks/useColors";
 import { deleteConsumer, getConsumers } from "@/services/consumerService";
 import type { Consumer } from "@/types/consumer";
 
@@ -36,8 +33,6 @@ const copyToClipboard = async (value: string, label: string) => {
 };
 
 const ConsumersScreen = () => {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token, activeMess, role } = useAuth();
 
@@ -50,7 +45,6 @@ const ConsumersScreen = () => {
 
   const messId = activeMess?.id;
   const isAdmin = role === "admin";
-  const topPadding = Platform.OS === "web" ? 0 : insets.top;
 
   const fetchConsumers = useCallback(async () => {
     if (!token || !messId) return;
@@ -141,13 +135,9 @@ const ConsumersScreen = () => {
 
   return (
     <View
-      style={[
-        styles.root,
-        { backgroundColor: colors.background, paddingTop: topPadding },
-      ]}
+      className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "" : "pt-safe"}`}
     >
       <ConsumersHeader
-        colors={colors}
         loading={loading}
         totalConsumers={consumers.length}
         onBack={() => router.back()}
@@ -157,19 +147,17 @@ const ConsumersScreen = () => {
       />
 
       <ConsumerSearchBar
-        colors={colors}
         search={search}
         onSearchChange={setSearch}
         onClear={() => setSearch("")}
       />
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View className="flex-1 items-center justify-center gap-3 px-8">
+          <ActivityIndicator size="large" color="#0F766E" />
         </View>
       ) : consumers.length === 0 ? (
         <ConsumersEmptyState
-          colors={colors}
           icon="users"
           iconSize={52}
           title="No consumers yet"
@@ -177,7 +165,6 @@ const ConsumersScreen = () => {
         />
       ) : filteredConsumers.length === 0 ? (
         <ConsumersEmptyState
-          colors={colors}
           icon="search"
           iconSize={40}
           title="No results"
@@ -185,15 +172,14 @@ const ConsumersScreen = () => {
         />
       ) : (
         <ScrollView
-          style={styles.fill}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          className="flex-1"
+          contentContainerClassName="pb-safe-offset-6"
           showsVerticalScrollIndicator={false}
         >
           {registeredConsumers.length > 0 && (
             <ConsumerTableSection
               label="REGISTERED MEMBERS"
               consumers={registeredConsumers}
-              colors={colors}
               copiedId={copiedId}
               onCopy={handleCopy}
               isAdmin={isAdmin}
@@ -205,7 +191,6 @@ const ConsumersScreen = () => {
             <ConsumerTableSection
               label="MANUALLY ADDED"
               consumers={manuallyAddedConsumers}
-              colors={colors}
               copiedId={copiedId}
               onCopy={handleCopy}
               topMargin={registeredConsumers.length > 0}
@@ -219,7 +204,6 @@ const ConsumersScreen = () => {
 
       <DeleteConsumerModal
         consumer={pendingDelete}
-        colors={colors}
         onCancel={() => setPendingDelete(null)}
         onConfirm={(consumerId) => {
           void handleDelete(consumerId);

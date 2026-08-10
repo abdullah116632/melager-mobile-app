@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -11,10 +12,8 @@ import {
   View,
 } from "react-native";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
-import type { useColors } from "@/hooks/useColors";
 import type { ExpenseDraftItem } from "@/types/expense";
 import { formatExpenseAmount } from "@/utils/expense";
-import { expenseStyles as styles } from "./expenseStyles";
 
 interface ExpenseEditorModalProps {
   visible: boolean;
@@ -22,7 +21,6 @@ interface ExpenseEditorModalProps {
   monthLabel: string;
   drafts: ExpenseDraftItem[];
   total: number;
-  colors: ReturnType<typeof useColors>;
   onClose: () => void;
   onSave: () => void;
   onAddItem: () => void;
@@ -37,7 +35,6 @@ export const ExpenseEditorModal = ({
   monthLabel,
   drafts,
   total,
-  colors,
   onClose,
   onSave,
   onAddItem,
@@ -45,150 +42,141 @@ export const ExpenseEditorModal = ({
   onAmountChange,
   onRemoveItem,
 }: ExpenseEditorModalProps) => {
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const amountInputRefs = useRef<Record<string, TextInput | null>>({});
   const firstNameInputRef = useRef<TextInput | null>(null);
 
   useEffect(() => {
-    if (!visible) return;
-    const focusTimer = setTimeout(
-      () => firstNameInputRef.current?.focus(),
-      350,
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSubscription = Keyboard.addListener(showEvent, (event) =>
+      setKeyboardHeight(event.endCoordinates.height),
     );
+    const hideSubscription = Keyboard.addListener(hideEvent, () =>
+      setKeyboardHeight(0),
+    );
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const focusFirstInput = () => {
+    requestAnimationFrame(() => firstNameInputRef.current?.focus());
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    const focusTimer = setTimeout(focusFirstInput, 150);
     return () => clearTimeout(focusTimer);
-  }, [visible]);
+  }, [visible, drafts[0]?.id]);
+
+  const close = () => {
+    Keyboard.dismiss();
+    onClose();
+  };
+
+  const save = () => {
+    Keyboard.dismiss();
+    onSave();
+  };
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      onShow={focusFirstInput}
+      onRequestClose={close}
     >
       <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.modalOverlay}>
+        <View className="flex-1 justify-end bg-black/45">
           <TouchableOpacity
-            style={styles.modalSpacer}
+            className="flex-1"
             activeOpacity={1}
-            onPress={onSave}
+            onPress={save}
           />
-          <View style={[styles.bottomSheet, { backgroundColor: colors.card }]}>
-            <View
-              style={[styles.sheetHandle, { backgroundColor: colors.border }]}
-            />
+          <View
+            className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-6 pt-3"
+            style={{
+              marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
+            }}
+          >
+            <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
 
-            <View style={styles.sheetHeader}>
+            <View className="mb-3.5 flex-row items-start justify-between">
               <View>
-                <Text style={[styles.sheetTitle, { color: colors.foreground }]}>
+                <Text className="font-inter-bold text-[17px] text-slate-900">
                   Day {day} — {monthLabel}
                 </Text>
                 {total > 0 && (
-                  <Text
-                    style={[styles.sheetSubtotal, { color: EXPENSE_PRIMARY }]}
-                  >
+                  <Text className="mt-0.5 font-inter-semibold text-[13px] text-teal-700">
                     Total: ৳{formatExpenseAmount(total)}
                   </Text>
                 )}
               </View>
-              <View style={styles.sheetHeaderActions}>
+              <View className="flex-row items-center gap-2">
                 <TouchableOpacity
-                  style={[
-                    styles.clearButton,
-                    { backgroundColor: colors.secondary },
-                  ]}
-                  onPress={onClose}
+                  className="h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-100"
+                  onPress={close}
                   accessibilityLabel="Close expense form"
                 >
-                  <Feather name="x" size={19} color={colors.mutedForeground} />
+                  <Feather name="x" size={19} color="#64748B" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View
-              style={[
-                styles.itemColumnLabels,
-                { borderBottomColor: colors.border },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.itemColumnLabel,
-                  styles.itemNameColumnLabel,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+            <View className="mb-1 flex-row items-center border-b border-slate-200 pb-2">
+              <Text className="flex-1 font-inter-semibold text-[11px] text-slate-500">
                 Item Name
               </Text>
-              <Text
-                style={[
-                  styles.itemColumnLabel,
-                  styles.itemAmountColumnLabel,
-                  { color: colors.mutedForeground },
-                ]}
-              >
+              <Text className="w-[90px] text-right font-inter-semibold text-[11px] text-slate-500">
                 Amount (৳)
               </Text>
-              <View style={styles.itemActionColumnLabel} />
+              <View className="w-8" />
             </View>
 
             <ScrollView
-              style={styles.itemsList}
+              className="max-h-80"
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
               {drafts.map((item, index) => (
                 <View
                   key={item.id}
-                  style={[styles.itemRow, { borderBottomColor: colors.border }]}
+                  className="flex-row items-center gap-2 border-b-[0.5px] border-slate-200 py-[7px]"
                 >
                   <TextInput
                     ref={index === 0 ? firstNameInputRef : undefined}
-                    style={[
-                      styles.itemNameInput,
-                      {
-                        color: colors.foreground,
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                      },
-                    ]}
+                    className="h-10 flex-1 rounded-[10px] border border-slate-200 bg-slate-50 px-2.5 font-inter text-sm text-slate-900"
                     placeholder={`Item ${index + 1}`}
-                    placeholderTextColor={colors.mutedForeground}
+                    placeholderTextColor="#64748B"
                     value={item.name}
                     onChangeText={(name) => onNameChange(item.id, name)}
                     returnKeyType="next"
-                    autoFocus={index === drafts.length - 1 && index > 0}
+                    autoFocus={index === 0}
                     onSubmitEditing={() =>
                       amountInputRefs.current[item.id]?.focus()
                     }
                     blurOnSubmit={false}
                   />
 
-                  <View
-                    style={[
-                      styles.itemAmountWrapper,
-                      {
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.currencySign, { color: EXPENSE_PRIMARY }]}
-                    >
+                  <View className="h-10 w-[90px] flex-row items-center rounded-[10px] border border-slate-200 bg-slate-50 pl-2 pr-1">
+                    <Text className="mr-0.5 font-inter-semibold text-sm text-teal-700">
                       ৳
                     </Text>
                     <TextInput
                       ref={(input) => {
                         amountInputRefs.current[item.id] = input;
                       }}
-                      style={[
-                        styles.itemAmountInput,
-                        { color: colors.foreground },
-                      ]}
+                      className="h-10 flex-1 p-0 font-inter-medium text-sm text-slate-900"
                       placeholder="0"
-                      placeholderTextColor={colors.mutedForeground}
+                      placeholderTextColor="#64748B"
                       value={item.amountString}
                       onChangeText={(amount) => onAmountChange(item.id, amount)}
                       keyboardType="decimal-pad"
@@ -198,41 +186,37 @@ export const ExpenseEditorModal = ({
                   </View>
 
                   <TouchableOpacity
-                    style={styles.itemDeleteButton}
+                    className="w-8 items-center justify-center"
                     onPress={() => onRemoveItem(item.id)}
                     hitSlop={8}
                     accessibilityLabel={`Remove item ${index + 1}`}
                   >
-                    <Feather
-                      name="x-circle"
-                      size={20}
-                      color={colors.mutedForeground}
-                    />
+                    <Feather name="x-circle" size={20} color="#64748B" />
                   </TouchableOpacity>
                 </View>
               ))}
 
               <TouchableOpacity
-                style={[styles.addItemButton, { borderColor: EXPENSE_PRIMARY }]}
+                className="mt-3 flex-row items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-teal-700 bg-teal-700/[0.04] py-[11px]"
                 onPress={onAddItem}
               >
                 <Feather name="plus" size={16} color={EXPENSE_PRIMARY} />
-                <Text style={[styles.addItemText, { color: EXPENSE_PRIMARY }]}>
+                <Text className="font-inter-semibold text-sm text-teal-700">
                   Add item
                 </Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: EXPENSE_PRIMARY }]}
-              onPress={onSave}
+              className="mt-4 flex-row items-center justify-center gap-2.5 rounded-[14px] bg-teal-700 py-[15px] shadow-md shadow-teal-700/20"
+              onPress={save}
             >
               {total > 0 && (
-                <Text style={styles.saveButtonSubtext}>
+                <Text className="font-inter-medium text-sm text-white/70">
                   ৳{formatExpenseAmount(total)}
                 </Text>
               )}
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text className="font-inter-bold text-base text-white">Save</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -1,13 +1,10 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
-import type { AppColors } from "@/types/theme";
-import { mealStatusStyles as styles } from "./mealStatusStyles";
 
 interface TimePickerModalProps {
   visible: boolean;
   initialValue: string;
-  colors: AppColors;
   onClose: () => void;
   onSelect: (value: string) => void;
 }
@@ -15,7 +12,6 @@ interface TimePickerModalProps {
 export const TimePickerModal = ({
   visible,
   initialValue,
-  colors,
   onClose,
   onSelect,
 }: TimePickerModalProps) => {
@@ -35,8 +31,7 @@ export const TimePickerModal = ({
     setMode("hour");
   }, [visible, initialValue]);
 
-  const clockSize = 252;
-  const clockCenter = clockSize / 2;
+  const clockCenter = 126;
   const clockRadius = 96;
   const clockValues =
     mode === "hour"
@@ -60,89 +55,59 @@ export const TimePickerModal = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.timePickerBackdrop} onPress={onClose}>
+      <Pressable
+        className="flex-1 justify-center bg-black/45 px-6"
+        onPress={onClose}
+      >
         <Pressable
-          style={[styles.timePickerSheet, { backgroundColor: colors.card }]}
+          className="w-full max-w-[340px] self-center rounded-[22px] bg-white p-5"
           onPress={(event) => event.stopPropagation()}
         >
-          <View style={styles.timePickerHeader}>
-            <Text
-              style={[styles.timePickerTitle, { color: colors.foreground }]}
-            >
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="font-inter-bold text-base text-slate-900">
               Select time
             </Text>
             <TouchableOpacity
-              style={[
-                styles.timePickerClose,
-                { backgroundColor: colors.secondary },
-              ]}
+              className="h-[34px] w-[34px] items-center justify-center rounded-full bg-slate-100"
               onPress={onClose}
             >
-              <Feather name="x" size={18} color={colors.foreground} />
+              <Feather name="x" size={18} color="#0F172A" />
             </TouchableOpacity>
           </View>
 
-          <View
-            style={[
-              styles.timeDisplayPanel,
-              { backgroundColor: colors.secondary },
-            ]}
-          >
+          <View className="mb-2.5 flex-row items-center justify-center rounded-[14px] bg-slate-100 p-2.5">
             <TouchableOpacity
-              style={[
-                styles.timeDisplayPart,
-                mode === "hour" && { backgroundColor: colors.primary },
-              ]}
+              className={`h-[54px] w-[68px] items-center justify-center rounded-[10px] ${mode === "hour" ? "bg-teal-700" : ""}`}
               onPress={() => setMode("hour")}
             >
               <Text
-                style={[
-                  styles.timeDisplayPartText,
-                  { color: mode === "hour" ? "#fff" : colors.foreground },
-                ]}
+                className={`font-inter-bold text-[28px] ${mode === "hour" ? "text-white" : "text-slate-900"}`}
               >
                 {String(hour).padStart(2, "0")}
               </Text>
             </TouchableOpacity>
-            <Text
-              style={[styles.timeDisplayColon, { color: colors.foreground }]}
-            >
+            <Text className="mx-1 font-inter-bold text-[28px] text-slate-900">
               :
             </Text>
             <TouchableOpacity
-              style={[
-                styles.timeDisplayPart,
-                mode === "minute" && { backgroundColor: colors.primary },
-              ]}
+              className={`h-[54px] w-[68px] items-center justify-center rounded-[10px] ${mode === "minute" ? "bg-teal-700" : ""}`}
               onPress={() => setMode("minute")}
             >
               <Text
-                style={[
-                  styles.timeDisplayPartText,
-                  { color: mode === "minute" ? "#fff" : colors.foreground },
-                ]}
+                className={`font-inter-bold text-[28px] ${mode === "minute" ? "text-white" : "text-slate-900"}`}
               >
                 {String(minute).padStart(2, "0")}
               </Text>
             </TouchableOpacity>
-            <View style={styles.periodStack}>
+            <View className="ml-2.5 gap-1">
               {(["AM", "PM"] as const).map((value) => (
                 <TouchableOpacity
                   key={value}
-                  style={[
-                    styles.periodChip,
-                    period === value && { backgroundColor: colors.primary },
-                  ]}
+                  className={`h-[25px] w-[42px] items-center justify-center rounded-[7px] ${period === value ? "bg-teal-700" : ""}`}
                   onPress={() => setPeriod(value)}
                 >
                   <Text
-                    style={[
-                      styles.periodChipText,
-                      {
-                        color:
-                          period === value ? "#fff" : colors.mutedForeground,
-                      },
-                    ]}
+                    className={`font-inter-bold text-[11px] ${period === value ? "text-white" : "text-slate-500"}`}
                   >
                     {value}
                   </Text>
@@ -151,49 +116,17 @@ export const TimePickerModal = ({
             </View>
           </View>
 
-          <Text
-            style={[styles.clockModeHint, { color: colors.mutedForeground }]}
-          >
+          <Text className="mb-2 text-center font-inter-semibold text-xs text-slate-500">
             {mode === "hour" ? "Choose hour" : "Choose minute"}
           </Text>
-          <View
-            style={[
-              styles.clockFace,
-              {
-                width: clockSize,
-                height: clockSize,
-                borderRadius: clockSize / 2,
-                backgroundColor: colors.secondary,
-              },
-            ]}
-          >
+          <View className="relative mb-[18px] h-[252px] w-[252px] self-center rounded-full bg-slate-100">
             <View
               pointerEvents="none"
-              style={[
-                styles.clockHandLayer,
-                {
-                  width: clockSize,
-                  height: clockSize,
-                  transform: [{ rotate: `${selectedIndex * 30}deg` }],
-                },
-              ]}
+              className="absolute left-0 top-0 h-[252px] w-[252px]"
+              style={{ transform: [{ rotate: `${selectedIndex * 30}deg` }] }}
             >
-              <View
-                style={[
-                  styles.clockHand,
-                  {
-                    backgroundColor: colors.primary,
-                    height: clockRadius - 18,
-                    top: clockCenter - clockRadius + 18,
-                  },
-                ]}
-              />
-              <View
-                style={[
-                  styles.clockCenterDot,
-                  { backgroundColor: colors.primary },
-                ]}
-              />
+              <View className="absolute left-1/2 top-12 ml-[-1px] h-[78px] w-[2px] rounded-sm bg-teal-700" />
+              <View className="absolute left-1/2 top-1/2 -ml-[5px] -mt-[5px] h-2.5 w-2.5 rounded-full bg-teal-700" />
             </View>
 
             {clockValues.map((value) => {
@@ -206,11 +139,8 @@ export const TimePickerModal = ({
               return (
                 <TouchableOpacity
                   key={value}
-                  style={[
-                    styles.clockNumber,
-                    { left, top },
-                    isSelected && { backgroundColor: colors.primary },
-                  ]}
+                  className={`absolute h-[38px] w-[38px] items-center justify-center rounded-full ${isSelected ? "bg-teal-700" : ""}`}
+                  style={{ left, top }}
                   onPress={() => {
                     if (mode === "hour") {
                       setHour(value);
@@ -221,10 +151,7 @@ export const TimePickerModal = ({
                   }}
                 >
                   <Text
-                    style={[
-                      styles.clockNumberText,
-                      { color: isSelected ? "#fff" : colors.foreground },
-                    ]}
+                    className={`font-inter-semibold text-[13px] ${isSelected ? "text-white" : "text-slate-900"}`}
                   >
                     {mode === "minute" ? String(value).padStart(2, "0") : value}
                   </Text>
@@ -233,28 +160,22 @@ export const TimePickerModal = ({
             })}
           </View>
 
-          <View style={styles.timePickerActions}>
+          <View className="mt-0.5 flex-row gap-2.5">
             <TouchableOpacity
-              style={[styles.timePickerClear, { borderColor: colors.border }]}
+              className="h-11 flex-1 items-center justify-center rounded-[10px] border border-slate-200"
               onPress={() => onSelect("")}
             >
-              <Text
-                style={[
-                  styles.timePickerClearText,
-                  { color: colors.foreground },
-                ]}
-              >
+              <Text className="font-inter-semibold text-sm text-slate-900">
                 Clear
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.timePickerSave,
-                { backgroundColor: colors.primary },
-              ]}
+              className="h-11 flex-[2] items-center justify-center rounded-[10px] bg-teal-700"
               onPress={handleSave}
             >
-              <Text style={styles.timePickerSaveText}>Set time</Text>
+              <Text className="font-inter-bold text-sm text-white">
+                Set time
+              </Text>
             </TouchableOpacity>
           </View>
         </Pressable>
