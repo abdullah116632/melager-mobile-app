@@ -276,7 +276,7 @@ export function AppDrawer() {
             {isAdmin && (
               <DrawerRow
                 icon="list"
-                label="Consumers"
+                label="All Members"
                 sublabel="View all members & contacts"
                 onPress={() => navigateTo("/consumers")}
                 showChevron

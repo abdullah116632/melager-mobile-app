@@ -275,7 +275,7 @@ export const ProfileScreen = () => {
             <ProfileRow
               icon="info"
               label="App"
-              value="Mess Manager"
+              value="Melager"
               showDivider
             />
             <ProfileRow icon="code" label="Version" value="1.0.0" />

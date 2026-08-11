@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { Platform, View } from "react-native";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 
 import { AuthBrand } from "@/components/auth/AuthBrand";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ForgotPasswordCard } from "@/components/auth/ForgotPasswordCard";
 import { LoginSignupCard } from "@/components/auth/LoginSignupCard";
 import { ResetOtpCard } from "@/components/auth/ResetOtpCard";
 import { ResetPasswordCard } from "@/components/auth/ResetPasswordCard";
 import { SignupOtpCard } from "@/components/auth/SignupOtpCard";
 import { useAuth } from "@/context/AuthContext";
+import {
+  clearPendingPasswordReset,
+  getPendingPasswordReset,
+  savePendingPasswordReset,
+} from "@/services/pendingPasswordResetService";
+import {
+  clearPendingSignupOtp,
+  getPendingSignupOtp,
+  savePendingSignupOtp,
+} from "@/services/pendingSignupOtpService";
 import {
   requestPasswordReset,
   resendPasswordResetCode,
@@ -84,6 +95,33 @@ const AuthScreen = () => {
   }, [stopResendTimer]);
 
   useEffect(() => stopResendTimer, [stopResendTimer]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void Promise.all([getPendingPasswordReset(), getPendingSignupOtp()]).then(
+      ([pendingReset, pendingSignup]) => {
+        if (cancelled) return;
+
+        const activeFlow = [
+          pendingReset && { mode: "reset-otp" as const, ...pendingReset },
+          pendingSignup && { mode: "otp" as const, ...pendingSignup },
+        ]
+          .filter(Boolean)
+          .sort((first, second) => second!.requestedAt - first!.requestedAt)[0];
+
+        if (!activeFlow) return;
+        setPendingEmail(activeFlow.email);
+        setOtp("");
+        setMode(activeFlow.mode);
+        startResendTimer();
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [startResendTimer]);
 
   const changeOtp = useCallback((value: string) => {
     setOtp(value.replace(/\D/g, "").slice(0, 6));
@@ -171,6 +209,10 @@ const AuthScreen = () => {
         );
         setPendingEmail(signupEmail);
         setOtp("");
+        await savePendingSignupOtp({
+          email: signupEmail,
+          requestedAt: Date.now(),
+        });
         setMode("otp");
         startResendTimer();
       } else {
@@ -197,6 +239,7 @@ const AuthScreen = () => {
     setLoading(true);
     try {
       await verifyOtp(pendingEmail, otp);
+      await clearPendingSignupOtp();
     } catch (caughtError: unknown) {
       setError(
         caughtError instanceof Error
@@ -214,6 +257,10 @@ const AuthScreen = () => {
     setError("");
     try {
       await resendOtp(pendingEmail);
+      await savePendingSignupOtp({
+        email: pendingEmail,
+        requestedAt: Date.now(),
+      });
       startResendTimer();
     } catch (caughtError: unknown) {
       setError(
@@ -238,6 +285,10 @@ const AuthScreen = () => {
       setOtp("");
       setNewPassword("");
       setConfirmPassword("");
+      await savePendingPasswordReset({
+        email: data.pendingEmail,
+        requestedAt: Date.now(),
+      });
       setMode("reset-otp");
       startResendTimer();
     } catch (caughtError: unknown) {
@@ -257,6 +308,10 @@ const AuthScreen = () => {
     setError("");
     try {
       await resendPasswordResetCode(pendingEmail);
+      await savePendingPasswordReset({
+        email: pendingEmail,
+        requestedAt: Date.now(),
+      });
       startResendTimer();
     } catch (caughtError: unknown) {
       setError(
@@ -273,6 +328,7 @@ const AuthScreen = () => {
       return;
     }
     setError("");
+    void clearPendingPasswordReset();
     setMode("reset");
   };
 
@@ -294,6 +350,7 @@ const AuthScreen = () => {
     setLoading(true);
     try {
       await submitPasswordReset(pendingEmail, otp, newPassword);
+      await clearPendingPasswordReset();
       setMode("login");
       setOtp("");
       setNewPassword("");
@@ -310,6 +367,8 @@ const AuthScreen = () => {
   };
 
   const goBack = (nextMode: AuthMode) => {
+    if (mode === "reset-otp") void clearPendingPasswordReset();
+    if (mode === "otp") void clearPendingSignupOtp();
     setMode(nextMode);
     setError("");
     setOtp("");
@@ -332,10 +391,7 @@ const AuthScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-[#0B5E57]"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View className="flex-1 bg-[#0B5E57]">
       <View
         pointerEvents="none"
         className="absolute -right-[90px] -top-[110px] h-[340px] w-[340px] rounded-full bg-white/[0.07]"
@@ -348,9 +404,14 @@ const AuthScreen = () => {
         pointerEvents="none"
         className="absolute -left-5 top-[140px] h-[90px] w-[90px] rounded-full bg-white/[0.06]"
       />
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
+        className="flex-1"
         contentContainerClassName="flex-grow justify-center px-6 pb-safe-offset-6 pt-safe-offset-10"
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        bottomOffset={24}
+        extraKeyboardSpace={mode === "signup" ? 260 : 120}
+        showsVerticalScrollIndicator={false}
       >
         <AuthBrand />
 
@@ -428,8 +489,8 @@ const AuthScreen = () => {
             onToggleMode={toggleAuthMode}
           />
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollViewCompat>
+    </View>
   );
 };
 

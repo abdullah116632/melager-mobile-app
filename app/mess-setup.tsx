@@ -11,13 +11,13 @@ export default function MessSetupRoute() {
       ? requestedMode
       : undefined;
   const goBack = () =>
-    router.canGoBack() ? router.back() : router.replace("/mess-hub");
+    router.canGoBack() ? router.back() : router.replace("/");
 
   return (
     <MessSetupScreen
       initialMode={initialMode}
       onBack={goBack}
-      onBackToHub={() => router.replace("/mess-hub")}
+      onBackToHub={() => router.replace("/")}
     />
   );
 }

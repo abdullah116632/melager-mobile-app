@@ -59,9 +59,12 @@ export const DepositsHeader = ({
           <Feather name="user-plus" size={20} color="#fff" />
         </TouchableOpacity>
       ) : (
-        <View className="rounded-lg bg-white/20 px-2 py-1.5">
-          <Text className="font-inter-semibold text-[9px] text-white">
-            View only
+        <View className="items-center rounded-md bg-white/20 px-1.5 py-1">
+          <Text className="font-inter-bold text-[7px] leading-[9px] text-white">
+            VIEW
+          </Text>
+          <Text className="font-inter-bold text-[7px] leading-[9px] text-white">
+            ONLY
           </Text>
         </View>
       )}

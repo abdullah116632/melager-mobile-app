@@ -1,4 +1,4 @@
-# Mess Manager — Mobile (Expo + React Native)
+# Melager — Mobile (Expo + React Native)
 
 Expo Router + React Native + TanStack Query.
 
@@ -44,7 +44,7 @@ app/                       Expo Router file-based routes
   (tabs)/                  Bottom tab screens (home, deposits, expenses, profile)
   auth.tsx                 Login / signup / OTP
   mess-setup.tsx           Onboarding
-  mess-hub.tsx             Mess chooser
+  index.tsx                Mess chooser (root route)
   consumers.tsx, meal-status.tsx, member-requests.tsx
   settings/security.tsx
 components/                Reusable UI (AppDrawer, NotificationBell, etc.)

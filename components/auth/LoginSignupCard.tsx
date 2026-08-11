@@ -63,7 +63,7 @@ export const LoginSignupCard = ({
         </Text>
         <TextInput
           className={inputClassName}
-          placeholder="e.g. Rahul"
+          placeholder="e.g. Abdullah"
           placeholderTextColor="#9CA3AF"
           value={name}
           onChangeText={onNameChange}

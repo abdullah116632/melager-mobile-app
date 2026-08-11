@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { StatusBar } from "expo-status-bar";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { JoinRequestCard } from "@/components/mess-hub/JoinRequestCard";
 import { MessCard } from "@/components/mess-hub/MessCard";
@@ -54,9 +55,13 @@ export const MessHubScreen = ({
 
   return (
     <View className="flex-1 bg-gray-50">
+      <StatusBar style="light" backgroundColor="#0F766E" />
       <MessHubHeader
         firstName={firstName}
+        email={user?.email}
         loading={initialLoading}
+        messCount={messes.length}
+        requestCount={requests.length}
         onLogout={() => void logout()}
       />
 

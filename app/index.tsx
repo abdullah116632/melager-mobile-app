@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
+
 import { MessHubScreen } from "@/screens/MessHubScreen";
 
-export default function MessHubRoute() {
+export default function RootRoute() {
   const router = useRouter();
 
   return (
