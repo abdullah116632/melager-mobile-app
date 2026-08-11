@@ -1,7 +1,14 @@
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Clipboard, Platform, ScrollView, View } from "react-native";
+import {
+  Alert,
+  Clipboard,
+  Platform,
+  ScrollView,
+  StatusBar,
+  View,
+} from "react-native";
 import { MessKeyRow } from "@/components/profile/MessKeyRow";
 import { ProfileActions } from "@/components/profile/ProfileActions";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
@@ -166,51 +173,27 @@ export const ProfileScreen = () => {
 
   return (
     <View
-      className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
+      className={`flex-1 bg-teal-700 ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
     >
-      <ProfileHeader
-        name={displayName}
-        email={displayEmail}
-        isAdmin={isAdmin}
-        onBack={() => router.back()}
-      />
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName={`gap-4 pt-5 ${Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"}`}
-        keyboardShouldPersistTaps="handled"
-      >
-        <ProfileSectionCard title="Account">
-          {editing === "name" ? (
-            <ProfileEditRow
-              icon="user"
-              label="Name"
-              value={editValue}
-              onChange={setEditValue}
-              onSave={() => void saveEdit()}
-              onCancel={cancelEdit}
-              saving={editSaving}
-              error={editError}
-              showDivider
-            />
-          ) : (
-            <ProfileEditableRow
-              icon="user"
-              label="Name"
-              value={displayName}
-              onEdit={() => startEdit("name")}
-              showDivider
-            />
-          )}
-          <ProfileRow icon="mail" label="Email" value={displayEmail} />
-        </ProfileSectionCard>
-
-        {mess && (
-          <ProfileSectionCard title="Mess">
-            {editing === "mess" ? (
+      <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
+      <View className="flex-1 bg-slate-50">
+        <ProfileHeader
+          name={displayName}
+          email={displayEmail}
+          isAdmin={isAdmin}
+          onBack={() => router.back()}
+        />
+        <ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName={`gap-5 pt-5 ${Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"}`}
+          keyboardShouldPersistTaps="handled"
+        >
+          <ProfileSectionCard title="Account">
+            {editing === "name" ? (
               <ProfileEditRow
-                icon="home"
-                label="Mess Name"
+                icon="user"
+                label="Name"
                 value={editValue}
                 onChange={setEditValue}
                 onSave={() => void saveEdit()}
@@ -221,63 +204,90 @@ export const ProfileScreen = () => {
               />
             ) : (
               <ProfileEditableRow
-                icon="home"
-                label="Mess Name"
-                value={mess.name}
-                onEdit={isAdmin ? () => startEdit("mess") : undefined}
+                icon="user"
+                label="Name"
+                value={displayName}
+                onEdit={() => startEdit("name")}
                 showDivider
               />
             )}
-            <MessKeyRow
-              messKey={mess.messKey}
-              copied={keyCopied}
-              onCopy={handleCopyKey}
-            />
-            {isAdmin && (
-              <ProfileInviteRow
-                expanded={inviting}
-                email={inviteEmail}
-                sending={inviteSending}
-                error={inviteError}
-                sent={inviteSent}
-                onOpen={() => {
-                  setInviting(true);
-                  setInviteError("");
-                  setInviteSent(false);
-                }}
-                onClose={closeInvite}
-                onEmailChange={(value) => {
-                  setInviteEmail(value);
-                  setInviteError("");
-                }}
-                onSubmit={() => void handleSendInvite()}
-              />
-            )}
-            <ProfileRow
-              icon="shield"
-              label="Your Role"
-              value={isAdmin ? "Admin — can edit data" : "Member — view only"}
-              valueClassName={isAdmin ? "text-emerald-600" : "text-slate-500"}
-            />
+            <ProfileRow icon="mail" label="Email" value={displayEmail} />
           </ProfileSectionCard>
-        )}
 
-        <ProfileSectionCard title="About">
-          <ProfileRow
-            icon="info"
-            label="App"
-            value="Mess Manager"
-            showDivider
+          {mess && (
+            <ProfileSectionCard title="Mess">
+              {editing === "mess" ? (
+                <ProfileEditRow
+                  icon="home"
+                  label="Mess Name"
+                  value={editValue}
+                  onChange={setEditValue}
+                  onSave={() => void saveEdit()}
+                  onCancel={cancelEdit}
+                  saving={editSaving}
+                  error={editError}
+                  showDivider
+                />
+              ) : (
+                <ProfileEditableRow
+                  icon="home"
+                  label="Mess Name"
+                  value={mess.name}
+                  onEdit={isAdmin ? () => startEdit("mess") : undefined}
+                  showDivider
+                />
+              )}
+              <MessKeyRow
+                messKey={mess.messKey}
+                copied={keyCopied}
+                onCopy={handleCopyKey}
+              />
+              {isAdmin && (
+                <ProfileInviteRow
+                  expanded={inviting}
+                  email={inviteEmail}
+                  sending={inviteSending}
+                  error={inviteError}
+                  sent={inviteSent}
+                  onOpen={() => {
+                    setInviting(true);
+                    setInviteError("");
+                    setInviteSent(false);
+                  }}
+                  onClose={closeInvite}
+                  onEmailChange={(value) => {
+                    setInviteEmail(value);
+                    setInviteError("");
+                  }}
+                  onSubmit={() => void handleSendInvite()}
+                />
+              )}
+              <ProfileRow
+                icon="shield"
+                label="Your Role"
+                value={isAdmin ? "Admin — can edit data" : "Member — view only"}
+                valueClassName={isAdmin ? "text-emerald-600" : "text-slate-500"}
+              />
+            </ProfileSectionCard>
+          )}
+
+          <ProfileSectionCard title="About">
+            <ProfileRow
+              icon="info"
+              label="App"
+              value="Mess Manager"
+              showDivider
+            />
+            <ProfileRow icon="code" label="Version" value="1.0.0" />
+          </ProfileSectionCard>
+
+          <ProfileActions
+            loggingOut={loggingOut}
+            onSwitchMess={exitMess}
+            onLogout={handleLogout}
           />
-          <ProfileRow icon="code" label="Version" value="1.0.0" />
-        </ProfileSectionCard>
-
-        <ProfileActions
-          loggingOut={loggingOut}
-          onSwitchMess={exitMess}
-          onLogout={handleLogout}
-        />
-      </ScrollView>
+        </ScrollView>
+      </View>
     </View>
   );
 };

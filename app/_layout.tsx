@@ -23,6 +23,10 @@ import { DrawerProvider } from "@/context/DrawerContext";
 import { MessProvider } from "@/context/MessContext";
 import { NetworkProvider } from "@/context/NetworkContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import {
+  clearPendingAdminOtp,
+  getPendingAdminOtp,
+} from "@/services/pendingAdminOtpService";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -36,21 +40,40 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (authLoading) return;
+    let cancelled = false;
 
-    const first = segments[0] as string | undefined;
-    const inAuth = first === "auth";
-    const inMessHub = first === "mess-hub";
-    const inMessSetup = first === "mess-setup";
+    const applyRouteGuard = async () => {
+      if (authLoading) return;
 
-    if (!user) {
-      if (!inAuth) router.replace("/auth");
-    } else if (!activeMess) {
-      if (!inMessHub && !inMessSetup) router.replace("/mess-hub");
-    } else {
-      if (inAuth || inMessHub || inMessSetup || !first)
-        router.replace("/(tabs)/dashboard");
-    }
+      const first = segments[0] as string | undefined;
+      const second = segments[1] as string | undefined;
+      const inAuth = first === "auth";
+      const inMessHub = first === "mess-hub";
+      const inMessSetup = first === "mess-setup";
+      const inAdminOtp = first === "settings" && second === "admin-otp";
+
+      if (!user) {
+        if (!inAuth) router.replace("/auth");
+      } else if (!activeMess) {
+        if (!inMessHub && !inMessSetup) router.replace("/mess-hub");
+      } else {
+        const pendingAdminOtp = await getPendingAdminOtp();
+        if (cancelled) return;
+        if (pendingAdminOtp?.userId === user.id) {
+          if (!inAdminOtp) router.replace("/settings/admin-otp");
+          return;
+        }
+        if (pendingAdminOtp) await clearPendingAdminOtp();
+        if (inAuth || inMessHub || inMessSetup || !first) {
+          router.replace("/(tabs)/dashboard");
+        }
+      }
+    };
+
+    void applyRouteGuard();
+    return () => {
+      cancelled = true;
+    };
   }, [user, activeMess, authLoading, segments]);
 
   if (authLoading) {

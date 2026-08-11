@@ -17,7 +17,8 @@
       "supportsTablet": false
     },
     "android": {
-      "package": "com.melager.mobile"
+      "package": "com.melager.mobile",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/images/icon.png",
