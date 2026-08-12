@@ -149,7 +149,7 @@ export const ExpensesTable = ({
                     </View>
                   ) : (
                     <Text className="font-inter text-[13px] text-slate-500">
-                      Click plus icon to add
+                      No Expenses
                     </Text>
                   )}
                 </TouchableOpacity>

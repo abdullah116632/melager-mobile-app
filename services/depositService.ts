@@ -18,6 +18,15 @@ export const addDepositEntry = async (
   return entry;
 };
 
+export const updateDepositEntry = async (
+  entryId: number,
+  data: Omit<DepositEntryInput, "consumerId">,
+  token: string,
+) => {
+  const { entry } = await api.updateDepositEntry(entryId, data, token);
+  return entry;
+};
+
 export const deleteDepositEntry = (
   entryId: number,
   messId: number,

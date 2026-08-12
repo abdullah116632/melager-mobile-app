@@ -13,7 +13,8 @@ import { DashboardConsumerBreakdown } from "@/components/dashboard/DashboardCons
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardMealSection } from "@/components/dashboard/DashboardMealSection";
-import { DashboardSummaryButton } from "@/components/dashboard/DashboardSummaryButton";
+// Temporarily disabled to avoid monthly-summary email usage.
+// import { DashboardSummaryButton } from "@/components/dashboard/DashboardSummaryButton";
 import { DashboardSummaryCards } from "@/components/dashboard/DashboardSummaryCards";
 import MonthPicker from "@/components/MonthPicker";
 import {
@@ -27,7 +28,7 @@ import { exportDashboardBreakdownPdf } from "@/services/dashboardPdfService";
 import {
   getDashboardRangeData,
   getDashboardSchedule,
-  sendDashboardMonthlySummary,
+  // sendDashboardMonthlySummary,
   toggleDashboardMeal,
 } from "@/services/dashboardService";
 import type {
@@ -83,7 +84,8 @@ export const DashboardScreen = ({
   const [datePickerTarget, setDatePickerTarget] =
     useState<DashboardDatePickerTarget | null>(null);
   const [pdfGenerating, setPdfGenerating] = useState(false);
-  const [summarySending, setSummarySending] = useState(false);
+  // Temporarily disabled with the monthly-summary email button.
+  // const [summarySending, setSummarySending] = useState(false);
 
   const isAdmin = role === "admin";
   const isPast = selectedDate < today;
@@ -268,6 +270,9 @@ export const DashboardScreen = ({
     }
   };
 
+  /*
+   * Temporarily disabled to avoid monthly-summary email usage.
+   * Keep this handler so the feature can be restored later with the button.
   const handleSendSummary = () => {
     if (!mess || !token) return;
     const send = async () => {
@@ -311,6 +316,7 @@ export const DashboardScreen = ({
       ],
     );
   };
+  */
 
   return (
     <View
@@ -382,12 +388,14 @@ export const DashboardScreen = ({
           onApplyRange={() => void applyDateRange()}
           onDownloadPdf={() => void downloadBreakdownPdf()}
         />
+        {/* Temporarily disabled to avoid monthly-summary email usage.
         {isAdmin && !appliedRange && (
           <DashboardSummaryButton
             sending={summarySending}
             onPress={handleSendSummary}
           />
         )}
+        */}
       </ScrollView>
 
       <DashboardDatePicker

@@ -63,15 +63,15 @@ export const formatDashboardAmount = (amount: number): string => {
   if (amount === 0) return "0";
   return amount.toLocaleString("en-IN", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 3,
   });
 };
 
 export const formatDashboardRate = (rate: number): string => {
   if (rate === 0) return "—";
   return rate.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
   });
 };
 

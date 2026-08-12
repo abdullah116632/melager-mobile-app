@@ -1,8 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { api, clearApiCache, type MonthData } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
-import { useNetwork } from '@/context/NetworkContext';
-import { saveToCache, loadFromCache } from '@/lib/cache';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
+import { api, clearApiCache, type MonthData } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { useNetwork } from "@/context/NetworkContext";
+import { saveToCache, loadFromCache } from "@/lib/cache";
 
 export interface Consumer {
   id: string;
@@ -39,18 +46,39 @@ interface MessContextType {
   goToPrevMonth: () => void;
   goToNextMonth: () => void;
   goToMonth: (year: number, month: number) => void;
-  addConsumer: (name: string, email: string, mobileNumber?: string) => Promise<void>;
+  addConsumer: (
+    name: string,
+    email: string,
+    mobileNumber?: string,
+  ) => Promise<{ invitationSent: boolean }>;
   removeConsumer: (id: string) => Promise<void>;
   getMealCount: (yearMonth: string, consumerId: string, day: number) => number;
-  setMeal: (yearMonth: string, consumerId: string, day: number, count: number) => void;
+  setMeal: (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+    count: number,
+  ) => void;
   getConsumerTotal: (yearMonth: string, consumerId: string) => number;
   getDayTotal: (yearMonth: string, day: number) => number;
   getGrandTotal: (yearMonth: string) => number;
-  getExpense: (yearMonth: string, day: number) => { items: DayExpenseItem[]; total: number };
-  setExpense: (yearMonth: string, day: number, items: DayExpenseItem[]) => void;
+  getExpense: (
+    yearMonth: string,
+    day: number,
+  ) => { items: DayExpenseItem[]; total: number };
+  setExpense: (
+    yearMonth: string,
+    day: number,
+    items: DayExpenseItem[],
+  ) => Promise<void>;
   getMonthExpenseTotal: (yearMonth: string) => number;
   getDeposit: (yearMonth: string, consumerId: string, day: number) => number;
-  setDeposit: (yearMonth: string, consumerId: string, day: number, amount: number) => void;
+  setDeposit: (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+    amount: number,
+  ) => void;
   getConsumerDepositTotal: (yearMonth: string, consumerId: string) => number;
   getDayDepositTotal: (yearMonth: string, day: number) => number;
   getGrandDepositTotal: (yearMonth: string) => number;
@@ -60,16 +88,26 @@ interface MessContextType {
 const MessContext = createContext<MessContextType | null>(null);
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function formatYearMonth(year: number, month: number): string {
-  return `${year}-${month.toString().padStart(2, '0')}`;
+  return `${year}-${month.toString().padStart(2, "0")}`;
 }
 
 function getDaysInMonthFn(yearMonth: string): number {
-  const [year, month] = yearMonth.split('-').map(Number);
+  const [year, month] = yearMonth.split("-").map(Number);
   return new Date(year, month, 0).getDate();
 }
 
@@ -94,7 +132,10 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const previousMessIdRef = useRef<number | null>(null);
   activeMessIdRef.current = activeMess?.id ?? null;
 
-  const currentYearMonth = formatYearMonth(state.currentYear, state.currentMonth);
+  const currentYearMonth = formatYearMonth(
+    state.currentYear,
+    state.currentMonth,
+  );
   const currentMonthLabel = `${MONTH_NAMES[state.currentMonth - 1]} ${state.currentYear}`;
 
   const loadMonth = useCallback(
@@ -109,7 +150,10 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         if (activeMessIdRef.current !== messId) return;
         setState((prev) => ({
           ...prev,
-          consumers: data.consumers.map((c) => ({ id: c.id.toString(), name: c.name })),
+          consumers: data.consumers.map((c) => ({
+            id: c.id.toString(),
+            name: c.name,
+          })),
           meals: { ...prev.meals, [yearMonth]: data.meals },
           expenses: { ...prev.expenses, [yearMonth]: data.expenses },
           deposits: { ...prev.deposits, [yearMonth]: data.deposits },
@@ -176,7 +220,10 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => {
       let month = prev.currentMonth - 1;
       let year = prev.currentYear;
-      if (month < 1) { month = 12; year -= 1; }
+      if (month < 1) {
+        month = 12;
+        year -= 1;
+      }
       return { ...prev, currentMonth: month, currentYear: year };
     });
   };
@@ -185,7 +232,10 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => {
       let month = prev.currentMonth + 1;
       let year = prev.currentYear;
-      if (month > 12) { month = 1; year += 1; }
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
       return { ...prev, currentMonth: month, currentYear: year };
     });
   };
@@ -194,28 +244,46 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, currentYear: year, currentMonth: month }));
   };
 
-  const addConsumer = async (name: string, email: string, mobileNumber?: string) => {
-    if (!isOnline) throw new Error('Internet connection required.');
-    if (!token || !activeMess) return;
-    const { consumer } = await api.addConsumer(name, email, mobileNumber, token, activeMess.id);
-    setState((prev) => ({
-      ...prev,
-      consumers: [...prev.consumers, { id: consumer.id.toString(), name: consumer.name }],
-    }));
+  const addConsumer = async (
+    name: string,
+    email: string,
+    mobileNumber?: string,
+  ) => {
+    if (!isOnline) throw new Error("Internet connection required.");
+    if (!token || !activeMess) {
+      throw new Error("Please select a mess and sign in again.");
+    }
+    const { consumer, invitationSent } = await api.addConsumer(
+      name,
+      email,
+      mobileNumber,
+      token,
+      activeMess.id,
+    );
+    if (consumer) {
+      setState((prev) => ({
+        ...prev,
+        consumers: [
+          ...prev.consumers,
+          { id: consumer.id.toString(), name: consumer.name },
+        ],
+      }));
+    }
+    return { invitationSent };
   };
 
   const removeConsumer = async (id: string) => {
-    if (!isOnline) throw new Error('Internet connection required.');
+    if (!isOnline) throw new Error("Internet connection required.");
     if (!token || !activeMess) return;
     await api.removeConsumer(parseInt(id, 10), token, activeMess.id);
     setState((prev) => {
-      const newMeals: MessState['meals'] = {};
+      const newMeals: MessState["meals"] = {};
       Object.keys(prev.meals).forEach((ym) => {
         const d = { ...prev.meals[ym] };
         delete d[id];
         newMeals[ym] = d;
       });
-      const newDeposits: MessState['deposits'] = {};
+      const newDeposits: MessState["deposits"] = {};
       Object.keys(prev.deposits).forEach((ym) => {
         const d = { ...prev.deposits[ym] };
         delete d[id];
@@ -230,10 +298,18 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const getMealCount = (yearMonth: string, consumerId: string, day: number): number =>
-    state.meals[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+  const getMealCount = (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+  ): number => state.meals[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
 
-  const setMeal = (yearMonth: string, consumerId: string, day: number, count: number) => {
+  const setMeal = (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+    count: number,
+  ) => {
     if (!isOnline) return;
     setState((prev) => ({
       ...prev,
@@ -241,12 +317,17 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         ...prev.meals,
         [yearMonth]: {
           ...prev.meals[yearMonth],
-          [consumerId]: { ...prev.meals[yearMonth]?.[consumerId], [day.toString()]: count },
+          [consumerId]: {
+            ...prev.meals[yearMonth]?.[consumerId],
+            [day.toString()]: count,
+          },
         },
       },
     }));
     if (!token || !activeMess) return;
-    api.setMeal(consumerId, yearMonth, day, count, token, activeMess.id).catch(() => {});
+    api
+      .setMeal(consumerId, yearMonth, day, count, token, activeMess.id)
+      .catch(() => {});
   };
 
   const getConsumerTotal = (yearMonth: string, consumerId: string): number =>
@@ -257,30 +338,46 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
 
   const getDayTotal = (yearMonth: string, day: number): number =>
     Object.values(state.meals[yearMonth] ?? {}).reduce(
-      (sum, cDays) => sum + (((cDays as Record<string, number>)[day.toString()]) ?? 0),
+      (sum, cDays) =>
+        sum + ((cDays as Record<string, number>)[day.toString()] ?? 0),
       0,
     );
 
   const getGrandTotal = (yearMonth: string): number =>
-    state.consumers.reduce((sum, c) => sum + getConsumerTotal(yearMonth, c.id), 0);
+    state.consumers.reduce(
+      (sum, c) => sum + getConsumerTotal(yearMonth, c.id),
+      0,
+    );
 
-  const getExpense = (yearMonth: string, day: number): { items: DayExpenseItem[]; total: number } => {
+  const getExpense = (
+    yearMonth: string,
+    day: number,
+  ): { items: DayExpenseItem[]; total: number } => {
     const stored = state.expenses[yearMonth]?.[day.toString()];
     const items = stored?.items ?? [];
     return { items, total: items.reduce((s, it) => s + it.amount, 0) };
   };
 
-  const setExpense = (yearMonth: string, day: number, items: DayExpenseItem[]) => {
-    if (!isOnline) return;
+  const setExpense = async (
+    yearMonth: string,
+    day: number,
+    items: DayExpenseItem[],
+  ) => {
+    if (!isOnline) throw new Error("Internet connection required.");
+    if (!token || !activeMess) {
+      throw new Error("Please select a mess and sign in again.");
+    }
+    await api.setExpense(yearMonth, day, items, token, activeMess.id);
     setState((prev) => ({
       ...prev,
       expenses: {
         ...prev.expenses,
-        [yearMonth]: { ...prev.expenses[yearMonth], [day.toString()]: { items } },
+        [yearMonth]: {
+          ...prev.expenses[yearMonth],
+          [day.toString()]: { items },
+        },
       },
     }));
-    if (!token || !activeMess) return;
-    api.setExpense(yearMonth, day, items, token, activeMess.id).catch(() => {});
   };
 
   const getMonthExpenseTotal = (yearMonth: string): number =>
@@ -289,10 +386,18 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       return sum + items.reduce((s, it) => s + it.amount, 0);
     }, 0);
 
-  const getDeposit = (yearMonth: string, consumerId: string, day: number): number =>
-    state.deposits[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+  const getDeposit = (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+  ): number => state.deposits[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
 
-  const setDeposit = (yearMonth: string, consumerId: string, day: number, amount: number) => {
+  const setDeposit = (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+    amount: number,
+  ) => {
     if (!isOnline) return;
     setState((prev) => ({
       ...prev,
@@ -300,16 +405,24 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         ...prev.deposits,
         [yearMonth]: {
           ...prev.deposits[yearMonth],
-          [consumerId]: { ...prev.deposits[yearMonth]?.[consumerId], [day.toString()]: amount },
+          [consumerId]: {
+            ...prev.deposits[yearMonth]?.[consumerId],
+            [day.toString()]: amount,
+          },
         },
       },
     }));
     if (token && activeMess) {
-      api.setDeposit(consumerId, yearMonth, day, amount, token, activeMess.id).catch(() => {});
+      api
+        .setDeposit(consumerId, yearMonth, day, amount, token, activeMess.id)
+        .catch(() => {});
     }
   };
 
-  const getConsumerDepositTotal = (yearMonth: string, consumerId: string): number =>
+  const getConsumerDepositTotal = (
+    yearMonth: string,
+    consumerId: string,
+  ): number =>
     Object.values(state.deposits[yearMonth]?.[consumerId] ?? {}).reduce(
       (sum, v) => sum + (v as number),
       0,
@@ -317,12 +430,16 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
 
   const getDayDepositTotal = (yearMonth: string, day: number): number =>
     Object.values(state.deposits[yearMonth] ?? {}).reduce(
-      (sum, cDays) => sum + (((cDays as Record<string, number>)[day.toString()]) ?? 0),
+      (sum, cDays) =>
+        sum + ((cDays as Record<string, number>)[day.toString()] ?? 0),
       0,
     );
 
   const getGrandDepositTotal = (yearMonth: string): number =>
-    state.consumers.reduce((sum, c) => sum + getConsumerDepositTotal(yearMonth, c.id), 0);
+    state.consumers.reduce(
+      (sum, c) => sum + getConsumerDepositTotal(yearMonth, c.id),
+      0,
+    );
 
   const getDaysInMonth = (yearMonth: string) => getDaysInMonthFn(yearMonth);
 
@@ -363,6 +480,6 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
 
 export function useMess(): MessContextType {
   const ctx = useContext(MessContext);
-  if (!ctx) throw new Error('useMess must be used within MessProvider');
+  if (!ctx) throw new Error("useMess must be used within MessProvider");
   return ctx;
 }

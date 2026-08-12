@@ -5,7 +5,7 @@ export const formatExpenseAmount = (amount: number): string => {
   if (Number.isInteger(amount)) return amount.toLocaleString("en-IN");
   return amount.toLocaleString("en-IN", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 3,
   });
 };
 
@@ -24,12 +24,15 @@ export const toExpenseDraftItems = (items: ExpenseItem[]): ExpenseDraftItem[] =>
 
 export const toExpenseItems = (drafts: ExpenseDraftItem[]): ExpenseItem[] =>
   drafts
-    .filter((draft) => draft.name.trim() || parseFloat(draft.amountString) > 0)
-    .map((draft) => ({
+    .map((draft, index) => ({
       id: draft.id,
-      name: draft.name.trim(),
+      name: draft.name.trim() || `Item ${index + 1}`,
       amount: parseFloat(draft.amountString) || 0,
-    }));
+      hasContent:
+        Boolean(draft.name.trim()) || parseFloat(draft.amountString) > 0,
+    }))
+    .filter((item) => item.hasContent)
+    .map(({ hasContent: _hasContent, ...item }) => item);
 
 export const getExpenseDraftTotal = (drafts: ExpenseDraftItem[]): number =>
   drafts.reduce(

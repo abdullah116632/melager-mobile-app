@@ -20,6 +20,9 @@ import {
   toExpenseItems,
 } from "@/utils/expense";
 
+const isThreeDecimalAmountInput = (value: string) =>
+  /^\d*(?:\.\d{0,3})?$/.test(value);
+
 export const ExpensesScreen = () => {
   const insets = useSafeAreaInsets();
   const { role } = useAuth();
@@ -35,8 +38,11 @@ export const ExpensesScreen = () => {
   } = useMess();
   const [refreshing, setRefreshing] = useState(false);
   const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [viewingDay, setViewingDay] = useState<number | null>(null);
   const [draftItems, setDraftItems] = useState<ExpenseDraftItem[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const isAdmin = role === "admin";
   const days = Array.from(
@@ -60,6 +66,7 @@ export const ExpensesScreen = () => {
     const expense = getExpense(currentYearMonth, day);
     const drafts = toExpenseDraftItems(expense.items);
     setDraftItems(drafts.length > 0 ? drafts : [createExpenseDraftItem()]);
+    setSaveError("");
     // Keep the same order as the working deposit flow: prepare the form first,
     // then show the modal so its first input exists when auto-focus runs.
     setEditingDay(day);
@@ -67,15 +74,46 @@ export const ExpensesScreen = () => {
 
   const closeEditor = () => {
     setEditingDay(null);
+    setEditingItemId(null);
     setDraftItems([]);
+    setSaveError("");
   };
 
-  const saveExpenses = () => {
+  const openItemEditor = (itemId: string) => {
+    if (viewingDay === null) return;
+    openEditor(viewingDay);
+    setEditingItemId(itemId);
+    setViewingDay(null);
+  };
+
+  const saveExpenses = async () => {
     if (editingDay === null) return;
-    setExpense(currentYearMonth, editingDay, toExpenseItems(draftItems));
-    closeEditor();
-    if (Platform.OS !== "web") {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const items = toExpenseItems(draftItems);
+    if (items.length === 0) {
+      setSaveError("Add at least one expense item before saving.");
+      return;
+    }
+    if (items.some((item) => !item.name.trim())) {
+      setSaveError("Every expense amount needs an item name.");
+      return;
+    }
+
+    setSaving(true);
+    setSaveError("");
+    try {
+      await setExpense(currentYearMonth, editingDay, items);
+      closeEditor();
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Failed to save expense.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -86,13 +124,22 @@ export const ExpensesScreen = () => {
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => {
+        onPress: async () => {
           const current = getExpense(currentYearMonth, viewingDay);
-          setExpense(
-            currentYearMonth,
-            viewingDay,
-            current.items.filter((item) => item.id !== itemId),
-          );
+          try {
+            await setExpense(
+              currentYearMonth,
+              viewingDay,
+              current.items.filter((item) => item.id !== itemId),
+            );
+          } catch (error) {
+            Alert.alert(
+              "Delete failed",
+              error instanceof Error
+                ? error.message
+                : "Failed to delete expense.",
+            );
+          }
         },
       },
     ]);
@@ -108,7 +155,19 @@ export const ExpensesScreen = () => {
         {
           text: "Delete all",
           style: "destructive",
-          onPress: () => setExpense(currentYearMonth, viewingDay, []),
+          onPress: async () => {
+            try {
+              await setExpense(currentYearMonth, viewingDay, []);
+              setViewingDay(null);
+            } catch (error) {
+              Alert.alert(
+                "Delete failed",
+                error instanceof Error
+                  ? error.message
+                  : "Failed to delete expenses.",
+              );
+            }
+          },
         },
       ],
     );
@@ -176,6 +235,7 @@ export const ExpensesScreen = () => {
         isAdmin={isAdmin}
         onClose={() => setViewingDay(null)}
         onDeleteItem={deleteExpenseItem}
+        onEditItem={openItemEditor}
         onDeleteAll={deleteAllExpenseItems}
       />
       <ExpenseEditorModal
@@ -184,13 +244,18 @@ export const ExpensesScreen = () => {
         monthLabel={currentMonthLabel}
         drafts={draftItems}
         total={draftTotal}
+        focusItemId={editingItemId}
+        saving={saving}
+        error={saveError}
         onClose={closeEditor}
-        onSave={saveExpenses}
+        onSave={() => void saveExpenses()}
         onAddItem={addDraftItem}
         onNameChange={(itemId, name) => updateDraft(itemId, { name })}
-        onAmountChange={(itemId, amountString) =>
-          updateDraft(itemId, { amountString })
-        }
+        onAmountChange={(itemId, amountString) => {
+          if (isThreeDecimalAmountInput(amountString)) {
+            updateDraft(itemId, { amountString });
+          }
+        }}
         onRemoveItem={removeDraftItem}
       />
     </View>

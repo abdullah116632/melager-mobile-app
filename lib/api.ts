@@ -57,6 +57,7 @@ type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 const inFlightGets = new Map<string, Promise<unknown>>();
 const responseCache = new Map<string, { data: unknown; expiresAt: number }>();
 const GET_CACHE_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export function clearApiCache(): void {
   responseCache.clear();
@@ -84,23 +85,36 @@ async function req<T>(method: Method, path: string, body?: unknown, token?: stri
   const request = (async () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body != null ? JSON.stringify(body) : undefined,
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new ApiError((data as { error?: string }).error ?? 'Request failed', res.status);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: body != null ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new ApiError((data as { error?: string }).error ?? 'Request failed', res.status);
+      }
+      if (method === 'GET') {
+        responseCache.set(requestKey, { data, expiresAt: Date.now() + GET_CACHE_MS });
+      } else {
+        // Any write may affect multiple summary/list endpoints. A small global
+        // cache is cheap to clear and avoids serving inconsistent screen data.
+        responseCache.clear();
+      }
+      return data as T;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new ApiError('Request timed out. Please check your connection and try again.', 408);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    if (method === 'GET') {
-      responseCache.set(requestKey, { data, expiresAt: Date.now() + GET_CACHE_MS });
-    } else {
-      // Any write may affect multiple summary/list endpoints. A small global
-      // cache is cheap to clear and avoids serving inconsistent screen data.
-      responseCache.clear();
-    }
-    return data as T;
   })();
 
   if (method === 'GET') {
@@ -232,7 +246,7 @@ export const api = {
     token: string,
     messId: number,
   ) =>
-    req<{ consumer: ApiConsumer }>(
+    req<{ consumer?: ApiConsumer; invitationSent: boolean }>(
       'POST',
       '/mess/consumers',
       { name, email, mobileNumber, messId },
@@ -380,6 +394,12 @@ export const api = {
     data: { messId: number; consumerId: number; amount: number; depositedAt?: string; note?: string },
     token: string,
   ) => req<{ entry: DepositEntry }>('POST', '/mess/deposit-entry', data, token),
+
+  updateDepositEntry: (
+    id: number,
+    data: { messId: number; amount: number; depositedAt: string; note?: string },
+    token: string,
+  ) => req<{ entry: DepositEntry }>('PATCH', `/mess/deposit-entry/${id}`, data, token),
 
   getDepositEntries: (messId: number, yearMonth: string, token: string) =>
     req<{ entries: DepositEntry[] }>(

@@ -5,7 +5,7 @@ export const formatDepositAmount = (amount: number): string => {
   if (Number.isInteger(amount)) return amount.toLocaleString("en-IN");
   return amount.toLocaleString("en-IN", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 3,
   });
 };
 

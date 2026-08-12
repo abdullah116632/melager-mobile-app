@@ -50,8 +50,7 @@ export default function MonthPicker({
   const hasCellNavigation = Boolean(
     onCellLeft && onCellRight && onCellUp && onCellDown,
   );
-  const navigationIconColor =
-    cellNavEnabled || isDashboard ? accent : "#64748B";
+  const navigationIconColor = cellNavEnabled ? "#0369A1" : "#3B82F6";
 
   const openPicker = () => {
     setPickerYear(currentYear);
@@ -88,36 +87,36 @@ export default function MonthPicker({
   return (
     <>
       <View
-        className={`flex-row items-center px-3 py-2.5 ${isDashboard ? "z-20 -mt-4 bg-transparent" : "border-b border-slate-200 bg-white"}`}
+        className={`flex-row items-center py-2.5 ${hasCellNavigation ? "px-1.5" : "px-3"} ${isDashboard ? "z-20 -mt-4 bg-transparent" : "border-b border-slate-200 bg-white"}`}
       >
         {hasCellNavigation ? (
           <>
             <View
-              className={`flex-1 flex-row items-center justify-end ${isDashboard ? "mt-1.5 gap-1.5 pr-1.5" : "gap-3 pr-4"}`}
+              className={`flex-1 flex-row items-center justify-end ${isDashboard ? "mt-1.5 gap-4 pr-1" : "gap-3 pr-4"}`}
             >
               <TouchableOpacity
-                className={`${isDashboard ? "h-[30px] w-[30px] border border-slate-200 bg-white shadow-sm" : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-70" : "opacity-40"}`}
+                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellLeft)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                accessibilityLabel="Copy meal to left cell"
               >
                 <Feather
                   name="chevron-left"
-                  size={18}
+                  size={22}
                   color={navigationIconColor}
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                className={`${isDashboard ? "h-[30px] w-[30px] border border-slate-200 bg-white shadow-sm" : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-70" : "opacity-40"}`}
+                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellRight)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                accessibilityLabel="Copy meal to right cell"
               >
                 <Feather
                   name="chevron-right"
-                  size={18}
+                  size={22}
                   color={navigationIconColor}
                 />
               </TouchableOpacity>
@@ -128,31 +127,31 @@ export default function MonthPicker({
             </View>
 
             <View
-              className={`flex-1 flex-row items-center justify-start ${isDashboard ? "mt-1.5 gap-1.5 pl-1.5" : "gap-3 pl-4"}`}
+              className={`flex-1 flex-row items-center justify-start ${isDashboard ? "mt-1.5 gap-4 pl-1" : "gap-3 pl-4"}`}
             >
               <TouchableOpacity
-                className={`${isDashboard ? "h-[30px] w-[30px] border border-slate-200 bg-white shadow-sm" : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-70" : "opacity-40"}`}
+                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellUp)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 4, left: 8, right: 8 }}
+                accessibilityLabel="Copy meal to upper cell"
               >
                 <Feather
                   name="chevron-up"
-                  size={16}
+                  size={21}
                   color={navigationIconColor}
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                className={`${isDashboard ? "h-[30px] w-[30px] border border-slate-200 bg-white shadow-sm" : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-70" : "opacity-40"}`}
+                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellDown)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
-                hitSlop={{ top: 4, bottom: 8, left: 8, right: 8 }}
+                accessibilityLabel="Copy meal to lower cell"
               >
                 <Feather
                   name="chevron-down"
-                  size={16}
+                  size={21}
                   color={navigationIconColor}
                 />
               </TouchableOpacity>

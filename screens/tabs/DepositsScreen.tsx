@@ -1,7 +1,14 @@
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Platform, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AddDepositConsumerModal } from "@/components/deposits/AddDepositConsumerModal";
 import { AddDepositModal } from "@/components/deposits/AddDepositModal";
@@ -18,6 +25,7 @@ import {
   addDepositEntry,
   deleteDepositEntry,
   getDepositEntries,
+  updateDepositEntry,
 } from "@/services/depositService";
 import type { DepositEntry } from "@/types/deposit";
 import {
@@ -26,6 +34,15 @@ import {
   getCurrentDepositTime,
   getDepositTotal,
 } from "@/utils/deposit";
+
+const getEntryDateAndTime = (isoDate: string) => {
+  const date = new Date(isoDate);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+};
 
 export const DepositsScreen = () => {
   const insets = useSafeAreaInsets();
@@ -41,6 +58,7 @@ export const DepositsScreen = () => {
   } = useMess();
   const [entries, setEntries] = useState<DepositEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [addConsumerId, setAddConsumerId] = useState<string | null>(null);
@@ -50,6 +68,7 @@ export const DepositsScreen = () => {
   const [addNote, setAddNote] = useState("");
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
+  const [editingEntry, setEditingEntry] = useState<DepositEntry | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyConsumerId, setHistoryConsumerId] = useState<string | null>(
     null,
@@ -65,16 +84,30 @@ export const DepositsScreen = () => {
   const messId = activeMess?.id ?? null;
 
   const loadEntries = useCallback(async () => {
-    if (!messId || !token) return;
+    if (!messId || !token) {
+      setLoading(false);
+      return;
+    }
+    if (!isOnline) {
+      setLoading(false);
+      setLoadError("You are offline. Reconnect to load deposits.");
+      return;
+    }
     setLoading(true);
+    setLoadError("");
     try {
       setEntries(await getDepositEntries(messId, currentYearMonth, token));
-    } catch {
+    } catch (error) {
       // Preserve the last successfully loaded entries.
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load deposits. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
-  }, [messId, token, currentYearMonth]);
+  }, [messId, token, currentYearMonth, isOnline]);
 
   useEffect(() => {
     void loadEntries();
@@ -98,9 +131,15 @@ export const DepositsScreen = () => {
 
   const handleAddDeposit = async () => {
     if (!messId || !token || !addConsumerId) return;
-    const amount = parseInt(addAmount.trim(), 10);
-    if (!amount || Number.isNaN(amount) || amount <= 0) {
-      setAddError("Enter a valid amount.");
+    const amount = Number(addAmount.trim());
+    if (
+      !Number.isFinite(amount) ||
+      amount === 0 ||
+      !/^-?\d+(?:\.\d{1,3})?$/.test(addAmount.trim())
+    ) {
+      setAddError(
+        "Enter a non-zero amount with up to 3 decimals, e.g. 500.125 or -500.125.",
+      );
       return;
     }
     const date = addDate.trim() || getCurrentDepositDate();
@@ -145,6 +184,70 @@ export const DepositsScreen = () => {
   const openHistory = (consumerId: string) => {
     setHistoryConsumerId(consumerId);
     setShowHistory(true);
+  };
+
+  const openEditDeposit = (entry: DepositEntry) => {
+    const { date, time } = getEntryDateAndTime(entry.depositedAt);
+    setEditingEntry(entry);
+    setAddAmount(String(entry.amount));
+    setAddDate(date);
+    setAddTime(time);
+    setAddNote(entry.note ?? "");
+    setAddError("");
+  };
+
+  const handleUpdateDeposit = async () => {
+    if (!messId || !token || !editingEntry) return;
+    const amount = Number(addAmount.trim());
+    if (
+      !Number.isFinite(amount) ||
+      amount === 0 ||
+      !/^-?\d+(?:\.\d{1,3})?$/.test(addAmount.trim())
+    ) {
+      setAddError(
+        "Enter a non-zero amount with up to 3 decimals, e.g. 500.125 or -500.125.",
+      );
+      return;
+    }
+    const depositedAt = new Date(`${addDate.trim()}T${addTime.trim()}:00`);
+    if (Number.isNaN(depositedAt.getTime())) {
+      setAddError("Invalid date or time. Use YYYY-MM-DD and HH:MM.");
+      return;
+    }
+    if (!isOnline) {
+      setAddError("Internet connection required.");
+      return;
+    }
+
+    setAddSaving(true);
+    setAddError("");
+    try {
+      const updatedEntry = await updateDepositEntry(
+        editingEntry.id,
+        {
+          messId,
+          amount,
+          depositedAt: depositedAt.toISOString(),
+          note: addNote.trim() || undefined,
+        },
+        token,
+      );
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.id === updatedEntry.id ? updatedEntry : entry,
+        ),
+      );
+      setEditingEntry(null);
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : "Failed to update.");
+    } finally {
+      setAddSaving(false);
+    }
   };
 
   const handleDeleteEntry = (entryId: number) => {
@@ -199,12 +302,18 @@ export const DepositsScreen = () => {
       return;
     }
     try {
-      await addConsumer(name, email, phone);
+      const { invitationSent } = await addConsumer(name, email, phone);
       setNewName("");
       setNewEmail("");
       setNewPhone("");
       setAddConsumerError("");
       setShowAddConsumer(false);
+      if (invitationSent) {
+        Alert.alert(
+          "Invitation sent",
+          "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference.",
+        );
+      }
     } catch (error) {
       setAddConsumerError(
         error instanceof Error ? error.message : "Failed to add consumer.",
@@ -268,6 +377,22 @@ export const DepositsScreen = () => {
           <ActivityIndicator size="small" color={DEPOSIT_PRIMARY} />
         </View>
       )}
+      {!loading && loadError ? (
+        <View className="mx-4 my-2 flex-row items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+          <Text className="flex-1 pr-3 font-inter text-xs leading-4 text-red-700">
+            {loadError}
+          </Text>
+          <TouchableOpacity
+            className="rounded-lg bg-red-100 px-3 py-2"
+            onPress={() => void loadEntries()}
+            activeOpacity={0.75}
+          >
+            <Text className="font-inter-semibold text-xs text-red-700">
+              Retry
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <DepositsTable
         consumers={consumers}
         entries={entries}
@@ -298,12 +423,35 @@ export const DepositsScreen = () => {
         onClose={() => setShowAdd(false)}
         onSubmit={() => void handleAddDeposit()}
       />
+      <AddDepositModal
+        visible={editingEntry !== null}
+        consumerName={
+          consumers.find(
+            (consumer) => consumer.id === editingEntry?.consumerId.toString(),
+          )?.name ?? ""
+        }
+        amount={addAmount}
+        date={addDate}
+        time={addTime}
+        note={addNote}
+        error={addError}
+        saving={addSaving}
+        title="Edit Deposit"
+        submitLabel="Save Changes"
+        onAmountChange={setAddAmount}
+        onDateChange={setAddDate}
+        onTimeChange={setAddTime}
+        onNoteChange={setAddNote}
+        onClose={() => setEditingEntry(null)}
+        onSubmit={() => void handleUpdateDeposit()}
+      />
       <DepositHistoryModal
         visible={showHistory}
         consumerName={historyConsumer?.name ?? ""}
         entries={historyEntries}
         isAdmin={isAdmin}
         deletingId={deletingId}
+        onEdit={openEditDeposit}
         onDelete={handleDeleteEntry}
         onClose={() => setShowHistory(false)}
       />

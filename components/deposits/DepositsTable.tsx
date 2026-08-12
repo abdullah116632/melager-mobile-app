@@ -60,7 +60,7 @@ export const DepositsTable = ({
             Consumers ({consumers.length})
           </Text>
         </View>
-        <View className="w-[82px] justify-center border-r px-2.5">
+        <View className="w-[118px] justify-center border-r px-2.5">
           <Text className="px-2.5 font-inter-semibold text-xs text-white">
             Total
           </Text>
@@ -112,9 +112,9 @@ export const DepositsTable = ({
                 </Text>
               </TouchableOpacity>
 
-              <View className="w-[82px] justify-center border-r border-slate-200 px-2.5">
+              <View className="w-[118px] justify-center border-r border-slate-200 px-2.5">
                 <Text
-                  className={`text-right font-inter-semibold text-[13px] ${total > 0 ? "text-teal-700" : "text-slate-500"}`}
+                  className={`text-right font-inter-semibold text-[13px] ${total > 0 ? "text-teal-700" : total < 0 ? "text-red-600" : "text-slate-500"}`}
                 >
                   ৳{formatDepositAmount(total)}
                 </Text>
@@ -165,7 +165,7 @@ export const DepositsTable = ({
               Total
             </Text>
           </View>
-          <View className="w-[82px] justify-center border-r px-2.5">
+          <View className="w-[118px] justify-center border-r px-2.5">
             <Text className="text-right font-inter-bold text-[13px] text-white">
               ৳{formatDepositAmount(grandTotal)}
             </Text>

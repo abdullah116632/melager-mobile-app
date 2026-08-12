@@ -4,12 +4,14 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
 
 interface MealsHeaderProps {
+  totalMeals: number;
   isAdmin: boolean;
   onMenu: () => void;
   onAddConsumer: () => void;
 }
 
 export const MealsHeader = ({
+  totalMeals,
   isAdmin,
   onMenu,
   onAddConsumer,
@@ -22,7 +24,7 @@ export const MealsHeader = ({
   >
     <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
     <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
-    <View className="flex-row items-center gap-3">
+    <View className="flex-row items-center gap-2.5">
       <TouchableOpacity
         className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
         onPress={onMenu}
@@ -41,6 +43,16 @@ export const MealsHeader = ({
         Meals
       </Text>
       <NotificationBell badgeBorderColor="#00796F" />
+      <View className="items-center rounded-full border border-white/20 bg-white/15 px-2.5 py-1.5">
+        <Text className="font-inter text-[8px] leading-[9px] text-white/75">
+          TOTAL
+        </Text>
+        <Text className="font-inter-bold text-[12px] leading-[14px] text-white">
+          {totalMeals.toLocaleString("en-IN", {
+            maximumFractionDigits: 3,
+          })}
+        </Text>
+      </View>
       {isAdmin ? (
         <TouchableOpacity
           className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"

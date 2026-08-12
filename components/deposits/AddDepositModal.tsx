@@ -26,6 +26,8 @@ interface AddDepositModalProps {
   note: string;
   error: string;
   saving: boolean;
+  title?: string;
+  submitLabel?: string;
   onAmountChange: (value: string) => void;
   onDateChange: (value: string) => void;
   onTimeChange: (value: string) => void;
@@ -43,6 +45,8 @@ export const AddDepositModal = ({
   note,
   error,
   saving,
+  title = "Add Deposit",
+  submitLabel = "Add Deposit",
   onAmountChange,
   onDateChange,
   onTimeChange,
@@ -110,7 +114,7 @@ export const AddDepositModal = ({
               <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
               <View className="mb-1 flex-row items-center justify-between">
                 <Text className="font-inter-bold text-lg text-slate-900">
-                  Add Deposit
+                  {title}
                 </Text>
                 <TouchableOpacity
                   className="h-[34px] w-[34px] items-center justify-center rounded-full bg-slate-100"
@@ -136,12 +140,15 @@ export const AddDepositModal = ({
                 <TextInput
                   ref={amountInputRef}
                   className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
-                  placeholder="e.g. 500"
+                  placeholder="e.g. 500.125 or -500.125"
                   placeholderTextColor="#64748B"
                   value={amount}
                   onChangeText={onAmountChange}
-                  keyboardType="number-pad"
+                  keyboardType="default"
                 />
+                <Text className="mt-1 font-inter text-[11px] text-slate-500">
+                  Start with - for a negative entry. Up to 3 decimal places.
+                </Text>
 
                 <View className="flex-row">
                   <View className="mr-2 flex-1">
@@ -217,7 +224,7 @@ export const AddDepositModal = ({
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text className="font-inter-semibold text-white">
-                      Add Deposit
+                      {submitLabel}
                     </Text>
                   )}
                 </TouchableOpacity>

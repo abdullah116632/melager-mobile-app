@@ -34,8 +34,8 @@ export const DepositsHeader = ({
       >
         <Feather name="menu" size={21} color="#fff" />
       </TouchableOpacity>
-      <View className="h-[40px] w-[40px] items-center justify-center rounded-full border-2 border-white bg-blue-50 shadow-lg shadow-black/20">
-        <Feather name="archive" size={19} color="#2563EB" />
+      <View className="h-[34px] w-[34px] items-center justify-center rounded-full border-2 border-white bg-blue-50 shadow-lg shadow-black/20">
+        <Feather name="archive" size={16} color="#2563EB" />
       </View>
       <Text
         className="flex-1 font-inter-bold text-[18px] tracking-[0.1px] text-white"
@@ -43,7 +43,9 @@ export const DepositsHeader = ({
       >
         Deposits
       </Text>
-      <NotificationBell badgeBorderColor="#00796F" />
+      <View className="-mr-1">
+        <NotificationBell badgeBorderColor="#00796F" />
+      </View>
       <View className="rounded-full border border-white/20 bg-white/15 px-2.5 py-2">
         <Text className="font-inter-bold text-[12px] text-white">
           ৳{formatDepositAmount(grandTotal)}

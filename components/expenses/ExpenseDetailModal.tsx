@@ -11,6 +11,7 @@ interface ExpenseDetailModalProps {
   isAdmin: boolean;
   onClose: () => void;
   onDeleteItem: (id: string) => void;
+  onEditItem: (id: string) => void;
   onDeleteAll: () => void;
 }
 
@@ -21,6 +22,7 @@ export const ExpenseDetailModal = ({
   isAdmin,
   onClose,
   onDeleteItem,
+  onEditItem,
   onDeleteAll,
 }: ExpenseDetailModalProps) => (
   <Modal
@@ -89,13 +91,22 @@ export const ExpenseDetailModal = ({
                   ৳{formatExpenseAmount(item.amount)}
                 </Text>
                 {isAdmin && (
-                  <TouchableOpacity
-                    className="ml-0.5 h-8 w-8 items-center justify-center rounded-full bg-red-50"
-                    onPress={() => onDeleteItem(item.id)}
-                    accessibilityLabel={`Delete ${item.name || "expense item"}`}
-                  >
-                    <Feather name="trash-2" size={16} color="#DC2626" />
-                  </TouchableOpacity>
+                  <View className="ml-0.5 flex-row items-center gap-1.5">
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-full bg-teal-50"
+                      onPress={() => onEditItem(item.id)}
+                      accessibilityLabel={`Edit ${item.name || "expense item"}`}
+                    >
+                      <Feather name="edit-2" size={15} color={EXPENSE_PRIMARY} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-full bg-red-50"
+                      onPress={() => onDeleteItem(item.id)}
+                      accessibilityLabel={`Delete ${item.name || "expense item"}`}
+                    >
+                      <Feather name="trash-2" size={16} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             ))}

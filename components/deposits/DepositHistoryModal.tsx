@@ -22,6 +22,7 @@ interface DepositHistoryModalProps {
   entries: DepositEntry[];
   isAdmin: boolean;
   deletingId: number | null;
+  onEdit: (entry: DepositEntry) => void;
   onDelete: (entryId: number) => void;
   onClose: () => void;
 }
@@ -32,6 +33,7 @@ export const DepositHistoryModal = ({
   entries,
   isAdmin,
   deletingId,
+  onEdit,
   onDelete,
   onClose,
 }: DepositHistoryModalProps) => (
@@ -91,7 +93,9 @@ export const DepositHistoryModal = ({
                   <View className="h-2.5 w-2.5 rounded-full bg-teal-500" />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-inter-semibold text-[15px] text-teal-700">
+                  <Text
+                    className={`font-inter-semibold text-[15px] ${item.amount < 0 ? "text-red-600" : "text-teal-700"}`}
+                  >
                     ৳{formatDepositAmount(item.amount)}
                   </Text>
                   <Text className="mt-0.5 font-inter text-xs text-slate-500">
@@ -104,17 +108,26 @@ export const DepositHistoryModal = ({
                   ) : null}
                 </View>
                 {isAdmin && (
-                  <TouchableOpacity
-                    onPress={() => onDelete(item.id)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    disabled={deletingId === item.id}
-                  >
-                    {deletingId === item.id ? (
-                      <ActivityIndicator size="small" color="#DC2626" />
-                    ) : (
-                      <Feather name="trash-2" size={16} color="#DC2626" />
-                    )}
-                  </TouchableOpacity>
+                  <View className="flex-row items-center gap-4">
+                    <TouchableOpacity
+                      onPress={() => onEdit(item)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityLabel="Edit deposit"
+                    >
+                      <Feather name="edit-2" size={16} color="#0F766E" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => onDelete(item.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      disabled={deletingId === item.id}
+                    >
+                      {deletingId === item.id ? (
+                        <ActivityIndicator size="small" color="#DC2626" />
+                      ) : (
+                        <Feather name="trash-2" size={16} color="#DC2626" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             )}

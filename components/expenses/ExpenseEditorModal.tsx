@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -21,6 +22,9 @@ interface ExpenseEditorModalProps {
   monthLabel: string;
   drafts: ExpenseDraftItem[];
   total: number;
+  focusItemId?: string | null;
+  saving: boolean;
+  error: string;
   onClose: () => void;
   onSave: () => void;
   onAddItem: () => void;
@@ -35,6 +39,9 @@ export const ExpenseEditorModal = ({
   monthLabel,
   drafts,
   total,
+  focusItemId,
+  saving,
+  error,
   onClose,
   onSave,
   onAddItem,
@@ -44,7 +51,7 @@ export const ExpenseEditorModal = ({
 }: ExpenseEditorModalProps) => {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const amountInputRefs = useRef<Record<string, TextInput | null>>({});
-  const firstNameInputRef = useRef<TextInput | null>(null);
+  const nameInputRefs = useRef<Record<string, TextInput | null>>({});
 
   useEffect(() => {
     const showEvent =
@@ -65,7 +72,10 @@ export const ExpenseEditorModal = ({
 
   useEffect(() => {
     if (!visible) return;
-    const timer = setTimeout(() => firstNameInputRef.current?.focus(), 350);
+    const timer = setTimeout(
+      () => nameInputRefs.current[focusItemId ?? drafts[0]?.id ?? ""]?.focus(),
+      350,
+    );
     return () => clearTimeout(timer);
   }, [visible]);
 
@@ -94,7 +104,7 @@ export const ExpenseEditorModal = ({
           <TouchableOpacity
             className="flex-1"
             activeOpacity={1}
-            onPress={save}
+            onPress={() => Keyboard.dismiss()}
           />
           <View
             className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-6 pt-3"
@@ -147,7 +157,9 @@ export const ExpenseEditorModal = ({
                   className="flex-row items-center gap-2 border-b-[0.5px] border-slate-200 py-[7px]"
                 >
                   <TextInput
-                    ref={index === 0 ? firstNameInputRef : undefined}
+                    ref={(input) => {
+                      nameInputRefs.current[item.id] = input;
+                    }}
                     className="h-10 flex-1 rounded-[10px] border border-slate-200 bg-slate-50 px-2.5 font-inter text-sm text-slate-900"
                     placeholder={`Item ${index + 1}`}
                     placeholderTextColor="#64748B"
@@ -175,7 +187,6 @@ export const ExpenseEditorModal = ({
                       onChangeText={(amount) => onAmountChange(item.id, amount)}
                       keyboardType="decimal-pad"
                       returnKeyType="done"
-                      selectTextOnFocus
                     />
                   </View>
 
@@ -201,16 +212,23 @@ export const ExpenseEditorModal = ({
               </TouchableOpacity>
             </ScrollView>
 
+            {error ? (
+              <Text className="mt-3 text-center font-inter-medium text-[12px] text-red-600">
+                {error}
+              </Text>
+            ) : null}
+
             <TouchableOpacity
-              className="mt-4 flex-row items-center justify-center gap-2.5 rounded-[14px] bg-teal-700 py-[15px] shadow-md shadow-teal-700/20"
+              className={`mt-4 flex-row items-center justify-center gap-2.5 rounded-[14px] bg-teal-700 py-[15px] shadow-md shadow-teal-700/20 ${saving ? "opacity-70" : ""}`}
               onPress={save}
+              disabled={saving}
             >
-              {total > 0 && (
-                <Text className="font-inter-medium text-sm text-white/70">
-                  ৳{formatExpenseAmount(total)}
-                </Text>
-              )}
-              <Text className="font-inter-bold text-base text-white">Save</Text>
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : null}
+              <Text className="font-inter-bold text-base text-white">
+                {saving ? "Saving..." : "Save"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
