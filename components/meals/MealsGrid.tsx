@@ -26,13 +26,21 @@ import { isMealDayToday } from "@/utils/meal";
 import { MealsEmptyState } from "./MealsEmptyState";
 
 const CONSUMER_ACCENTS = [
-  { color: "#10B981", backgroundColor: "#DDFBF0" },
-  { color: "#0EA5E9", backgroundColor: "#E0F3FF" },
-  { color: "#8B5CF6", backgroundColor: "#F0E9FF" },
-  { color: "#F97316", backgroundColor: "#FFF0E3" },
-  { color: "#EC4899", backgroundColor: "#FFE5F1" },
-  { color: "#EAB308", backgroundColor: "#FFF7D6" },
+  "#059669",
+  "#0284C7",
+  "#7C3AED",
+  "#EA580C",
+  "#DB2777",
+  "#CA8A04",
 ] as const;
+
+const getConsumerNameColor = (consumerId: string) => {
+  const hash = Array.from(consumerId).reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  return CONSUMER_ACCENTS[hash % CONSUMER_ACCENTS.length];
+};
 
 interface MealsGridProps {
   consumers: Consumer[];
@@ -332,24 +340,19 @@ export const MealsGrid = ({
             className="absolute left-0 top-0 z-30 w-[110px] shadow-md shadow-black/10"
           >
             {consumers.map((consumer, index) => {
-              const accent = CONSUMER_ACCENTS[index % CONSUMER_ACCENTS.length];
+              const nameColor = getConsumerNameColor(consumer.id);
               return (
                 <TouchableOpacity
                   key={consumer.id}
-                  className={`h-[48px] w-[110px] flex-row items-center border-b-[0.5px] border-r border-slate-200 px-2 ${index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"}`}
+                  className={`h-[48px] w-[110px] flex-row items-center border-b-[0.5px] border-r border-slate-200 px-3 ${index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"}`}
                   onLongPress={() =>
                     onRemoveConsumer(consumer.id, consumer.name)
                   }
                   activeOpacity={0.7}
                 >
-                  <View
-                    className="mr-2 h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                    style={{ backgroundColor: accent.backgroundColor }}
-                  >
-                    <Feather name="user" size={15} color={accent.color} />
-                  </View>
                   <Text
-                    className="flex-1 font-inter-medium text-[11px] text-slate-900"
+                    className="flex-1 font-inter-semibold text-[13px]"
+                    style={{ color: nameColor }}
                     numberOfLines={1}
                   >
                     {consumer.name}

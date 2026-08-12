@@ -63,15 +63,11 @@ export const ExpenseEditorModal = ({
     };
   }, []);
 
-  const focusFirstInput = () => {
-    requestAnimationFrame(() => firstNameInputRef.current?.focus());
-  };
-
   useEffect(() => {
     if (!visible) return;
-    const focusTimer = setTimeout(focusFirstInput, 150);
-    return () => clearTimeout(focusTimer);
-  }, [visible, drafts[0]?.id]);
+    const timer = setTimeout(() => firstNameInputRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [visible]);
 
   const close = () => {
     Keyboard.dismiss();
@@ -88,7 +84,6 @@ export const ExpenseEditorModal = ({
       visible={visible}
       transparent
       animationType="slide"
-      onShow={focusFirstInput}
       onRequestClose={close}
     >
       <KeyboardAvoidingView
@@ -159,7 +154,6 @@ export const ExpenseEditorModal = ({
                     value={item.name}
                     onChangeText={(name) => onNameChange(item.id, name)}
                     returnKeyType="next"
-                    autoFocus={index === 0}
                     onSubmitEditing={() =>
                       amountInputRefs.current[item.id]?.focus()
                     }

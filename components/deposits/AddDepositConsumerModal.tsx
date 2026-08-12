@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -38,6 +38,7 @@ export const AddDepositConsumerModal = ({
   onSubmit,
 }: AddDepositConsumerModalProps) => {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const nameInputRef = useRef<TextInput | null>(null);
 
   useEffect(() => {
     const showEvent =
@@ -55,6 +56,12 @@ export const AddDepositConsumerModal = ({
       hideSubscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    const timer = setTimeout(() => nameInputRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [visible]);
 
   const close = () => {
     Keyboard.dismiss();
@@ -108,12 +115,12 @@ export const AddDepositConsumerModal = ({
               keyboardDismissMode="on-drag"
             >
               <TextInput
+                ref={nameInputRef}
                 className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
                 placeholder="Full name *"
                 placeholderTextColor="#64748B"
                 value={name}
                 onChangeText={onNameChange}
-                autoFocus
                 returnKeyType="next"
               />
               <TextInput

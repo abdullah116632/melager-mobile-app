@@ -59,8 +59,10 @@ export const ExpensesScreen = () => {
     if (Platform.OS !== "web") void Haptics.selectionAsync();
     const expense = getExpense(currentYearMonth, day);
     const drafts = toExpenseDraftItems(expense.items);
-    setEditingDay(day);
     setDraftItems(drafts.length > 0 ? drafts : [createExpenseDraftItem()]);
+    // Keep the same order as the working deposit flow: prepare the form first,
+    // then show the modal so its first input exists when auto-focus runs.
+    setEditingDay(day);
   };
 
   const closeEditor = () => {

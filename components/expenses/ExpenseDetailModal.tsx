@@ -108,6 +108,15 @@ export const ExpenseDetailModal = ({
             </Text>
           </View>
         )}
+
+        <TouchableOpacity
+          className="mt-4 items-center rounded-xl bg-teal-700 py-[13px]"
+          onPress={onClose}
+          activeOpacity={0.8}
+          accessibilityLabel="Close expense list"
+        >
+          <Text className="font-inter-semibold text-white">Close</Text>
+        </TouchableOpacity>
       </View>
     </View>
   </Modal>

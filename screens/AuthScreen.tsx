@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, View } from "react-native";
-import * as AuthSession from "expo-auth-session";
+import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 
 import { AuthBrand } from "@/components/auth/AuthBrand";
@@ -30,10 +30,6 @@ import type { AuthMode } from "@/types/auth";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_DISCOVERY = {
-  authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-};
-
 const AuthScreen = () => {
   const { login, loginWithGoogle, signup, verifyOtp, resendOtp } = useAuth();
 
@@ -61,17 +57,19 @@ const AuthScreen = () => {
   });
   const googleConfigured = Boolean(googleClientId);
   const [googleRequest, googleResponse, promptGoogleAsync] =
-    AuthSession.useAuthRequest(
-      {
-        clientId: googleClientId ?? "google-client-id-not-configured",
-        redirectUri: AuthSession.makeRedirectUri({ scheme: "mobile" }),
-        responseType: AuthSession.ResponseType.IdToken,
-        scopes: ["openid", "profile", "email"],
-        prompt: AuthSession.Prompt.SelectAccount,
-        usePKCE: false,
-      },
-      GOOGLE_DISCOVERY,
-    );
+    Google.useIdTokenAuthRequest({
+      androidClientId:
+        process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ??
+        "google-android-client-id-not-configured",
+      iosClientId:
+        process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ??
+        "google-ios-client-id-not-configured",
+      webClientId:
+        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ??
+        "google-web-client-id-not-configured",
+      scopes: ["openid", "profile", "email"],
+      selectAccount: true,
+    });
 
   const stopResendTimer = useCallback(() => {
     if (timerRef.current) {
@@ -151,7 +149,9 @@ const AuthScreen = () => {
     if (!googleResponse) return;
 
     if (googleResponse.type === "success") {
-      const idToken = googleResponse.params?.id_token;
+      const idToken =
+        googleResponse.authentication?.idToken ??
+        googleResponse.params?.id_token;
       if (idToken) {
         void completeGoogleSignIn(idToken);
       } else {
