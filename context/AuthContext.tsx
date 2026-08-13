@@ -10,6 +10,7 @@ import {
   ApiMessWithRole,
   ApiMyRequest,
 } from "@/lib/api";
+import { clearOfflineQueue } from "@/lib/offlineQueue";
 
 const TOKEN_KEY = "@mess_auth_token";
 const AUTH_CACHE_KEY = "@mess_auth_profile";
@@ -46,6 +47,9 @@ interface AuthContextType extends AuthState {
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
+  requestAccountDeletionOtp: () => Promise<void>;
+  deleteAccountWithOtp: (otp: string) => Promise<void>;
   createMess: (name: string) => Promise<void>;
   joinMess: (messKey: string) => Promise<void>;
   retryJoin: (requestId: number) => Promise<void>;
@@ -232,6 +236,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const deleteAccount = async (password: string) => {
+    if (!state.token) throw new Error("Not authenticated");
+    await api.deleteAccount(password, state.token);
+    await clearOfflineQueue();
+    await logout();
+  };
+
+  const requestAccountDeletionOtp = async () => {
+    if (!state.user) throw new Error("Not authenticated");
+    await api.requestAccountDeletionOtp(state.user.email);
+  };
+
+  const deleteAccountWithOtp = async (otp: string) => {
+    if (!state.user) throw new Error("Not authenticated");
+    await api.confirmAccountDeletionOtp(state.user.email, otp);
+    await clearOfflineQueue();
+    await logout();
+  };
+
   const createMess = async (name: string) => {
     if (!state.token) throw new Error("Not authenticated");
     const { mess: newMess } = await api.createMess(name, state.token);
@@ -359,6 +382,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         resendOtp,
         logout,
+        deleteAccount,
+        requestAccountDeletionOtp,
+        deleteAccountWithOtp,
         createMess,
         joinMess,
         retryJoin,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
 
 import { AuthBrand } from "@/components/auth/AuthBrand";
@@ -34,6 +35,7 @@ const AuthScreen = () => {
   const [email, setEmail] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -110,6 +112,10 @@ const AuthScreen = () => {
       setError("Your name is required.");
       return;
     }
+    if (mode === "signup" && password !== signupConfirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -127,6 +133,7 @@ const AuthScreen = () => {
         );
         setPendingEmail(signupEmail);
         setOtp("");
+        setSignupConfirmPassword("");
         await savePendingSignupOtp({
           email: signupEmail,
           requestedAt: Date.now(),
@@ -302,6 +309,7 @@ const AuthScreen = () => {
   const toggleAuthMode = () => {
     setMode(mode === "login" ? "signup" : "login");
     setError("");
+    setSignupConfirmPassword("");
   };
 
   const changeMobileNumber = (value: string) => {
@@ -310,6 +318,7 @@ const AuthScreen = () => {
 
   return (
     <View className="flex-1 bg-[#0B5E57]">
+      <StatusBar style="light" backgroundColor="#0B5E57" />
       <View
         pointerEvents="none"
         className="absolute -right-[90px] -top-[110px] h-[340px] w-[340px] rounded-full bg-white/[0.07]"
@@ -324,7 +333,7 @@ const AuthScreen = () => {
       />
       <KeyboardAwareScrollViewCompat
         className="flex-1"
-        contentContainerClassName="flex-grow justify-center px-6 pb-safe-offset-6 pt-safe-offset-10"
+        contentContainerClassName="flex-grow justify-center px-6 pb-40 pt-safe-offset-10"
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         bottomOffset={24}
@@ -393,6 +402,7 @@ const AuthScreen = () => {
             email={email}
             mobileNumber={mobileNumber}
             password={password}
+            confirmPassword={signupConfirmPassword}
             showPassword={showPassword}
             loading={loading}
             error={error}
@@ -400,6 +410,7 @@ const AuthScreen = () => {
             onEmailChange={setEmail}
             onMobileNumberChange={changeMobileNumber}
             onPasswordChange={setPassword}
+            onConfirmPasswordChange={setSignupConfirmPassword}
             onTogglePassword={() => setShowPassword((value) => !value)}
             onSubmit={submitLoginOrSignup}
             onForgotPassword={showForgotPassword}

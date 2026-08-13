@@ -16,6 +16,7 @@ type LoginSignupCardProps = {
   email: string;
   mobileNumber: string;
   password: string;
+  confirmPassword: string;
   showPassword: boolean;
   loading: boolean;
   error: string;
@@ -23,6 +24,7 @@ type LoginSignupCardProps = {
   onEmailChange: (value: string) => void;
   onMobileNumberChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
+  onConfirmPasswordChange: (value: string) => void;
   onTogglePassword: () => void;
   onSubmit: () => void;
   onForgotPassword: () => void;
@@ -38,6 +40,7 @@ export const LoginSignupCard = ({
   email,
   mobileNumber,
   password,
+  confirmPassword,
   showPassword,
   loading,
   error,
@@ -45,6 +48,7 @@ export const LoginSignupCard = ({
   onEmailChange,
   onMobileNumberChange,
   onPasswordChange,
+  onConfirmPasswordChange,
   onTogglePassword,
   onSubmit,
   onForgotPassword,
@@ -57,12 +61,9 @@ export const LoginSignupCard = ({
 
     {mode === "signup" && (
       <View className="mb-[18px]">
-        <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-          Your Name
-        </Text>
         <TextInput
           className={inputClassName}
-          placeholder="e.g. Abdullah"
+          placeholder="Enter your name"
           placeholderTextColor="#9CA3AF"
           value={name}
           onChangeText={onNameChange}
@@ -73,12 +74,9 @@ export const LoginSignupCard = ({
     )}
 
     <View className="mb-[18px]">
-      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-        Email
-      </Text>
       <TextInput
         className={inputClassName}
-        placeholder="you@example.com"
+        placeholder="Enter your email"
         placeholderTextColor="#9CA3AF"
         value={email}
         onChangeText={onEmailChange}
@@ -90,13 +88,9 @@ export const LoginSignupCard = ({
 
     {mode === "signup" && (
       <View className="mb-[18px]">
-        <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-          Mobile Number{" "}
-          <Text className="font-inter text-gray-400">(Optional)</Text>
-        </Text>
         <TextInput
           className={inputClassName}
-          placeholder="11-digit number"
+          placeholder="Enter mobile number (optional)"
           placeholderTextColor="#9CA3AF"
           value={mobileNumber}
           onChangeText={onMobileNumberChange}
@@ -107,19 +101,16 @@ export const LoginSignupCard = ({
     )}
 
     <View className="mb-[18px]">
-      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-        Password
-      </Text>
       <View className="flex-row items-center gap-2">
         <TextInput
           className={`${inputClassName} flex-1`}
-          placeholder="Min. 6 characters"
+          placeholder="Enter password"
           placeholderTextColor="#9CA3AF"
           value={password}
           onChangeText={onPasswordChange}
           secureTextEntry={!showPassword}
-          returnKeyType="done"
-          onSubmitEditing={onSubmit}
+          returnKeyType={mode === "signup" ? "next" : "done"}
+          onSubmitEditing={mode === "login" ? onSubmit : undefined}
         />
         <TouchableOpacity
           className="h-[50px] w-[50px] items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF]"
@@ -133,6 +124,33 @@ export const LoginSignupCard = ({
         </TouchableOpacity>
       </View>
     </View>
+
+    {mode === "signup" && (
+      <View className="mb-[18px]">
+        <View className="flex-row items-center gap-2">
+          <TextInput
+            className={`${inputClassName} flex-1`}
+            placeholder="Confirm password"
+            placeholderTextColor="#9CA3AF"
+            value={confirmPassword}
+            onChangeText={onConfirmPasswordChange}
+            secureTextEntry={!showPassword}
+            returnKeyType="done"
+            onSubmitEditing={onSubmit}
+          />
+          <TouchableOpacity
+            className="h-[50px] w-[50px] items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF]"
+            onPress={onTogglePassword}
+          >
+            <Feather
+              name={showPassword ? "eye-off" : "eye"}
+              size={20}
+              color="#6B7280"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    )}
 
     {mode === "login" && (
       <TouchableOpacity

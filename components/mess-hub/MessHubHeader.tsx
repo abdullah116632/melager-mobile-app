@@ -15,6 +15,7 @@ interface MessHubHeaderProps {
   messCount: number;
   requestCount: number;
   onLogout: () => void;
+  onProfile: () => void;
 }
 
 export const MessHubHeader = ({
@@ -24,6 +25,7 @@ export const MessHubHeader = ({
   messCount,
   requestCount,
   onLogout,
+  onProfile,
 }: MessHubHeaderProps) => (
   <LinearGradient
     colors={["#0F766E", "#115E59", "#083D3A"]}
@@ -45,25 +47,33 @@ export const MessHubHeader = ({
     />
 
     <View className="flex-row items-center gap-3.5">
-      <View className="h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-sm shadow-black/20">
-        <Feather name="coffee" size={23} color="#ECFDF5" />
-      </View>
-      <View className="flex-1">
-        <Text className="font-inter-semibold text-[11px] tracking-[1.2px] text-teal-100/75">
-          MELAGER
-        </Text>
-        <Text className="mt-0.5 font-inter-bold text-[22px] text-white">
-          Hello, {firstName ?? "there"}!
-        </Text>
-        {!!email && (
-          <Text
-            className="mt-0.5 font-inter text-[11px] text-teal-100/75"
-            numberOfLines={1}
-          >
-            {email}
+      <TouchableOpacity
+        className="flex-1 flex-row items-center gap-3.5"
+        onPress={onProfile}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Open account profile"
+      >
+        <View className="h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-sm shadow-black/20">
+          <Feather name="user" size={23} color="#ECFDF5" />
+        </View>
+        <View className="flex-1">
+          <Text className="font-inter-semibold text-[11px] tracking-[1.2px] text-teal-100/75">
+            MELAGER · VIEW PROFILE
           </Text>
-        )}
-      </View>
+          <Text className="mt-0.5 font-inter-bold text-[22px] text-white">
+            Hello, {firstName ?? "there"}!
+          </Text>
+          {!!email && (
+            <Text
+              className="mt-0.5 font-inter text-[11px] text-teal-100/75"
+              numberOfLines={1}
+            >
+              {email}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
       {loading ? (
         <ActivityIndicator
           size="small"

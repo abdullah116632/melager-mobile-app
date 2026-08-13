@@ -43,6 +43,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const inAuth = first === "auth";
   const inMessHub = !first || first === "index";
   const inMessSetup = first === "mess-setup";
+  const inAccount = first === "account";
   const inAdminOtp = first === "settings" && second === "admin-otp";
 
   useEffect(() => {
@@ -54,7 +55,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       if (!user) {
         if (!inAuth) router.replace("/auth");
       } else if (!activeMess) {
-        if (!inMessHub && !inMessSetup) router.replace("/");
+        if (!inMessHub && !inMessSetup && !inAccount) router.replace("/");
       } else {
         const pendingAdminOtp = await getPendingAdminOtp();
         if (cancelled) return;
@@ -98,6 +99,7 @@ function RootLayoutNav() {
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="mess-setup" options={{ headerShown: false }} />
+        <Stack.Screen name="account" options={{ headerShown: false }} />
         <Stack.Screen name="meal-status" options={{ headerShown: false }} />
       </Stack>
     </AuthGate>

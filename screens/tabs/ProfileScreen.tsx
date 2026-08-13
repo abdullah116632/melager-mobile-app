@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { MessKeyRow } from "@/components/profile/MessKeyRow";
+import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
 import { ProfileActions } from "@/components/profile/ProfileActions";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileInviteRow } from "@/components/profile/ProfileInviteRow";
@@ -24,7 +25,7 @@ import { sendMessInvite } from "@/services/profileService";
 import type { ProfileEditField } from "@/types/profile";
 import { isValidInviteEmail } from "@/utils/profile";
 
-export const ProfileScreen = () => {
+export const ProfileScreen = ({ hubMode = false }: { hubMode?: boolean }) => {
   const router = useRouter();
   const {
     user,
@@ -47,6 +48,7 @@ export const ProfileScreen = () => {
   const [editValue, setEditValue] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   const isAdmin = role === "admin";
   const displayName = user?.name ?? "User";
@@ -272,12 +274,7 @@ export const ProfileScreen = () => {
           )}
 
           <ProfileSectionCard title="About">
-            <ProfileRow
-              icon="info"
-              label="App"
-              value="Melager"
-              showDivider
-            />
+            <ProfileRow icon="info" label="App" value="Melager" showDivider />
             <ProfileRow icon="code" label="Version" value="1.0.0" />
           </ProfileSectionCard>
 
@@ -285,9 +282,15 @@ export const ProfileScreen = () => {
             loggingOut={loggingOut}
             onSwitchMess={exitMess}
             onLogout={handleLogout}
+            onDeleteAccount={() => setDeleteModalVisible(true)}
+            showSwitchMess={!hubMode}
           />
         </ScrollView>
       </View>
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+      />
     </View>
   );
 };

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
 import { JoinRequestCard } from "@/components/mess-hub/JoinRequestCard";
 import { MessCard } from "@/components/mess-hub/MessCard";
@@ -19,6 +20,7 @@ export const MessHubScreen = ({
   onCreateMess,
   onJoinMess,
 }: MessHubScreenProps) => {
+  const router = useRouter();
   const { user, messes, requests, selectMess, retryJoin, refreshMe, logout } =
     useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -111,6 +113,7 @@ export const MessHubScreen = ({
         messCount={messes.length}
         requestCount={requests.length}
         onLogout={() => void logout()}
+        onProfile={() => router.push("/account")}
       />
 
       {hasScrollableMessList ? (

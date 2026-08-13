@@ -1,7 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from './api';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { api } from "./api";
 
-const QUEUE_KEY = '@mess_offline_queue';
+const QUEUE_KEY = "@mess_offline_queue";
 
 interface DayExpenseItemLike {
   id: string;
@@ -10,23 +10,40 @@ interface DayExpenseItemLike {
 }
 
 interface SetMealOp {
-  type: 'SET_MEAL';
+  type: "SET_MEAL";
   key: string;
-  payload: { consumerId: string; yearMonth: string; day: number; count: number; messId: number };
+  payload: {
+    consumerId: string;
+    yearMonth: string;
+    day: number;
+    count: number;
+    messId: number;
+  };
   token: string;
 }
 
 interface SetExpenseOp {
-  type: 'SET_EXPENSE';
+  type: "SET_EXPENSE";
   key: string;
-  payload: { yearMonth: string; day: number; items: DayExpenseItemLike[]; messId: number };
+  payload: {
+    yearMonth: string;
+    day: number;
+    items: DayExpenseItemLike[];
+    messId: number;
+  };
   token: string;
 }
 
 interface AddDepositEntryOp {
-  type: 'ADD_DEPOSIT_ENTRY';
+  type: "ADD_DEPOSIT_ENTRY";
   key: string;
-  payload: { messId: number; consumerId: number; amount: number; depositedAt: string; note?: string };
+  payload: {
+    messId: number;
+    consumerId: number;
+    amount: number;
+    depositedAt: string;
+    note?: string;
+  };
   token: string;
 }
 
@@ -77,6 +94,12 @@ export function getQueueSize(): number {
   return _queue.length;
 }
 
+export async function clearOfflineQueue(): Promise<void> {
+  await ensureInit();
+  _queue = [];
+  await persist();
+}
+
 export async function enqueue(op: QueuedOp): Promise<void> {
   await ensureInit();
   const idx = _queue.findIndex((o) => o.key === op.key);
@@ -98,13 +121,13 @@ export async function flushQueue(): Promise<number> {
 
   for (const op of ops) {
     try {
-      if (op.type === 'SET_MEAL') {
+      if (op.type === "SET_MEAL") {
         const { consumerId, yearMonth, day, count, messId } = op.payload;
         await api.setMeal(consumerId, yearMonth, day, count, op.token, messId);
-      } else if (op.type === 'SET_EXPENSE') {
+      } else if (op.type === "SET_EXPENSE") {
         const { yearMonth, day, items, messId } = op.payload;
         await api.setExpense(yearMonth, day, items, op.token, messId);
-      } else if (op.type === 'ADD_DEPOSIT_ENTRY') {
+      } else if (op.type === "ADD_DEPOSIT_ENTRY") {
         await api.addDepositEntry(op.payload, op.token);
       }
       succeeded++;

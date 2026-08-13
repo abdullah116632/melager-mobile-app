@@ -277,6 +277,10 @@ const ConsumerTable = ({
                     <View className="w-14 items-center justify-center border-l border-slate-100">
                       {deletingId === consumer.id ? (
                         <ActivityIndicator size="small" color="#DC2626" />
+                      ) : consumer.accountDeletedAt ? (
+                        <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+                          <Feather name="lock" size={14} color="#94A3B8" />
+                        </View>
                       ) : consumer.isAdmin ? (
                         <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
                           <Feather name="shield" size={15} color="#64748B" />

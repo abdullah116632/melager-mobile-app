@@ -127,10 +127,13 @@ const ConsumersScreen = () => {
   });
 
   const registeredConsumers = filteredConsumers.filter(
-    (consumer) => consumer.userId != null,
+    (consumer) => consumer.userId != null && !consumer.accountDeletedAt,
   );
   const manuallyAddedConsumers = filteredConsumers.filter(
-    (consumer) => consumer.userId == null,
+    (consumer) => consumer.userId == null && !consumer.accountDeletedAt,
+  );
+  const deletedAccountConsumers = filteredConsumers.filter((consumer) =>
+    Boolean(consumer.accountDeletedAt),
   );
 
   return (
@@ -194,6 +197,21 @@ const ConsumersScreen = () => {
               copiedId={copiedId}
               onCopy={handleCopy}
               topMargin={registeredConsumers.length > 0}
+              isAdmin={isAdmin}
+              onDelete={confirmDelete}
+              deletingId={deletingId}
+            />
+          )}
+          {deletedAccountConsumers.length > 0 && (
+            <ConsumerTableSection
+              label="DELETED ACCOUNTS"
+              consumers={deletedAccountConsumers}
+              copiedId={copiedId}
+              onCopy={handleCopy}
+              topMargin={
+                registeredConsumers.length > 0 ||
+                manuallyAddedConsumers.length > 0
+              }
               isAdmin={isAdmin}
               onDelete={confirmDelete}
               deletingId={deletingId}

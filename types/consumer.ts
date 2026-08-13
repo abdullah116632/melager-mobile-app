@@ -5,4 +5,5 @@ export type Consumer = {
   email?: string | null;
   mobileNumber?: string | null;
   isAdmin?: boolean | null;
+  accountDeletedAt?: string | null;
 };

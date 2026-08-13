@@ -38,12 +38,9 @@ export const ForgotPasswordCard = ({
       Enter your registered email and we&apos;ll send you a reset code.
     </Text>
     <View className="mb-[18px]">
-      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-        Email
-      </Text>
       <TextInput
         className="h-[50px] rounded-xl border-[1.5px] border-gray-200 bg-[#FAFCFF] px-[15px] font-inter text-[15px] text-gray-900"
-        placeholder="you@example.com"
+        placeholder="Enter your email"
         placeholderTextColor="#9CA3AF"
         value={email}
         onChangeText={onEmailChange}

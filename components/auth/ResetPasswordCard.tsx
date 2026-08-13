@@ -49,13 +49,10 @@ export const ResetPasswordCard = ({
       Choose a new password for your account.
     </Text>
     <View className="mb-[18px]">
-      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-        New Password
-      </Text>
       <View className="flex-row items-center gap-2">
         <TextInput
           className={`${inputClassName} flex-1`}
-          placeholder="Min. 6 characters"
+          placeholder="Enter new password"
           placeholderTextColor="#9CA3AF"
           value={newPassword}
           onChangeText={onNewPasswordChange}
@@ -76,12 +73,9 @@ export const ResetPasswordCard = ({
       </View>
     </View>
     <View className="mb-[18px]">
-      <Text className="mb-[7px] font-inter-semibold text-[13px] text-gray-700">
-        Confirm New Password
-      </Text>
       <TextInput
         className={inputClassName}
-        placeholder="Re-enter new password"
+        placeholder="Confirm new password"
         placeholderTextColor="#9CA3AF"
         value={confirmPassword}
         onChangeText={onConfirmPasswordChange}
