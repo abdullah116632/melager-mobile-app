@@ -115,16 +115,16 @@ export const MessHubScreen = ({
 
       {hasScrollableMessList ? (
         <View className="pb-safe-offset-4 flex-1 px-4 pt-4">
+          <MessHubActions onCreate={onCreateMess} onJoin={onJoinMess} />
           <ScrollView
             className="flex-1"
-            contentContainerClassName="gap-2 pb-3"
+            contentContainerClassName="gap-2 pb-3 pt-4"
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled
             refreshControl={refreshControl}
           >
             {activityContent}
           </ScrollView>
-          <MessHubActions onCreate={onCreateMess} onJoin={onJoinMess} />
         </View>
       ) : (
         <ScrollView
@@ -133,8 +133,8 @@ export const MessHubScreen = ({
           showsVerticalScrollIndicator={false}
           refreshControl={refreshControl}
         >
-          {activityContent}
           <MessHubActions onCreate={onCreateMess} onJoin={onJoinMess} />
+          {activityContent}
         </ScrollView>
       )}
     </View>

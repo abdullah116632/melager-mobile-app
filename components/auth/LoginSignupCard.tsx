@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { ErrorBox } from "./AuthFeedback";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 type LoginSignupCardProps = {
   mode: "login" | "signup";
@@ -25,7 +26,6 @@ type LoginSignupCardProps = {
   onTogglePassword: () => void;
   onSubmit: () => void;
   onForgotPassword: () => void;
-  onGoogleSignIn: () => void;
   onToggleMode: () => void;
 };
 
@@ -48,7 +48,6 @@ export const LoginSignupCard = ({
   onTogglePassword,
   onSubmit,
   onForgotPassword,
-  onGoogleSignIn,
   onToggleMode,
 }: LoginSignupCardProps) => (
   <View className="rounded-3xl bg-white p-[26px] shadow-2xl shadow-black/20">
@@ -170,17 +169,7 @@ export const LoginSignupCard = ({
       <View className="h-px flex-1 bg-gray-200" />
     </View>
 
-    <TouchableOpacity
-      className={`h-[52px] flex-row items-center justify-center gap-2.5 rounded-[14px] border-[1.5px] border-gray-200 bg-white ${loading ? "opacity-50" : "opacity-100"}`}
-      onPress={onGoogleSignIn}
-      disabled={loading}
-      activeOpacity={0.8}
-    >
-      <Feather name="chrome" size={20} color="#4285F4" />
-      <Text className="font-inter-semibold text-[15px] text-gray-700">
-        Continue with Google
-      </Text>
-    </TouchableOpacity>
+    <GoogleSignInButton disabled={loading} />
 
     <TouchableOpacity className="mt-[18px] items-center" onPress={onToggleMode}>
       <Text className="font-inter text-sm text-gray-500">

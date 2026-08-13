@@ -33,7 +33,20 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.1069153952928-4hvnno2mv84aavglr99mpsfjja5vtkmh"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

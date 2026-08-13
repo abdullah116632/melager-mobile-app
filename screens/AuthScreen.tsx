@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, View } from "react-native";
-import * as Google from "expo-auth-session/providers/google";
-import * as WebBrowser from "expo-web-browser";
+import { View } from "react-native";
 
 import { AuthBrand } from "@/components/auth/AuthBrand";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
@@ -28,10 +26,8 @@ import {
 } from "@/services/authService";
 import type { AuthMode } from "@/types/auth";
 
-WebBrowser.maybeCompleteAuthSession();
-
 const AuthScreen = () => {
-  const { login, loginWithGoogle, signup, verifyOtp, resendOtp } = useAuth();
+  const { login, signup, verifyOtp, resendOtp } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>("signup");
   const [name, setName] = useState("");
@@ -48,28 +44,6 @@ const AuthScreen = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
-
-  const googleClientId = Platform.select({
-    android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    web: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    default: undefined,
-  });
-  const googleConfigured = Boolean(googleClientId);
-  const [googleRequest, googleResponse, promptGoogleAsync] =
-    Google.useIdTokenAuthRequest({
-      androidClientId:
-        process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ??
-        "google-android-client-id-not-configured",
-      iosClientId:
-        process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ??
-        "google-ios-client-id-not-configured",
-      webClientId:
-        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ??
-        "google-web-client-id-not-configured",
-      scopes: ["openid", "profile", "email"],
-      selectAccount: true,
-    });
 
   const stopResendTimer = useCallback(() => {
     if (timerRef.current) {
@@ -125,62 +99,6 @@ const AuthScreen = () => {
     setOtp(value.replace(/\D/g, "").slice(0, 6));
     setError("");
   }, []);
-
-  const completeGoogleSignIn = useCallback(
-    async (idToken: string) => {
-      setError("");
-      setLoading(true);
-      try {
-        await loginWithGoogle(idToken);
-      } catch (caughtError: unknown) {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Google sign-in failed",
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    [loginWithGoogle],
-  );
-
-  useEffect(() => {
-    if (!googleResponse) return;
-
-    if (googleResponse.type === "success") {
-      const idToken =
-        googleResponse.authentication?.idToken ??
-        googleResponse.params?.id_token;
-      if (idToken) {
-        void completeGoogleSignIn(idToken);
-      } else {
-        setError("Google did not return a sign-in token. Please try again.");
-      }
-    } else if (googleResponse.type === "error") {
-      setError("Google sign-in was not completed. Please try again.");
-    }
-  }, [googleResponse, completeGoogleSignIn]);
-
-  const signInWithGoogle = async () => {
-    if (!googleConfigured || !googleRequest) {
-      setError(
-        "Google sign-in is not configured yet. Please contact the app administrator.",
-      );
-      return;
-    }
-
-    setError("");
-    try {
-      await promptGoogleAsync();
-    } catch (caughtError: unknown) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not open Google sign-in",
-      );
-    }
-  };
 
   const submitLoginOrSignup = async () => {
     setError("");
@@ -485,7 +403,6 @@ const AuthScreen = () => {
             onTogglePassword={() => setShowPassword((value) => !value)}
             onSubmit={submitLoginOrSignup}
             onForgotPassword={showForgotPassword}
-            onGoogleSignIn={signInWithGoogle}
             onToggleMode={toggleAuthMode}
           />
         )}

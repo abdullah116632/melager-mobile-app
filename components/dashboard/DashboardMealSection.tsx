@@ -130,7 +130,7 @@ const MealBox = ({
     >
       <Text className="text-[23px]">{DASHBOARD_MEAL_ICONS[mealType]}</Text>
       <Text
-        className={`text-center font-inter-bold text-[12px] ${visual.labelClassName}`}
+        className={`text-center font-inter-bold text-[15px] ${visual.labelClassName}`}
       >
         {DASHBOARD_MEAL_LABELS[mealType]}
       </Text>
@@ -145,7 +145,7 @@ const MealBox = ({
         />
       ) : (
         <Text
-          className={`rounded-full bg-white/55 px-2.5 py-0.5 font-inter-semibold text-[10px] ${visual.statusClassName}`}
+          className={`rounded-full bg-white/55 px-2 py-0.5 font-inter-semibold text-[8px] ${visual.statusClassName}`}
         >
           {visual.status}
         </Text>

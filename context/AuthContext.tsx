@@ -1,10 +1,19 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, clearApiCache, ApiError, ApiUser, ApiMess, ApiMessWithRole, ApiMyRequest } from '@/lib/api';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import {
+  api,
+  clearApiCache,
+  ApiError,
+  ApiUser,
+  ApiMess,
+  ApiMessWithRole,
+  ApiMyRequest,
+} from "@/lib/api";
 
-const TOKEN_KEY = '@mess_auth_token';
-const AUTH_CACHE_KEY = '@mess_auth_profile';
-const ACTIVE_MESS_KEY = '@mess_active_mess_id';
+const TOKEN_KEY = "@mess_auth_token";
+const AUTH_CACHE_KEY = "@mess_auth_profile";
+const ACTIVE_MESS_KEY = "@mess_active_mess_id";
 
 export interface AuthState {
   user: ApiUser | null;
@@ -23,12 +32,17 @@ interface MeCache {
 
 interface AuthContextType extends AuthState {
   mess: ApiMess | null;
-  role: 'admin' | 'member' | null;
+  role: "admin" | "member" | null;
   consumerId: null;
   pendingRequest: null;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
-  signup: (email: string, name: string, password: string, mobileNumber: string) => Promise<{ pendingEmail: string }>;
+  signup: (
+    email: string,
+    name: string,
+    password: string,
+    mobileNumber: string,
+  ) => Promise<{ pendingEmail: string }>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -62,7 +76,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     void (async () => {
-      const values = await AsyncStorage.multiGet([TOKEN_KEY, AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
+      const values = await AsyncStorage.multiGet([
+        TOKEN_KEY,
+        AUTH_CACHE_KEY,
+        ACTIVE_MESS_KEY,
+      ]);
       const token = values[0]?.[1] ?? null;
       const cachedRaw = values[1]?.[1] ?? null;
       const activeMessId = Number(values[2]?.[1] ?? 0) || null;
@@ -82,7 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Restore the last known session immediately, then refresh it in the
       // background. This removes a remote-database round trip from startup.
       if (cached?.user && Array.isArray(cached.messes)) {
-        const cachedActiveMess = cached.messes.find((m) => m.id === activeMessId) ?? null;
+        const cachedActiveMess =
+          cached.messes.find((m) => m.id === activeMessId) ?? null;
         if (!cancelled) {
           setState({
             user: cached.user,
@@ -98,7 +117,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const me = await api.me(token);
         if (cancelled) return;
-        const refreshedActiveMess = me.messes.find((m) => m.id === activeMessId) ?? null;
+        const refreshedActiveMess =
+          me.messes.find((m) => m.id === activeMessId) ?? null;
         setState({
           user: me.user,
           messes: me.messes,
@@ -112,9 +132,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Keep a cached session usable during temporary network/database
         // outages, but immediately discard an explicitly rejected token.
         const tokenRejected =
-          error instanceof ApiError && (error.status === 401 || error.status === 403);
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403);
         if ((!cached || tokenRejected) && !cancelled) {
-          await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
+          await AsyncStorage.multiRemove([
+            TOKEN_KEY,
+            AUTH_CACHE_KEY,
+            ACTIVE_MESS_KEY,
+          ]);
           setState({
             user: null,
             messes: [],
@@ -127,7 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const applyTokenResponse = async (token: string) => {
@@ -162,7 +189,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     mobileNumber: string,
   ): Promise<{ pendingEmail: string }> => {
-    const { pendingEmail } = await api.signup(email, name, password, mobileNumber);
+    const { pendingEmail } = await api.signup(
+      email,
+      name,
+      password,
+      mobileNumber,
+    );
     return { pendingEmail };
   };
 
@@ -177,7 +209,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     clearApiCache();
-    await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
+    // Clearing the native Google session makes the next Google sign-in show
+    // the account picker instead of automatically reusing the last account.
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // The user may have signed in with email/password or have no Google
+      // session; either way, local app logout must still complete.
+    }
+    await AsyncStorage.multiRemove([
+      TOKEN_KEY,
+      AUTH_CACHE_KEY,
+      ACTIVE_MESS_KEY,
+    ]);
     setState({
       user: null,
       messes: [],
@@ -189,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createMess = async (name: string) => {
-    if (!state.token) throw new Error('Not authenticated');
+    if (!state.token) throw new Error("Not authenticated");
     const { mess: newMess } = await api.createMess(name, state.token);
     const me = await api.me(state.token);
     const fullMess = me.messes.find((m) => m.id === newMess.id) ?? null;
@@ -202,7 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const joinMess = async (messKey: string) => {
-    if (!state.token) throw new Error('Not authenticated');
+    if (!state.token) throw new Error("Not authenticated");
     const { pendingRequest } = await api.joinMess(messKey, state.token);
     setState((prev) => ({
       ...prev,
@@ -214,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const retryJoin = async (requestId: number) => {
-    if (!state.token) throw new Error('Not authenticated');
+    if (!state.token) throw new Error("Not authenticated");
     const { request } = await api.retryJoin(requestId, state.token);
     setState((prev) => ({
       ...prev,
@@ -271,27 +315,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProfileName = async (name: string) => {
-    if (!state.token) throw new Error('Not authenticated');
+    if (!state.token) throw new Error("Not authenticated");
     const { name: newName } = await api.updateProfile(name, state.token);
     patchUser({ name: newName });
   };
 
   const updatePhone = async (phone: string | null) => {
-    if (!state.token) throw new Error('Not authenticated');
+    if (!state.token) throw new Error("Not authenticated");
     const { mobileNumber } = await api.updatePhone(phone, state.token);
     patchUser({ mobileNumber });
   };
 
   const updateMessName = async (name: string) => {
-    if (!state.token || !state.activeMess) throw new Error('No active mess');
-    const { name: newName } = await api.updateMessName(name, state.token, state.activeMess.id);
+    if (!state.token || !state.activeMess) throw new Error("No active mess");
+    const { name: newName } = await api.updateMessName(
+      name,
+      state.token,
+      state.activeMess.id,
+    );
     patchActiveMess({ name: newName });
   };
 
   const mess: ApiMess | null = state.activeMess
-    ? { id: state.activeMess.id, name: state.activeMess.name, messKey: state.activeMess.messKey }
+    ? {
+        id: state.activeMess.id,
+        name: state.activeMess.name,
+        messKey: state.activeMess.messKey,
+      }
     : null;
-  const role: 'admin' | 'member' | null = state.activeMess?.role ?? null;
+  const role: "admin" | "member" | null = state.activeMess?.role ?? null;
 
   return (
     <AuthContext.Provider
@@ -328,6 +380,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
