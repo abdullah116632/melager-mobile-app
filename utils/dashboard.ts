@@ -2,8 +2,20 @@ import type {
   DashboardAccounting,
   DashboardConsumer,
   DashboardDateRange,
+  DashboardMealType,
   MonthData,
+  TodaySchedule,
 } from "@/types/dashboard";
+
+export const getDashboardMealEnabled = (
+  schedule: TodaySchedule | null,
+  mealType: DashboardMealType,
+): boolean => schedule?.schedule[`${mealType}Enabled`] ?? true;
+
+export const getDashboardMealMenu = (
+  schedule: TodaySchedule | null,
+  mealType: DashboardMealType,
+): string | null => schedule?.schedule[`${mealType}Menu`] ?? null;
 
 export const localDateString = (date: Date): string => {
   const year = date.getFullYear();

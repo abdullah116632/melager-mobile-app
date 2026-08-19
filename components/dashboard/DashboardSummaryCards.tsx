@@ -94,7 +94,7 @@ export const DashboardSummaryCards = ({
           </View>
           <View className="max-w-[42%] rounded-full border border-white/25 bg-white/10 px-3.5 py-2">
             <Text
-            className="text-right font-inter-bold text-[22px] tracking-[-0.4px] text-white"
+              className="text-right font-inter-bold text-[22px] tracking-[-0.4px] text-white"
               numberOfLines={1}
               adjustsFontSizeToFit
             >
