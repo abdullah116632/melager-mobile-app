@@ -7,3 +7,6 @@ export const isMealDayToday = (yearMonth: string, day: number): boolean => {
     now.getDate() === day
   );
 };
+
+export const formatMealValue = (value: number): string =>
+  value > 0 ? value.toLocaleString("en-IN", { maximumFractionDigits: 3 }) : "-";

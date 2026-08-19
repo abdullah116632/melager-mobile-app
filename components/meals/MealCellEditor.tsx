@@ -14,16 +14,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useMess } from "@/context/MessContext";
+import type { ActiveMealCell } from "@/types/meal";
 
 export interface MealCellEditorHandle {
   commitNow: () => number;
 }
 
 interface MealCellEditorProps {
-  consumerName: string;
-  day: number;
-  initialValue: number;
-  onSave: (value: number) => void;
+  cell: ActiveMealCell;
   onDone: () => void;
 }
 
@@ -35,7 +34,14 @@ const parseMealValue = (value: string): number => {
 export const MealCellEditor = forwardRef<
   MealCellEditorHandle,
   MealCellEditorProps
->(({ consumerName, day, initialValue, onSave, onDone }, ref) => {
+>(({ cell, onDone }, ref) => {
+  const { consumers, currentYearMonth, getMealCount, setMeal } = useMess();
+  const consumer = consumers.find((item) => item.id === cell.consumerId);
+  const initialValue = getMealCount(
+    currentYearMonth,
+    cell.consumerId,
+    cell.day,
+  );
   const [value, setValue] = useState(
     initialValue > 0 ? initialValue.toString() : "",
   );
@@ -46,8 +52,12 @@ export const MealCellEditor = forwardRef<
   const valueRef = useRef(value);
   const dirtyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
+  const saveMealRef = useRef(setMeal);
+  saveMealRef.current = setMeal;
+
+  const saveValue = (nextValue: number) => {
+    saveMealRef.current(currentYearMonth, cell.consumerId, cell.day, nextValue);
+  };
 
   const commit = () => {
     if (saveTimerRef.current) {
@@ -56,7 +66,7 @@ export const MealCellEditor = forwardRef<
     }
     const parsed = parseMealValue(valueRef.current);
     if (dirtyRef.current) {
-      onSaveRef.current(parsed);
+      saveValue(parsed);
       dirtyRef.current = false;
     }
     setStatus("saved");
@@ -70,7 +80,7 @@ export const MealCellEditor = forwardRef<
     return () => {
       clearTimeout(timer);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      if (dirtyRef.current) onSaveRef.current(parseMealValue(valueRef.current));
+      if (dirtyRef.current) saveValue(parseMealValue(valueRef.current));
     };
   }, []);
 
@@ -82,7 +92,7 @@ export const MealCellEditor = forwardRef<
     setStatus("saving");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      onSaveRef.current(parseMealValue(valueRef.current));
+      saveValue(parseMealValue(valueRef.current));
       dirtyRef.current = false;
       saveTimerRef.current = null;
       setStatus("saved");
@@ -107,7 +117,7 @@ export const MealCellEditor = forwardRef<
               className="max-w-[210px] font-inter-semibold text-[12px] text-slate-900"
               numberOfLines={1}
             >
-              {consumerName} · Day {day}
+              {consumer?.name ?? "Consumer"} · Day {cell.day}
             </Text>
             <Text className="font-inter text-[10px] text-slate-500">
               Enter meal value · maximum 3 decimals

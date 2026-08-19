@@ -1,7 +1,3 @@
-import {
-  GoogleSignin,
-  isSuccessResponse,
-} from "@react-native-google-signin/google-signin";
 import { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
@@ -37,10 +33,6 @@ const GoogleIcon = () => (
   </Svg>
 );
 
-if (googleWebClientId) {
-  GoogleSignin.configure({ webClientId: googleWebClientId });
-}
-
 export const GoogleSignInButton = ({
   disabled = false,
 }: GoogleSignInButtonProps) => {
@@ -60,6 +52,9 @@ export const GoogleSignInButton = ({
     setLoading(true);
 
     try {
+      const { GoogleSignin, isSuccessResponse } =
+        await import("@react-native-google-signin/google-signin");
+      GoogleSignin.configure({ webClientId: googleWebClientId });
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
       });
@@ -73,10 +68,11 @@ export const GoogleSignInButton = ({
 
       await loginWithGoogle(response.data.idToken);
     } catch (caughtError: unknown) {
+      const message = caughtError instanceof Error ? caughtError.message : "";
       setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Google sign-in failed",
+        message.includes("RNGoogleSignin")
+          ? "Google sign-in requires a new development build. Rebuild and reinstall the app, then try again."
+          : message || "Google sign-in failed",
       );
     } finally {
       setLoading(false);

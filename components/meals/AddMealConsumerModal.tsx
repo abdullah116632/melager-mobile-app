@@ -1,6 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import {
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -10,35 +12,25 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMess } from "@/context/MessContext";
 
 interface AddMealConsumerModalProps {
   visible: boolean;
-  bottomInset: number;
-  name: string;
-  email: string;
-  phone: string;
-  error: string;
-  onNameChange: (value: string) => void;
-  onEmailChange: (value: string) => void;
-  onPhoneChange: (value: string) => void;
   onClose: () => void;
-  onSubmit: () => void;
 }
 
 export const AddMealConsumerModal = ({
   visible,
-  bottomInset,
-  name,
-  email,
-  phone,
-  error,
-  onNameChange,
-  onEmailChange,
-  onPhoneChange,
   onClose,
-  onSubmit,
 }: AddMealConsumerModalProps) => {
+  const { bottom: bottomInset } = useSafeAreaInsets();
+  const { addConsumer } = useMess();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener(
@@ -55,6 +47,63 @@ export const AddMealConsumerModal = ({
     };
   }, []);
 
+  const resetForm = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setError("");
+  };
+
+  const closeModal = () => {
+    resetForm();
+    onClose();
+  };
+
+  const submitConsumer = async () => {
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim();
+    const normalizedPhone = phone.trim() || undefined;
+    setError("");
+    if (!normalizedName) {
+      setError("Name is required.");
+      return;
+    }
+    if (!normalizedEmail) {
+      setError("Email is required.");
+      return;
+    }
+    if (normalizedPhone && normalizedPhone.length !== 11) {
+      setError("Phone must be exactly 11 digits.");
+      return;
+    }
+    try {
+      const { invitationSent } = await addConsumer(
+        normalizedName,
+        normalizedEmail,
+        normalizedPhone,
+      );
+      resetForm();
+      onClose();
+      if (invitationSent) {
+        Alert.alert(
+          "Member added",
+          "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference.",
+        );
+      }
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Failed to add consumer.",
+      );
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide">
       <KeyboardAvoidingView
@@ -64,7 +113,7 @@ export const AddMealConsumerModal = ({
         <TouchableOpacity
           className="absolute inset-0"
           activeOpacity={1}
-          onPress={onClose}
+          onPress={closeModal}
         />
         <View
           className="gap-4 rounded-t-3xl bg-white p-6 pt-3"
@@ -82,7 +131,7 @@ export const AddMealConsumerModal = ({
             </Text>
             <TouchableOpacity
               className="h-8 w-8 items-center justify-center rounded-full bg-teal-700/[0.06]"
-              onPress={onClose}
+              onPress={closeModal}
               activeOpacity={0.7}
               hitSlop={10}
               accessibilityLabel="Close add consumer form"
@@ -98,7 +147,7 @@ export const AddMealConsumerModal = ({
             placeholder="Full name *"
             placeholderTextColor="#64748B"
             value={name}
-            onChangeText={onNameChange}
+            onChangeText={setName}
             autoFocus
             returnKeyType="next"
           />
@@ -107,7 +156,7 @@ export const AddMealConsumerModal = ({
             placeholder="Email *"
             placeholderTextColor="#64748B"
             value={email}
-            onChangeText={onEmailChange}
+            onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             returnKeyType="next"
@@ -118,11 +167,11 @@ export const AddMealConsumerModal = ({
             placeholderTextColor="#64748B"
             value={phone}
             onChangeText={(value) =>
-              onPhoneChange(value.replace(/\D/g, "").slice(0, 11))
+              setPhone(value.replace(/\D/g, "").slice(0, 11))
             }
             keyboardType="phone-pad"
             returnKeyType="done"
-            onSubmitEditing={onSubmit}
+            onSubmitEditing={() => void submitConsumer()}
           />
           {error ? (
             <Text className="mt-2 font-inter text-[13px] text-red-600">
@@ -131,7 +180,7 @@ export const AddMealConsumerModal = ({
           ) : null}
           <TouchableOpacity
             className="items-center justify-center rounded-[10px] bg-teal-700 py-3.5"
-            onPress={onSubmit}
+            onPress={() => void submitConsumer()}
           >
             <Text className="font-inter-semibold text-white">
               Add &amp; Send Credentials

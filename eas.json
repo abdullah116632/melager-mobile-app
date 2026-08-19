@@ -24,10 +24,15 @@
       }
     },
     "production": {
+      "environment": "production",
+      "distribution": "store",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://melager.olivosoft.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1069153952928-oqlseln9k94ut6j830epk4jcc5m8t905.apps.googleusercontent.com"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     },
     "production-apk": {
@@ -40,6 +45,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

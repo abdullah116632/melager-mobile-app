@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import {
   api,
   clearApiCache,
@@ -216,6 +215,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clearing the native Google session makes the next Google sign-in show
     // the account picker instead of automatically reusing the last account.
     try {
+      const { GoogleSignin } =
+        await import("@react-native-google-signin/google-signin");
       await GoogleSignin.signOut();
     } catch {
       // The user may have signed in with email/password or have no Google
