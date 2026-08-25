@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Text,
@@ -6,28 +7,71 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "@/redux/hooks";
 import type { MessSetupMode } from "@/types/messSetup";
+import { JoinRequestSuccess } from "./JoinRequestSuccess";
 
 interface MessSetupFormProps {
   mode: MessSetupMode;
-  value: string;
-  error: string;
-  loading: boolean;
-  onChange: (value: string) => void;
   onBack: () => void;
-  onSubmit: () => void;
 }
 
-export const MessSetupForm = ({
-  mode,
-  value,
-  error,
-  loading,
-  onChange,
-  onBack,
-  onSubmit,
-}: MessSetupFormProps) => {
+export const MessSetupForm = ({ mode, onBack }: MessSetupFormProps) => {
+  const { createMess, joinMess } = useAuth();
+  const [value, setValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [joinSuccess, setJoinSuccess] = useState(false);
   const isCreate = mode === "create";
+
+  const handleCreate = async () => {
+    if (!value.trim()) {
+      setError("Enter a mess name.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    try {
+      await createMess(value.trim());
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Failed to create mess",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleJoin = async () => {
+    if (!value.trim()) {
+      setError("Enter the mess key.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    try {
+      await joinMess(value.trim().toUpperCase());
+      setJoinSuccess(true);
+    } catch (joinError) {
+      setError(
+        joinError instanceof Error
+          ? joinError.message
+          : "Failed to send request",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    void (isCreate ? handleCreate() : handleJoin());
+  };
+
+  if (joinSuccess) return <JoinRequestSuccess />;
 
   return (
     <View className="items-center rounded-3xl bg-white p-6 shadow-xl shadow-black/15">
@@ -57,11 +101,11 @@ export const MessSetupForm = ({
           placeholderTextColor="#9CA3AF"
           value={value}
           onChangeText={(nextValue) =>
-            onChange(isCreate ? nextValue : nextValue.toUpperCase())
+            setValue(isCreate ? nextValue : nextValue.toUpperCase())
           }
           autoCapitalize={isCreate ? "words" : "characters"}
           returnKeyType="done"
-          onSubmitEditing={onSubmit}
+          onSubmitEditing={handleSubmit}
           autoFocus
           maxLength={isCreate ? undefined : 8}
         />
@@ -78,7 +122,7 @@ export const MessSetupForm = ({
 
       <TouchableOpacity
         className={`h-[54px] w-full flex-row items-center justify-center gap-2 rounded-[14px] ${isCreate ? "bg-teal-700 shadow-lg shadow-teal-700/35" : "bg-blue-500"} ${loading ? "opacity-70" : "opacity-100"}`}
-        onPress={onSubmit}
+        onPress={handleSubmit}
         disabled={loading}
       >
         {loading ? (
