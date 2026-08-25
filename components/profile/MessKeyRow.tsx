@@ -1,14 +1,33 @@
 import Feather from "@expo/vector-icons/Feather";
-import { Text, TouchableOpacity, View } from "react-native";
+import * as Haptics from "expo-haptics";
+import { useState } from "react";
+import {
+  Clipboard,
+  Platform,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-interface MessKeyRowProps {
-  messKey: string;
-  copied: boolean;
-  onCopy: () => void;
-}
+import { useAuth } from "@/redux/hooks";
 
-export const MessKeyRow = ({ messKey, copied, onCopy }: MessKeyRowProps) => (
-  <View className="flex-row items-center gap-3 border-b-[0.5px] border-slate-200 px-3.5 py-[13px]">
+export const MessKeyRow = () => {
+  const { mess } = useAuth();
+  const [copied, setCopied] = useState(false);
+
+  if (!mess) return null;
+
+  const copyKey = () => {
+    Clipboard.setString(mess.messKey);
+    setCopied(true);
+    if (Platform.OS !== "web") {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <View className="flex-row items-center gap-3 border-b-[0.5px] border-slate-200 px-3.5 py-[13px]">
     <View className="h-[34px] w-[34px] items-center justify-center rounded-lg bg-slate-100">
       <Feather name="key" size={16} color="#0F766E" />
     </View>
@@ -17,12 +36,12 @@ export const MessKeyRow = ({ messKey, copied, onCopy }: MessKeyRowProps) => (
         Mess Key
       </Text>
       <Text className="mt-px font-inter-medium text-sm tracking-[2px] text-slate-900">
-        {messKey}
+        {mess.messKey}
       </Text>
     </View>
     <TouchableOpacity
       className={`flex-row items-center gap-[5px] rounded-lg px-2.5 py-[7px] ${copied ? "bg-emerald-600" : "bg-slate-100"}`}
-      onPress={onCopy}
+      onPress={copyKey}
       activeOpacity={0.7}
     >
       <Feather
@@ -36,5 +55,6 @@ export const MessKeyRow = ({ messKey, copied, onCopy }: MessKeyRowProps) => (
         {copied ? "Copied!" : "Copy"}
       </Text>
     </TouchableOpacity>
-  </View>
-);
+    </View>
+  );
+};

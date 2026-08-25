@@ -1,35 +1,80 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
+import { useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
-interface ProfileInviteRowProps {
-  expanded: boolean;
-  email: string;
-  sending: boolean;
-  error: string;
-  sent: boolean;
-  onOpen: () => void;
-  onClose: () => void;
-  onEmailChange: (value: string) => void;
-  onSubmit: () => void;
-}
+import { useAuth } from "@/redux/hooks";
+import { sendMessInvite } from "@/services/profileService";
+import { isValidInviteEmail } from "@/utils/profile";
 
-export const ProfileInviteRow = ({
-  expanded,
-  email,
-  sending,
-  error,
-  sent,
-  onOpen,
-  onClose,
-  onEmailChange,
-  onSubmit,
-}: ProfileInviteRowProps) => {
+export const ProfileInviteRow = () => {
+  const { mess, role, token } = useAuth();
+  const [expanded, setExpanded] = useState(false);
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+
+  if (role !== "admin" || !mess) return null;
+
+  const onOpen = () => {
+    setExpanded(true);
+    setError("");
+    setSent(false);
+  };
+
+  const onClose = () => {
+    setExpanded(false);
+    setEmail("");
+    setError("");
+  };
+
+  const onEmailChange = (value: string) => {
+    setEmail(value);
+    setError("");
+  };
+
+  const onSubmit = async () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !isValidInviteEmail(normalizedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (!token) return;
+
+    setSending(true);
+    setError("");
+    try {
+      await sendMessInvite(mess.id, normalizedEmail, token);
+      setSent(true);
+      setEmail("");
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+      setTimeout(() => {
+        setExpanded(false);
+        setSent(false);
+      }, 2000);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Failed to send invite.",
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (!expanded) {
     return (
       <View className="flex-row items-center gap-3 border-b-[0.5px] border-slate-200 px-3.5 py-[13px]">
@@ -72,7 +117,7 @@ export const ProfileInviteRow = ({
             autoFocus
             value={email}
             onChangeText={onEmailChange}
-            onSubmitEditing={onSubmit}
+            onSubmitEditing={() => void onSubmit()}
             placeholder="someone@example.com"
             placeholderTextColor="#64748B"
             keyboardType="email-address"
@@ -93,7 +138,7 @@ export const ProfileInviteRow = ({
           </TouchableOpacity>
           <TouchableOpacity
             className={`h-8 w-8 items-center justify-center rounded-lg ${sent ? "bg-emerald-600" : "bg-blue-500"}`}
-            onPress={onSubmit}
+            onPress={() => void onSubmit()}
             disabled={sending || sent}
             activeOpacity={0.7}
           >

@@ -1,7 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 
+import { useAuth } from "@/redux/hooks";
 import { getProfileAvatarColor, getProfileInitials } from "@/utils/profile";
 
 const AVATAR_CLASS_BY_COLOR: Record<string, string> = {
@@ -13,19 +15,12 @@ const AVATAR_CLASS_BY_COLOR: Record<string, string> = {
   "#059669": "bg-emerald-600",
 };
 
-interface ProfileHeaderProps {
-  name: string;
-  email: string;
-  isAdmin: boolean;
-  onBack: () => void;
-}
-
-export const ProfileHeader = ({
-  name,
-  email,
-  isAdmin,
-  onBack,
-}: ProfileHeaderProps) => {
+export const ProfileHeader = () => {
+  const router = useRouter();
+  const { user, role } = useAuth();
+  const name = user?.name ?? "User";
+  const email = user?.email ?? "";
+  const isAdmin = role === "admin";
   const avatarClassName =
     AVATAR_CLASS_BY_COLOR[getProfileAvatarColor(name)] ?? "bg-teal-600";
 
@@ -39,7 +34,7 @@ export const ProfileHeader = ({
       <View className="flex-row items-center">
         <TouchableOpacity
           className="h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10"
-          onPress={onBack}
+          onPress={() => router.back()}
           activeOpacity={0.7}
           accessibilityLabel="Go back"
         >
