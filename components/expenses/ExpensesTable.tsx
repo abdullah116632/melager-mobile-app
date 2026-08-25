@@ -1,4 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
+import { useState } from "react";
 import {
   Platform,
   RefreshControl,
@@ -12,37 +14,60 @@ import {
   EXPENSE_DAY_COLUMN_WIDTH,
   EXPENSE_PRIMARY,
 } from "@/constants/expense";
-import type { DayExpenseSummary } from "@/types/expense";
+import { useAuth, useMess } from "@/redux/hooks";
 import { formatExpenseAmount, isExpenseDayToday } from "@/utils/expense";
+import { ExpenseDetailModal } from "./ExpenseDetailModal";
+import { ExpenseEditorModal } from "./ExpenseEditorModal";
 
-interface ExpensesTableProps {
-  yearMonth: string;
-  days: number[];
-  monthTotal: number;
-  isAdmin: boolean;
-  refreshing: boolean;
-  getExpense: (yearMonth: string, day: number) => DayExpenseSummary;
-  onRefresh: () => void;
-  onViewDay: (day: number) => void;
-  onEditDay: (day: number) => void;
-}
-
-export const ExpensesTable = ({
-  yearMonth,
-  days,
-  monthTotal,
-  isAdmin,
-  refreshing,
-  getExpense,
-  onRefresh,
-  onViewDay,
-  onEditDay,
-}: ExpensesTableProps) => {
+export const ExpensesTable = () => {
+  const { role } = useAuth();
+  const {
+    currentYearMonth,
+    getExpense,
+    getMonthExpenseTotal,
+    getDaysInMonth,
+    refreshMonth,
+  } = useMess();
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewingDay, setViewingDay] = useState<number | null>(null);
+  const [editingDay, setEditingDay] = useState<number | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const isAdmin = role === "admin";
+  const days = Array.from(
+    { length: getDaysInMonth(currentYearMonth) },
+    (_, index) => index + 1,
+  );
+  const monthTotal = getMonthExpenseTotal(currentYearMonth);
   const amountColumnRight =
     EXPENSE_DAY_COLUMN_WIDTH + EXPENSE_AMOUNT_COLUMN_WIDTH;
   const recordedDays = days.filter(
-    (day) => getExpense(yearMonth, day).items.length > 0,
+    (day) => getExpense(currentYearMonth, day).items.length > 0,
   ).length;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refreshMonth().catch(() => {});
+    setRefreshing(false);
+  };
+
+  const openEditor = (day: number) => {
+    if (!isAdmin) return;
+    if (Platform.OS !== "web") void Haptics.selectionAsync();
+    setEditingItemId(null);
+    setEditingDay(day);
+  };
+
+  const closeEditor = () => {
+    setEditingDay(null);
+    setEditingItemId(null);
+  };
+
+  const openItemEditor = (itemId: string) => {
+    if (viewingDay === null) return;
+    openEditor(viewingDay);
+    setEditingItemId(itemId);
+    setViewingDay(null);
+  };
 
   return (
     <>
@@ -75,7 +100,7 @@ export const ExpensesTable = ({
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => void handleRefresh()}
             tintColor={EXPENSE_PRIMARY}
             colors={[EXPENSE_PRIMARY]}
           />
@@ -83,9 +108,9 @@ export const ExpensesTable = ({
       >
         <View className="relative">
           {days.map((day, index) => {
-            const expense = getExpense(yearMonth, day);
+            const expense = getExpense(currentYearMonth, day);
             const hasData = expense.items.length > 0;
-            const isToday = isExpenseDayToday(yearMonth, day);
+            const isToday = isExpenseDayToday(currentYearMonth, day);
             const itemSummary = expense.items
               .map((item) => item.name)
               .filter(Boolean)
@@ -129,7 +154,7 @@ export const ExpensesTable = ({
 
                 <TouchableOpacity
                   className="flex-1 justify-center px-3 py-2"
-                  onPress={() => onViewDay(day)}
+                  onPress={() => setViewingDay(day)}
                   activeOpacity={0.7}
                 >
                   {hasData ? (
@@ -157,7 +182,7 @@ export const ExpensesTable = ({
                 {isAdmin && (
                   <TouchableOpacity
                     className="ml-1.5 mr-2.5 h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-white/80 bg-teal-700"
-                    onPress={() => onEditDay(day)}
+                    onPress={() => openEditor(day)}
                     activeOpacity={0.8}
                     hitSlop={6}
                     accessibilityLabel={`Edit expenses for day ${day}`}
@@ -204,6 +229,16 @@ export const ExpensesTable = ({
           />
         </View>
       </ScrollView>
+      <ExpenseDetailModal
+        day={viewingDay}
+        onClose={() => setViewingDay(null)}
+        onEditItem={openItemEditor}
+      />
+      <ExpenseEditorModal
+        day={editingDay}
+        focusItemId={editingItemId}
+        onClose={closeEditor}
+      />
     </>
   );
 };

@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,45 +14,53 @@ import {
   View,
 } from "react-native";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
+import { useMess } from "@/redux/hooks";
 import type { ExpenseDraftItem } from "@/types/expense";
-import { formatExpenseAmount } from "@/utils/expense";
+import {
+  createExpenseDraftItem,
+  formatExpenseAmount,
+  getExpenseDraftTotal,
+  toExpenseDraftItems,
+  toExpenseItems,
+} from "@/utils/expense";
 
 interface ExpenseEditorModalProps {
-  visible: boolean;
   day: number | null;
-  monthLabel: string;
-  drafts: ExpenseDraftItem[];
-  total: number;
   focusItemId?: string | null;
-  saving: boolean;
-  error: string;
   onClose: () => void;
-  onSave: () => void;
-  onAddItem: () => void;
-  onNameChange: (id: string, name: string) => void;
-  onAmountChange: (id: string, amount: string) => void;
-  onRemoveItem: (id: string) => void;
 }
 
 export const ExpenseEditorModal = ({
-  visible,
   day,
-  monthLabel,
-  drafts,
-  total,
   focusItemId,
-  saving,
-  error,
   onClose,
-  onSave,
-  onAddItem,
-  onNameChange,
-  onAmountChange,
-  onRemoveItem,
 }: ExpenseEditorModalProps) => {
+  const { currentYearMonth, currentMonthLabel, getExpense, setExpense } =
+    useMess();
+  const [drafts, setDrafts] = useState<ExpenseDraftItem[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const amountInputRefs = useRef<Record<string, TextInput | null>>({});
   const nameInputRefs = useRef<Record<string, TextInput | null>>({});
+  const hasFocusedForSession = useRef(false);
+  const visible = day !== null;
+  const total = getExpenseDraftTotal(drafts);
+  const firstDraftId = drafts[0]?.id;
+
+  useEffect(() => {
+    if (day === null) {
+      setDrafts([]);
+      setError("");
+      return;
+    }
+
+    const nextDrafts = toExpenseDraftItems(
+      getExpense(currentYearMonth, day).items,
+    );
+    setDrafts(nextDrafts.length > 0 ? nextDrafts : [createExpenseDraftItem()]);
+    setError("");
+  }, [currentYearMonth, day]);
 
   useEffect(() => {
     const showEvent =
@@ -71,22 +80,83 @@ export const ExpenseEditorModal = ({
   }, []);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      hasFocusedForSession.current = false;
+      return;
+    }
+    const targetItemId = focusItemId ?? firstDraftId;
+    if (!targetItemId || hasFocusedForSession.current) return;
+    hasFocusedForSession.current = true;
     const timer = setTimeout(
-      () => nameInputRefs.current[focusItemId ?? drafts[0]?.id ?? ""]?.focus(),
+      () => nameInputRefs.current[targetItemId]?.focus(),
       350,
     );
     return () => clearTimeout(timer);
-  }, [visible]);
+  }, [firstDraftId, focusItemId, visible]);
 
   const close = () => {
     Keyboard.dismiss();
     onClose();
   };
 
-  const save = () => {
+  const save = async () => {
     Keyboard.dismiss();
-    onSave();
+    if (day === null) return;
+    const items = toExpenseItems(drafts);
+    if (items.length === 0) {
+      setError("Add at least one expense item before saving.");
+      return;
+    }
+    if (items.some((item) => !item.name.trim())) {
+      setError("Every expense amount needs an item name.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      await setExpense(currentYearMonth, day, items);
+      close();
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Failed to save expense.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addDraftItem = () => {
+    setDrafts((current) => [...current, createExpenseDraftItem()]);
+    if (Platform.OS !== "web") void Haptics.selectionAsync();
+  };
+
+  const updateDraft = (
+    itemId: string,
+    updates: Partial<Pick<ExpenseDraftItem, "name" | "amountString">>,
+  ) => {
+    setDrafts((current) =>
+      current.map((item) =>
+        item.id === itemId ? { ...item, ...updates } : item,
+      ),
+    );
+  };
+
+  const removeDraftItem = (itemId: string) => {
+    setDrafts((current) => {
+      const remaining = current.filter((item) => item.id !== itemId);
+      return remaining.length > 0 ? remaining : [createExpenseDraftItem()];
+    });
+    if (Platform.OS !== "web") {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
   };
 
   return (
@@ -117,7 +187,7 @@ export const ExpenseEditorModal = ({
             <View className="mb-3.5 flex-row items-start justify-between">
               <View>
                 <Text className="font-inter-bold text-[17px] text-slate-900">
-                  Day {day} — {monthLabel}
+                  Day {day} — {currentMonthLabel}
                 </Text>
                 {total > 0 && (
                   <Text className="mt-0.5 font-inter-semibold text-[13px] text-teal-700">
@@ -164,7 +234,7 @@ export const ExpenseEditorModal = ({
                     placeholder={`Item ${index + 1}`}
                     placeholderTextColor="#64748B"
                     value={item.name}
-                    onChangeText={(name) => onNameChange(item.id, name)}
+                    onChangeText={(name) => updateDraft(item.id, { name })}
                     returnKeyType="next"
                     onSubmitEditing={() =>
                       amountInputRefs.current[item.id]?.focus()
@@ -184,7 +254,11 @@ export const ExpenseEditorModal = ({
                       placeholder="0"
                       placeholderTextColor="#64748B"
                       value={item.amountString}
-                      onChangeText={(amount) => onAmountChange(item.id, amount)}
+                      onChangeText={(amountString) => {
+                        if (/^\d*(?:\.\d{0,3})?$/.test(amountString)) {
+                          updateDraft(item.id, { amountString });
+                        }
+                      }}
                       keyboardType="decimal-pad"
                       returnKeyType="done"
                     />
@@ -192,7 +266,7 @@ export const ExpenseEditorModal = ({
 
                   <TouchableOpacity
                     className="w-8 items-center justify-center"
-                    onPress={() => onRemoveItem(item.id)}
+                    onPress={() => removeDraftItem(item.id)}
                     hitSlop={8}
                     accessibilityLabel={`Remove item ${index + 1}`}
                   >
@@ -203,7 +277,7 @@ export const ExpenseEditorModal = ({
 
               <TouchableOpacity
                 className="mt-3 flex-row items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-teal-700 bg-teal-700/[0.04] py-[11px]"
-                onPress={onAddItem}
+                onPress={addDraftItem}
               >
                 <Feather name="plus" size={16} color={EXPENSE_PRIMARY} />
                 <Text className="font-inter-semibold text-sm text-teal-700">
@@ -220,7 +294,7 @@ export const ExpenseEditorModal = ({
 
             <TouchableOpacity
               className={`mt-4 flex-row items-center justify-center gap-2.5 rounded-[14px] bg-teal-700 py-[15px] shadow-md shadow-teal-700/20 ${saving ? "opacity-70" : ""}`}
-              onPress={save}
+              onPress={() => void save()}
               disabled={saving}
             >
               {saving ? (
