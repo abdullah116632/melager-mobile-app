@@ -1,13 +1,14 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "@/redux/hooks";
 import type { MessHubMess } from "@/types/messHub";
 
 interface MessCardProps {
   mess: MessHubMess;
-  onEnter: (mess: MessHubMess) => void;
 }
 
-export const MessCard = ({ mess, onEnter }: MessCardProps) => {
+export const MessCard = ({ mess }: MessCardProps) => {
+  const { selectMess } = useAuth();
   const isAdmin = mess.role === "admin";
 
   return (
@@ -43,7 +44,7 @@ export const MessCard = ({ mess, onEnter }: MessCardProps) => {
       </View>
       <TouchableOpacity
         className="flex-row items-center gap-[5px] rounded-[10px] bg-teal-700 px-3.5 py-[9px]"
-        onPress={() => onEnter(mess)}
+        onPress={() => selectMess(mess)}
         activeOpacity={0.8}
       >
         <Text className="font-inter-semibold text-[13px] text-white">

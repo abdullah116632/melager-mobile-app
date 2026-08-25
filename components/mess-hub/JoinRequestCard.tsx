@@ -1,19 +1,35 @@
 import Feather from "@expo/vector-icons/Feather";
+import { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "@/redux/hooks";
 import type { MessHubJoinRequest } from "@/types/messHub";
 
 interface JoinRequestCardProps {
   request: MessHubJoinRequest;
-  retrying: boolean;
-  onRetry: (request: MessHubJoinRequest) => void;
+  onRetryErrorChange: (message: string) => void;
 }
 
 export const JoinRequestCard = ({
   request,
-  retrying,
-  onRetry,
+  onRetryErrorChange,
 }: JoinRequestCardProps) => {
+  const { retryJoin } = useAuth();
+  const [retrying, setRetrying] = useState(false);
   const isPending = request.status === "pending";
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    onRetryErrorChange("");
+    try {
+      await retryJoin(request.id);
+    } catch (error) {
+      onRetryErrorChange(
+        error instanceof Error ? error.message : "Failed to send request again",
+      );
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   return (
     <View className="flex-row items-center gap-3 rounded-2xl border-l-[3px] border-gray-200 bg-white p-3.5 shadow-sm shadow-black/[0.06]">
@@ -49,7 +65,7 @@ export const JoinRequestCard = ({
       {!isPending && (
         <TouchableOpacity
           className={`min-w-[116px] flex-row items-center justify-center gap-[5px] rounded-[10px] border border-violet-200 bg-purple-100 px-2.5 py-2 ${retrying ? "opacity-60" : "opacity-100"}`}
-          onPress={() => onRetry(request)}
+          onPress={() => void handleRetry()}
           disabled={retrying}
           activeOpacity={0.8}
         >
