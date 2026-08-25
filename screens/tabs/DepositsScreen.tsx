@@ -17,10 +17,10 @@ import { DepositsHeader } from "@/components/deposits/DepositsHeader";
 import { DepositsTable } from "@/components/deposits/DepositsTable";
 import MonthPicker from "@/components/MonthPicker";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import { useAuth } from "@/context/AuthContext";
-import { useDrawer } from "@/context/DrawerContext";
-import { useMess } from "@/context/MessContext";
-import { useNetwork } from "@/context/NetworkContext";
+import { useAuth } from "@/redux/hooks";
+import { useDrawer } from "@/redux/hooks";
+import { useMess } from "@/redux/hooks";
+import { useNetwork } from "@/redux/hooks";
 import {
   addDepositEntry,
   deleteDepositEntry,

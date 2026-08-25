@@ -48,7 +48,7 @@ app/                       Expo Router file-based routes
   consumers.tsx, meal-status.tsx, member-requests.tsx
   settings/security.tsx
 components/                Reusable UI (AppDrawer, NotificationBell, etc.)
-context/                   AuthContext, MessContext, DrawerContext, NotificationContext, NetworkContext
+redux/                     Redux store, typed hooks, and feature slices (including auth)
 hooks/                     useColors, etc.
 lib/                       api.ts (fetch client), cache, offlineQueue
 assets/                    Icons, splash

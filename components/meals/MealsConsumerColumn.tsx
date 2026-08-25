@@ -1,6 +1,6 @@
 import { Alert, Text, TouchableOpacity, View } from "react-native";
-import { useAuth } from "@/context/AuthContext";
-import { useMess } from "@/context/MessContext";
+import { useAuth } from "@/redux/hooks";
+import { useMess } from "@/redux/hooks";
 
 const CONSUMER_ACCENTS = [
   "#059669",

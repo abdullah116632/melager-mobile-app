@@ -11,10 +11,8 @@ import {
   View,
 } from "react-native";
 
-import {
-  type AppNotification,
-  useNotifications,
-} from "@/context/NotificationContext";
+import { useNotifications } from "@/redux/hooks";
+import type { AppNotification } from "@/types/notification";
 
 const timeAgo = (timestamp: number): string => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);

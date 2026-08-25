@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Text, TouchableOpacity, View } from "react-native";
 
-import { useNotifications } from "@/context/NotificationContext";
+import { useNotifications } from "@/redux/hooks";
 
 interface NotificationBellProps {
   badgeBorderColor?: string;

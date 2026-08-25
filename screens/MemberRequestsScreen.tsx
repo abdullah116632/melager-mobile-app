@@ -5,8 +5,8 @@ import { MemberRequestList } from "@/components/member-requests/MemberRequestLis
 import { MemberRequestSearch } from "@/components/member-requests/MemberRequestSearch";
 import { MemberRequestsEmptyState } from "@/components/member-requests/MemberRequestsEmptyState";
 import { MemberRequestsHeader } from "@/components/member-requests/MemberRequestsHeader";
-import { useAuth } from "@/context/AuthContext";
-import { useNotifications } from "@/context/NotificationContext";
+import { useAuth } from "@/redux/hooks";
+import { useNotifications } from "@/redux/hooks";
 import {
   acceptMemberRequest,
   getMemberRequests,

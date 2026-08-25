@@ -9,7 +9,7 @@ import { LoginSignupCard } from "@/components/auth/LoginSignupCard";
 import { ResetOtpCard } from "@/components/auth/ResetOtpCard";
 import { ResetPasswordCard } from "@/components/auth/ResetPasswordCard";
 import { SignupOtpCard } from "@/components/auth/SignupOtpCard";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import {
   clearPendingPasswordReset,
   getPendingPasswordReset,

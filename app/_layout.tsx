@@ -13,16 +13,23 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { cssInterop } from "nativewind";
+import { Provider } from "react-redux";
 
 import { AppDrawer } from "@/components/AppDrawer";
 import { ConnectivityGate } from "@/components/ConnectivityGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { DrawerProvider } from "@/context/DrawerContext";
-import { MessProvider } from "@/context/MessContext";
-import { NetworkProvider } from "@/context/NetworkContext";
-import { NotificationProvider } from "@/context/NotificationContext";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { MessStateController } from "@/redux/MessStateController";
+import { NetworkStateController } from "@/redux/NetworkStateController";
+import { NotificationStateController } from "@/redux/NotificationStateController";
+import {
+  initializeAuth,
+  selectActiveMess,
+  selectAuthLoading,
+  selectAuthUser,
+} from "@/redux/slice/authSlice";
+import { store } from "@/redux/store";
 import {
   clearPendingAdminOtp,
   getPendingAdminOtp,
@@ -35,7 +42,10 @@ const NativeWindGestureHandlerRootView = cssInterop(GestureHandlerRootView, {
 });
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, activeMess, authLoading } = useAuth();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(selectAuthUser);
+  const activeMess = useAppSelector(selectActiveMess);
+  const authLoading = useAppSelector(selectAuthLoading);
   const segments = useSegments();
   const router = useRouter();
   const first = segments[0] as string | undefined;
@@ -45,6 +55,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const inMessSetup = first === "mess-setup";
   const inAccount = first === "account";
   const inAdminOtp = first === "settings" && second === "admin-otp";
+
+  useEffect(() => {
+    void dispatch(initializeAuth());
+  }, [dispatch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,26 +138,24 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <NetworkProvider>
-        <ConnectivityGate>
-          <ErrorBoundary>
-            <AuthProvider>
-              <MessProvider>
-                <NotificationProvider>
-                  <DrawerProvider>
-                    <NativeWindGestureHandlerRootView className="flex-1">
-                      <KeyboardProvider>
-                        <RootLayoutNav />
-                      </KeyboardProvider>
-                      <NotificationPanel />
-                    </NativeWindGestureHandlerRootView>
-                  </DrawerProvider>
-                </NotificationProvider>
-              </MessProvider>
-            </AuthProvider>
-          </ErrorBoundary>
-        </ConnectivityGate>
-      </NetworkProvider>
+      <Provider store={store}>
+        <NetworkStateController>
+          <ConnectivityGate>
+            <ErrorBoundary>
+              <MessStateController>
+                <NotificationStateController>
+                  <NativeWindGestureHandlerRootView className="flex-1">
+                    <KeyboardProvider>
+                      <RootLayoutNav />
+                    </KeyboardProvider>
+                    <NotificationPanel />
+                  </NativeWindGestureHandlerRootView>
+                </NotificationStateController>
+              </MessStateController>
+            </ErrorBoundary>
+          </ConnectivityGate>
+        </NetworkStateController>
+      </Provider>
     </SafeAreaProvider>
   );
 }

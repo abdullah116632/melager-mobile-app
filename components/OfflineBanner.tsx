@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useNetwork } from "@/context/NetworkContext";
+import { useNetwork } from "@/redux/hooks";
 
 const BANNER_BODY_HEIGHT = 40;
 const SLIDE_BUFFER = 8;

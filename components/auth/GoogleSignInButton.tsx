@@ -2,7 +2,11 @@ import { useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
+import {
+  GOOGLE_SIGN_IN_BUILD_REQUIRED_MESSAGE,
+  loadGoogleSignInModule,
+} from "@/services/googleSignInService";
 
 import { ErrorBox } from "./AuthFeedback";
 
@@ -52,8 +56,13 @@ export const GoogleSignInButton = ({
     setLoading(true);
 
     try {
-      const { GoogleSignin, isSuccessResponse } =
-        await import("@react-native-google-signin/google-signin");
+      const googleSignInModule = await loadGoogleSignInModule();
+      if (!googleSignInModule) {
+        setError(GOOGLE_SIGN_IN_BUILD_REQUIRED_MESSAGE);
+        return;
+      }
+
+      const { GoogleSignin, isSuccessResponse } = googleSignInModule;
       GoogleSignin.configure({ webClientId: googleWebClientId });
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
@@ -71,7 +80,7 @@ export const GoogleSignInButton = ({
       const message = caughtError instanceof Error ? caughtError.message : "";
       setError(
         message.includes("RNGoogleSignin")
-          ? "Google sign-in requires a new development build. Rebuild and reinstall the app, then try again."
+          ? GOOGLE_SIGN_IN_BUILD_REQUIRED_MESSAGE
           : message || "Google sign-in failed",
       );
     } finally {

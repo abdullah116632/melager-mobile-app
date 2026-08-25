@@ -4,8 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useAuth } from "@/context/AuthContext";
-import { useDrawer } from "@/context/DrawerContext";
+import { useAuth } from "@/redux/hooks";
+import { useDrawer } from "@/redux/hooks";
 
 export const DashboardHeader = () => {
   const { mess } = useAuth();

@@ -13,7 +13,7 @@ import {
   SecurityErrorBox,
   SecuritySubmitButton,
 } from "@/components/settings/SecurityFormControls";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import { savePendingAdminOtp } from "@/services/pendingAdminOtpService";
 import {
   getEligibleAdmins,

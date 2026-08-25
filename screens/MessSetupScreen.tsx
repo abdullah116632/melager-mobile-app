@@ -4,7 +4,7 @@ import { JoinRequestSuccess } from "@/components/mess-setup/JoinRequestSuccess";
 import { MessSetupChoice } from "@/components/mess-setup/MessSetupChoice";
 import { MessSetupForm } from "@/components/mess-setup/MessSetupForm";
 import { MessSetupHeader } from "@/components/mess-setup/MessSetupHeader";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import type { MessSetupMode, MessSetupStep } from "@/types/messSetup";
 
 interface MessSetupScreenProps {

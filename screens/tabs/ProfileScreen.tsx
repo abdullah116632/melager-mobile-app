@@ -20,7 +20,7 @@ import {
   ProfileRow,
 } from "@/components/profile/ProfileRows";
 import { ProfileSectionCard } from "@/components/profile/ProfileSectionCard";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import { sendMessInvite } from "@/services/profileService";
 import type { ProfileEditField } from "@/types/profile";
 import { isValidInviteEmail } from "@/utils/profile";

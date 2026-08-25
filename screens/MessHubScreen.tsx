@@ -8,7 +8,7 @@ import { MessHubActions } from "@/components/mess-hub/MessHubActions";
 import { MessHubEmptyState } from "@/components/mess-hub/MessHubEmptyState";
 import { MessHubErrorBanner } from "@/components/mess-hub/MessHubErrorBanner";
 import { MessHubHeader } from "@/components/mess-hub/MessHubHeader";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import type { MessHubJoinRequest, MessHubMess } from "@/types/messHub";
 
 interface MessHubScreenProps {

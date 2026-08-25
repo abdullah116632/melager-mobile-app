@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import type { Consumer } from "@/context/MessContext";
+import type { Consumer } from "@/types/mess";
 import { formatMealValue, isMealDayToday } from "@/utils/meal";
 
 interface MealGridRowProps {

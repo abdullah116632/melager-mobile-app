@@ -21,7 +21,7 @@ import {
   SecuritySubmitButton,
   SecuritySuccessCard,
 } from "@/components/settings/SecurityFormControls";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import { useOtpTimer } from "@/hooks/useOtpTimer";
 import {
   clearPendingAdminOtp,

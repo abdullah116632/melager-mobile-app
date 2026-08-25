@@ -2,7 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import type { ComponentProps } from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import type { SecurityModalType } from "@/types/security";
 
 type ActionModal = Exclude<SecurityModalType, null>;

@@ -2,7 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import { useState } from "react";
 import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
 
-import { useMess } from "@/context/MessContext";
+import { useMess } from "@/redux/hooks";
 
 const MONTHS_SHORT = [
   "Jan",

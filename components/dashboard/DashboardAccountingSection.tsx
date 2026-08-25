@@ -6,8 +6,8 @@ import {
   useState,
 } from "react";
 import { Alert } from "react-native";
-import { useAuth } from "@/context/AuthContext";
-import { useMess } from "@/context/MessContext";
+import { useAuth } from "@/redux/hooks";
+import { useMess } from "@/redux/hooks";
 import { getDashboardRangeData } from "@/services/dashboardService";
 import type { DashboardDateRange, MonthData } from "@/types/dashboard";
 import {

@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import { useOtpTimer } from "@/hooks/useOtpTimer";
 
 type DeleteMethod = "password" | "otp";

@@ -17,7 +17,7 @@ import {
   MEAL_STATUS_MAX_FUTURE_DAYS,
   MEAL_TYPES,
 } from "@/constants/mealStatus";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import {
   getMealStatus,
   updateMealSchedule,

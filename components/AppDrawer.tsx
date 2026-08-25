@@ -18,8 +18,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "@/context/AuthContext";
-import { useDrawer } from "@/context/DrawerContext";
+import { useAuth } from "@/redux/hooks";
+import { useDrawer } from "@/redux/hooks";
 
 const ANIMATION_DURATION = 240;
 const USE_NATIVE_DRIVER = Platform.OS !== "web";

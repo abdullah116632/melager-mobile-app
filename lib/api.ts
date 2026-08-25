@@ -1,4 +1,4 @@
-import { DayExpenseItem } from "@/context/MessContext";
+import type { DayExpenseItem } from "@/types/mess";
 
 export interface MealSchedule {
   breakfastEnabled: boolean;

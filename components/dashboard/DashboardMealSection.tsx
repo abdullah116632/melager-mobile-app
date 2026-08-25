@@ -14,7 +14,7 @@ import {
   DASHBOARD_MEAL_LABELS,
   DASHBOARD_MEAL_TYPES,
 } from "@/constants/dashboard";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import {
   getDashboardSchedule,
   toggleDashboardMeal,

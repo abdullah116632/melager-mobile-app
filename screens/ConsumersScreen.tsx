@@ -15,7 +15,7 @@ import { ConsumerTableSection } from "@/components/consumers/ConsumerTableSectio
 import { ConsumersEmptyState } from "@/components/consumers/ConsumersEmptyState";
 import { ConsumersHeader } from "@/components/consumers/ConsumersHeader";
 import { DeleteConsumerModal } from "@/components/consumers/DeleteConsumerModal";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import { deleteConsumer, getConsumers } from "@/services/consumerService";
 import type { Consumer } from "@/types/consumer";
 

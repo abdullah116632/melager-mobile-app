@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useMess } from "@/context/MessContext";
+import { useMess } from "@/redux/hooks";
 import type { ActiveMealCell } from "@/types/meal";
 
 export interface MealCellEditorHandle {

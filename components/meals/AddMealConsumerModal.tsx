@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMess } from "@/context/MessContext";
+import { useMess } from "@/redux/hooks";
 
 interface AddMealConsumerModalProps {
   visible: boolean;

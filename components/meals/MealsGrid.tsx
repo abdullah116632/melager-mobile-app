@@ -25,8 +25,8 @@ import {
   NAME_COL_W,
   TOTAL_COL_W,
 } from "@/constants/meal";
-import { useAuth } from "@/context/AuthContext";
-import { useMess } from "@/context/MessContext";
+import { useAuth } from "@/redux/hooks";
+import { useMess } from "@/redux/hooks";
 import type { ActiveMealCell } from "@/types/meal";
 import { formatMealValue, isMealDayToday } from "@/utils/meal";
 import { MealGridRow } from "./MealGridRow";

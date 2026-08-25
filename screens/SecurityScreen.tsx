@@ -9,7 +9,7 @@ import { SecurityBottomSheet } from "@/components/settings/SecurityBottomSheet";
 import { SecurityHeader } from "@/components/settings/SecurityHeader";
 import { TransferAdminForm } from "@/components/settings/TransferAdminForm";
 import { UpdateEmailForm } from "@/components/settings/UpdateEmailForm";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/redux/hooks";
 import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
 import type { SecurityModalType } from "@/types/security";
 

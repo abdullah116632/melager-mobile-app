@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNetwork } from "@/context/NetworkContext";
+import { useNetwork } from "@/redux/hooks";
 
 const ConnectionBackground = ({ children }: { children: ReactNode }) => {
   const insets = useSafeAreaInsets();
