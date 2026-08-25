@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 
+import { useAuth } from "@/redux/hooks";
 import type { Consumer } from "@/types/consumer";
 
 type ConsumerTableSectionProps = {
@@ -19,9 +20,12 @@ type ConsumerTableSectionProps = {
   copiedId: string | null;
   onCopy: (value: string, key: string, label: string) => void;
   topMargin?: boolean;
-  isAdmin: boolean;
   onDelete: (consumer: Consumer) => void;
   deletingId: number | null;
+};
+
+type ConsumerTableProps = ConsumerTableSectionProps & {
+  isAdmin: boolean;
 };
 
 const consumerNameColors = [
@@ -98,21 +102,24 @@ export const ConsumerTableSection = ({
   copiedId,
   onCopy,
   topMargin = false,
-  isAdmin,
   onDelete,
   deletingId,
-}: ConsumerTableSectionProps) => (
-  <ConsumerTable
-    label={label}
-    consumers={consumers}
-    copiedId={copiedId}
-    onCopy={onCopy}
-    topMargin={topMargin}
-    isAdmin={isAdmin}
-    onDelete={onDelete}
-    deletingId={deletingId}
-  />
-);
+}: ConsumerTableSectionProps) => {
+  const { role } = useAuth();
+
+  return (
+    <ConsumerTable
+      label={label}
+      consumers={consumers}
+      copiedId={copiedId}
+      onCopy={onCopy}
+      topMargin={topMargin}
+      isAdmin={role === "admin"}
+      onDelete={onDelete}
+      deletingId={deletingId}
+    />
+  );
+};
 
 const ConsumerTable = ({
   label,
@@ -123,7 +130,7 @@ const ConsumerTable = ({
   isAdmin,
   onDelete,
   deletingId,
-}: ConsumerTableSectionProps) => {
+}: ConsumerTableProps) => {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [scrollViewportWidth, setScrollViewportWidth] = useState(0);
   const [scrollContentWidth, setScrollContentWidth] = useState(0);
