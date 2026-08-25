@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,51 +14,74 @@ import {
   View,
 } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import { formatDepositPickerDate, formatDepositTime } from "@/utils/deposit";
+import { useAuth, useMess, useNetwork } from "@/redux/hooks";
+import { addDepositEntry, updateDepositEntry } from "@/services/depositService";
+import type { DepositEntry } from "@/types/deposit";
+import {
+  formatDepositPickerDate,
+  formatDepositTime,
+  getCurrentDepositDate,
+  getCurrentDepositTime,
+} from "@/utils/deposit";
 import { DepositDatePicker } from "./DepositDatePicker";
 import { DepositTimePicker } from "./DepositTimePicker";
 
 interface AddDepositModalProps {
-  visible: boolean;
-  consumerName: string;
-  amount: string;
-  date: string;
-  time: string;
-  note: string;
-  error: string;
-  saving: boolean;
-  title?: string;
-  submitLabel?: string;
-  onAmountChange: (value: string) => void;
-  onDateChange: (value: string) => void;
-  onTimeChange: (value: string) => void;
-  onNoteChange: (value: string) => void;
+  consumerId?: string | null;
+  entry?: DepositEntry | null;
   onClose: () => void;
-  onSubmit: () => void;
+  onSaved: (entry: DepositEntry) => void;
 }
 
 export const AddDepositModal = ({
-  visible,
-  consumerName,
-  amount,
-  date,
-  time,
-  note,
-  error,
-  saving,
-  title = "Add Deposit",
-  submitLabel = "Add Deposit",
-  onAmountChange,
-  onDateChange,
-  onTimeChange,
-  onNoteChange,
+  consumerId = null,
+  entry = null,
   onClose,
-  onSubmit,
+  onSaved,
 }: AddDepositModalProps) => {
+  const { token, activeMess } = useAuth();
+  const { isOnline } = useNetwork();
+  const { consumers } = useMess();
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(getCurrentDepositDate());
+  const [time, setTime] = useState(getCurrentDepositTime());
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const amountInputRef = useRef<TextInput | null>(null);
+  const isEditing = entry !== null;
+  const activeConsumerId = entry?.consumerId.toString() ?? consumerId;
+  const visible = activeConsumerId !== null;
+  const consumerName =
+    consumers.find((consumer) => consumer.id === activeConsumerId)?.name ?? "";
+  const title = isEditing ? "Edit Deposit" : "Add Deposit";
+  const submitLabel = isEditing ? "Save Changes" : "Add Deposit";
+  const messId = activeMess?.id ?? null;
+
+  useEffect(() => {
+    if (!visible) return;
+    if (entry) {
+      const depositedAt = new Date(entry.depositedAt);
+      const pad = (value: number) => String(value).padStart(2, "0");
+      setAmount(String(entry.amount));
+      setDate(
+        `${depositedAt.getFullYear()}-${pad(depositedAt.getMonth() + 1)}-${pad(depositedAt.getDate())}`,
+      );
+      setTime(
+        `${pad(depositedAt.getHours())}:${pad(depositedAt.getMinutes())}`,
+      );
+      setNote(entry.note ?? "");
+    } else {
+      setAmount("");
+      setDate(getCurrentDepositDate());
+      setTime(getCurrentDepositTime());
+      setNote("");
+    }
+    setError("");
+  }, [consumerId, entry, visible]);
 
   useEffect(() => {
     const showEvent =
@@ -84,7 +108,87 @@ export const AddDepositModal = ({
 
   const close = () => {
     Keyboard.dismiss();
+    setShowDatePicker(false);
+    setShowTimePicker(false);
     onClose();
+  };
+
+  const submit = async () => {
+    if (!messId || !token || !activeConsumerId) return;
+    const trimmedAmount = amount.trim();
+    const numericAmount = Number(trimmedAmount);
+    if (
+      !Number.isFinite(numericAmount) ||
+      numericAmount === 0 ||
+      !/^-?\d+(?:\.\d{1,3})?$/.test(trimmedAmount)
+    ) {
+      setError(
+        "Enter a non-zero amount with up to 3 decimals, e.g. 500.125 or -500.125.",
+      );
+      return;
+    }
+
+    const resolvedDate =
+      date.trim() || (isEditing ? "" : getCurrentDepositDate());
+    const resolvedTime =
+      time.trim() || (isEditing ? "" : getCurrentDepositTime());
+    const depositedAt = new Date(`${resolvedDate}T${resolvedTime}:00`);
+    if (Number.isNaN(depositedAt.getTime())) {
+      setError("Invalid date or time. Use YYYY-MM-DD and HH:MM.");
+      return;
+    }
+
+    if (isEditing && !isOnline) {
+      setError("Internet connection required.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    if (!isOnline) {
+      setError("Internet connection required.");
+      setSaving(false);
+      return;
+    }
+
+    try {
+      const savedEntry = entry
+        ? await updateDepositEntry(
+            entry.id,
+            {
+              messId,
+              amount: numericAmount,
+              depositedAt: depositedAt.toISOString(),
+              note: note.trim() || undefined,
+            },
+            token,
+          )
+        : await addDepositEntry(
+            {
+              messId,
+              consumerId: parseInt(activeConsumerId, 10),
+              amount: numericAmount,
+              depositedAt: depositedAt.toISOString(),
+              note: note.trim() || undefined,
+            },
+            token,
+          );
+      onSaved(savedEntry);
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : isEditing
+            ? "Failed to update."
+            : "Failed to save.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -143,7 +247,7 @@ export const AddDepositModal = ({
                   placeholder="e.g. 500.125 or -500.125"
                   placeholderTextColor="#64748B"
                   value={amount}
-                  onChangeText={onAmountChange}
+                  onChangeText={setAmount}
                   keyboardType="default"
                 />
                 <Text className="mt-1 font-inter text-[11px] text-slate-500">
@@ -205,7 +309,7 @@ export const AddDepositModal = ({
                   placeholder="e.g. Cash payment"
                   placeholderTextColor="#64748B"
                   value={note}
-                  onChangeText={onNoteChange}
+                  onChangeText={setNote}
                 />
                 {error ? (
                   <Text className="mt-2 font-inter text-[13px] text-red-600">
@@ -217,7 +321,7 @@ export const AddDepositModal = ({
               <View className="mt-5 flex-row gap-2.5">
                 <TouchableOpacity
                   className="flex-1 items-center justify-center rounded-xl bg-teal-700 px-4 py-[13px]"
-                  onPress={onSubmit}
+                  onPress={() => void submit()}
                   disabled={saving}
                 >
                   {saving ? (
@@ -239,7 +343,7 @@ export const AddDepositModal = ({
         initialDate={date}
         onClose={() => setShowDatePicker(false)}
         onSelect={(value) => {
-          onDateChange(value);
+          setDate(value);
           setShowDatePicker(false);
         }}
       />
@@ -248,7 +352,7 @@ export const AddDepositModal = ({
         initialTime={time}
         onClose={() => setShowTimePicker(false)}
         onSelect={(value) => {
-          onTimeChange(value);
+          setTime(value);
           setShowTimePicker(false);
         }}
       />

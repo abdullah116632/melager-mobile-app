@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -11,32 +12,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useMess } from "@/redux/hooks";
 
 interface AddDepositConsumerModalProps {
   visible: boolean;
-  name: string;
-  email: string;
-  phone: string;
-  error: string;
-  onNameChange: (value: string) => void;
-  onEmailChange: (value: string) => void;
-  onPhoneChange: (value: string) => void;
   onClose: () => void;
-  onSubmit: () => void;
 }
 
 export const AddDepositConsumerModal = ({
   visible,
-  name,
-  email,
-  phone,
-  error,
-  onNameChange,
-  onEmailChange,
-  onPhoneChange,
   onClose,
-  onSubmit,
 }: AddDepositConsumerModalProps) => {
+  const { addConsumer } = useMess();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const nameInputRef = useRef<TextInput | null>(null);
 
@@ -65,7 +56,50 @@ export const AddDepositConsumerModal = ({
 
   const close = () => {
     Keyboard.dismiss();
+    setName("");
+    setEmail("");
+    setPhone("");
+    setError("");
     onClose();
+  };
+
+  const submit = async () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim() || undefined;
+    setError("");
+    if (!trimmedName) {
+      setError("Name is required.");
+      return;
+    }
+    if (!trimmedEmail) {
+      setError("Email is required.");
+      return;
+    }
+    if (trimmedPhone && trimmedPhone.length !== 11) {
+      setError("Phone must be exactly 11 digits.");
+      return;
+    }
+    try {
+      const { invitationSent } = await addConsumer(
+        trimmedName,
+        trimmedEmail,
+        trimmedPhone,
+      );
+      close();
+      if (invitationSent) {
+        Alert.alert(
+          "Invitation sent",
+          "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference.",
+        );
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Failed to add consumer.",
+      );
+    }
   };
 
   return (
@@ -120,7 +154,7 @@ export const AddDepositConsumerModal = ({
                 placeholder="Full name *"
                 placeholderTextColor="#64748B"
                 value={name}
-                onChangeText={onNameChange}
+                onChangeText={setName}
                 returnKeyType="next"
               />
               <TextInput
@@ -128,7 +162,7 @@ export const AddDepositConsumerModal = ({
                 placeholder="Email *"
                 placeholderTextColor="#64748B"
                 value={email}
-                onChangeText={onEmailChange}
+                onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 returnKeyType="next"
@@ -139,11 +173,11 @@ export const AddDepositConsumerModal = ({
                 placeholderTextColor="#64748B"
                 value={phone}
                 onChangeText={(value) =>
-                  onPhoneChange(value.replace(/\D/g, "").slice(0, 11))
+                  setPhone(value.replace(/\D/g, "").slice(0, 11))
                 }
                 keyboardType="phone-pad"
                 returnKeyType="done"
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={() => void submit()}
               />
               {error ? (
                 <Text className="mt-2 font-inter text-[13px] text-red-600">
@@ -155,7 +189,7 @@ export const AddDepositConsumerModal = ({
             <View className="mt-5 flex-row gap-2.5">
               <TouchableOpacity
                 className="flex-1 items-center justify-center rounded-xl bg-teal-700 px-4 py-[13px]"
-                onPress={onSubmit}
+                onPress={() => void submit()}
               >
                 <Text className="font-inter-semibold text-white">
                   Add &amp; Send Credentials
