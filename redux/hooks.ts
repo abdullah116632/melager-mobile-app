@@ -220,6 +220,9 @@ export const useMess = () => {
     state.currentMonth,
   );
   const currentMonthLabel = `${MONTH_NAMES[state.currentMonth - 1]} ${state.currentYear}`;
+  const currentMonthLoaded =
+    state.scopeMessId !== null &&
+    Boolean(state.loadedMonths[`${state.scopeMessId}:${currentYearMonth}`]);
 
   const getMealCount = (
     yearMonth: string,
@@ -290,6 +293,7 @@ export const useMess = () => {
     consumers: state.consumers,
     currentYearMonth,
     currentMonthLabel,
+    currentMonthLoaded,
     dataLoading: state.dataLoading,
     requestStatus: state.requestStatus,
     requestError: state.requestError,

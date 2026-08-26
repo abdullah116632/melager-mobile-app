@@ -42,6 +42,12 @@ interface MealsGridProps {
   onCellPress: (consumerId: string, day: number) => void;
 }
 
+const PLACEHOLDER_ROW_COUNT = 8;
+const PLACEHOLDER_ROWS = Array.from(
+  { length: PLACEHOLDER_ROW_COUNT },
+  (_, index) => index,
+);
+
 export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
   ({ selectedCell, onCellPress }, ref) => {
     const { width: windowWidth } = useWindowDimensions();
@@ -49,6 +55,8 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     const {
       consumers,
       currentYearMonth: yearMonth,
+      currentMonthLoaded,
+      dataLoading,
       getMealCount,
       getConsumerTotal,
       getDayTotal,
@@ -69,8 +77,12 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       () => Array.from({ length: daysCount }, (_, index) => index + 1),
       [daysCount],
     );
+    const isMonthReady = currentMonthLoaded && !dataLoading;
+    const displayedRowCount = isMonthReady
+      ? consumers.length
+      : PLACEHOLDER_ROW_COUNT;
     const tableWidth = NAME_COL_W + days.length * DAY_CELL_W + TOTAL_COL_W;
-    const tableBodyHeight = (consumers.length + 1) * DAY_CELL_H + 4;
+    const tableBodyHeight = (displayedRowCount + 1) * DAY_CELL_H + 4;
 
     const handleBodyScroll = useCallback(
       (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -138,7 +150,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       };
     }, []);
 
-    if (consumers.length === 0) return <MealsEmptyState />;
+    if (isMonthReady && consumers.length === 0) return <MealsEmptyState />;
 
     return (
       <View className="flex-1 overflow-hidden bg-white">
@@ -229,30 +241,61 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
               contentContainerStyle={{ width: tableWidth }}
               style={{ width: "100%", height: tableBodyHeight }}
             >
-              {consumers.map((consumer, index) => {
-                const counts = days.map((day) =>
-                  getMealCount(yearMonth, consumer.id, day),
-                );
-                return (
-                  <MealGridRow
-                    key={consumer.id}
-                    consumer={consumer}
-                    index={index}
-                    days={days}
-                    counts={counts}
-                    total={getConsumerTotal(yearMonth, consumer.id)}
-                    selectedDay={
-                      selectedCell?.consumerId === consumer.id
-                        ? selectedCell.day
-                        : null
-                    }
-                    isAdmin={isAdmin}
-                    tableWidth={tableWidth}
-                    yearMonth={yearMonth}
-                    onCellPress={onCellPress}
-                  />
-                );
-              })}
+              {isMonthReady
+                ? consumers.map((consumer, index) => {
+                    const counts = days.map((day) =>
+                      getMealCount(yearMonth, consumer.id, day),
+                    );
+                    return (
+                      <MealGridRow
+                        key={consumer.id}
+                        consumer={consumer}
+                        index={index}
+                        days={days}
+                        counts={counts}
+                        total={getConsumerTotal(yearMonth, consumer.id)}
+                        selectedDay={
+                          selectedCell?.consumerId === consumer.id
+                            ? selectedCell.day
+                            : null
+                        }
+                        isAdmin={isAdmin}
+                        tableWidth={tableWidth}
+                        yearMonth={yearMonth}
+                        onCellPress={onCellPress}
+                      />
+                    );
+                  })
+                : PLACEHOLDER_ROWS.map((row) => (
+                    <View
+                      key={row}
+                      className={`h-[48px] flex-row border-b-[0.5px] border-slate-200 ${
+                        row % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
+                      }`}
+                      style={{ width: tableWidth }}
+                    >
+                      <View className="h-[48px] w-[110px] border-r border-slate-200" />
+                      {days.map((day) => (
+                        <View
+                          key={day}
+                          className={`h-[48px] w-[48px] items-center justify-center border-r-[0.5px] border-slate-200 ${
+                            isMealDayToday(yearMonth, day)
+                              ? "border-b-2 border-b-teal-500"
+                              : ""
+                          }`}
+                        >
+                          <Text className="font-inter text-[13px] text-slate-300">
+                            -
+                          </Text>
+                        </View>
+                      ))}
+                      <View className="h-[48px] w-[54px] items-center justify-center bg-slate-100">
+                        <Text className="font-inter-bold text-sm text-slate-300">
+                          -
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
 
               <View
                 className="h-[52px] flex-row bg-[#08766E]"
@@ -265,19 +308,26 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                     className="h-[52px] w-[48px] items-center justify-center border-l border-white/10"
                   >
                     <Text className="font-inter-semibold text-xs text-white">
-                      {formatMealValue(getDayTotal(yearMonth, day))}
+                      {formatMealValue(
+                        isMonthReady ? getDayTotal(yearMonth, day) : 0,
+                      )}
                     </Text>
                   </View>
                 ))}
                 <View className="h-[52px] w-[54px] items-center justify-center bg-[#0A5954]">
                   <Text className="font-inter-bold text-[15px] text-white">
-                    {formatMealValue(getGrandTotal(yearMonth))}
+                    {formatMealValue(
+                      isMonthReady ? getGrandTotal(yearMonth) : 0,
+                    )}
                   </Text>
                 </View>
               </View>
             </ScrollView>
 
-            <MealsConsumerColumn />
+            <MealsConsumerColumn
+              loading={!isMonthReady}
+              placeholderCount={PLACEHOLDER_ROW_COUNT}
+            />
           </View>
           <View
             pointerEvents="none"

@@ -11,10 +11,12 @@ import { AddMealConsumerModal } from "./AddMealConsumerModal";
 export const MealsHeader = () => {
   const { role } = useAuth();
   const { openDrawer } = useDrawer();
-  const { currentYearMonth, getGrandTotal } = useMess();
+  const { currentYearMonth, currentMonthLoaded, dataLoading, getGrandTotal } =
+    useMess();
   const [showAddConsumer, setShowAddConsumer] = useState(false);
   const isAdmin = role === "admin";
-  const totalMeals = getGrandTotal(currentYearMonth);
+  const totalMeals =
+    currentMonthLoaded && !dataLoading ? getGrandTotal(currentYearMonth) : 0;
 
   return (
     <>

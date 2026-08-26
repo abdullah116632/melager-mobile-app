@@ -50,9 +50,11 @@ function ClassicTabLayout() {
 
   return (
     <Tabs
+      detachInactiveScreens={false}
       screenOptions={{
         lazy: true,
         freezeOnBlur: true,
+        animation: "none",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
@@ -89,6 +91,8 @@ function ClassicTabLayout() {
         name="meals"
         options={{
           title: "Meals",
+          lazy: false,
+          freezeOnBlur: false,
           tabBarIcon: ({ color }) => (
             <Feather name="coffee" size={22} color={color} />
           ),
