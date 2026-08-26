@@ -1,4 +1,5 @@
 import { Platform, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { MemberRequestsContent } from "@/components/member-requests/MemberRequestsContent";
 
 interface MemberRequestsScreenProps {
@@ -9,6 +10,7 @@ export const MemberRequestsScreen = ({ onBack }: MemberRequestsScreenProps) => (
   <View
     className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "" : "pt-safe"}`}
   >
+    <StatusBar style="light" backgroundColor="#0F766E" />
     <MemberRequestsContent onBack={onBack} />
   </View>
 );

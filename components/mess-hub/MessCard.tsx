@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "@/redux/hooks";
 import type { MessHubMess } from "@/types/messHub";
 
@@ -8,8 +8,10 @@ interface MessCardProps {
 }
 
 export const MessCard = ({ mess }: MessCardProps) => {
-  const { selectMess } = useAuth();
+  const { mess: activeMess, selectMess } = useAuth();
   const isAdmin = mess.role === "admin";
+  const isEntering = activeMess?.id === mess.id;
+  const messSelectionInProgress = activeMess !== null;
 
   return (
     <View className="flex-row items-center gap-3 rounded-2xl bg-white p-3.5 shadow-sm shadow-black/[0.06]">
@@ -43,14 +45,24 @@ export const MessCard = ({ mess }: MessCardProps) => {
         </View>
       </View>
       <TouchableOpacity
-        className="flex-row items-center gap-[5px] rounded-[10px] bg-teal-700 px-3.5 py-[9px]"
+        className={`min-w-[78px] flex-row items-center justify-center gap-[5px] rounded-[10px] bg-teal-700 px-3.5 py-[9px] ${messSelectionInProgress && !isEntering ? "opacity-55" : "opacity-100"}`}
         onPress={() => selectMess(mess)}
+        disabled={messSelectionInProgress}
         activeOpacity={0.8}
+        accessibilityLabel={
+          isEntering ? `Entering ${mess.name}` : `Enter ${mess.name}`
+        }
       >
-        <Text className="font-inter-semibold text-[13px] text-white">
-          Enter
-        </Text>
-        <Feather name="arrow-right" size={15} color="#fff" />
+        {isEntering ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Text className="font-inter-semibold text-[13px] text-white">
+              Enter
+            </Text>
+            <Feather name="arrow-right" size={15} color="#fff" />
+          </>
+        )}
       </TouchableOpacity>
     </View>
   );

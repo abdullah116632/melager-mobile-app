@@ -28,28 +28,45 @@ export const DashboardHeader = () => {
     >
       <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
       <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
-      <View className="flex-row items-center gap-3">
+      <View className="flex-row items-center gap-2">
         <TouchableOpacity
-          className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
+          className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
           onPress={openDrawer}
           activeOpacity={0.7}
         >
-          <Feather name="menu" size={21} color="#fff" />
+          <Feather
+            name="menu"
+            size={20}
+            color="#fff"
+            allowFontScaling={false}
+          />
         </TouchableOpacity>
-        <View className="h-[40px] w-[40px] items-center justify-center rounded-full border-2 border-white bg-emerald-50 shadow-lg shadow-black/20">
-          <Feather name="coffee" size={19} color="#047857" />
+        <View className="h-[38px] w-[38px] items-center justify-center rounded-full border-2 border-white bg-emerald-50 shadow-lg shadow-black/20">
+          <Feather
+            name="coffee"
+            size={18}
+            color="#047857"
+            allowFontScaling={false}
+          />
         </View>
         <View className="min-w-0 flex-1 justify-center">
           <Text
-            className="font-inter-bold text-[20px] tracking-[0.1px] text-white"
+            className="font-inter-bold text-[18px] tracking-[0.1px] text-white"
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            maxFontSizeMultiplier={1}
           >
             Dashboard
           </Text>
         </View>
-        <NotificationBell badgeBorderColor="#00796F" />
+        <NotificationBell
+          badgeBorderColor="#00796F"
+          iconSize={20}
+          buttonPadding={2}
+        />
         <TouchableOpacity
-          className="shrink-0 flex-row items-center gap-1.5 rounded-full border border-white/15 bg-white/15 px-2.5 py-2"
+          className="max-w-[96px] shrink flex-row items-center gap-1 rounded-full border border-white/15 bg-white/15 px-2 py-2"
           onPress={() => void copyMessKey()}
           activeOpacity={0.75}
           accessibilityRole="button"
@@ -60,13 +77,15 @@ export const DashboardHeader = () => {
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.7}
+            maxFontSizeMultiplier={1}
           >
             {mess?.messKey ?? "——"}
           </Text>
           <Feather
             name={keyCopied ? "check" : "copy"}
-            size={13}
+            size={12}
             color={keyCopied ? "#A7F3D0" : "rgba(255,255,255,0.82)"}
+            allowFontScaling={false}
           />
         </TouchableOpacity>
       </View>

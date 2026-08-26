@@ -5,6 +5,8 @@ import { useNotifications } from "@/redux/hooks";
 
 interface NotificationBellProps {
   badgeBorderColor?: string;
+  iconSize?: number;
+  buttonPadding?: number;
 }
 
 const getBadgeBorderClassName = (color: string) => {
@@ -17,6 +19,8 @@ const getBadgeBorderClassName = (color: string) => {
 
 export function NotificationBell({
   badgeBorderColor = "#0F766E",
+  iconSize = 22,
+  buttonPadding = 4,
 }: NotificationBellProps) {
   const { unreadCount, openPanel } = useNotifications();
   const badgeCount = unreadCount > 99 ? "99+" : unreadCount;
@@ -26,12 +30,18 @@ export function NotificationBell({
 
   return (
     <TouchableOpacity
-      className="relative p-1"
+      className="relative"
+      style={{ padding: buttonPadding }}
       onPress={openPanel}
       activeOpacity={0.7}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Feather name="bell" size={22} color="#fff" />
+      <Feather
+        name="bell"
+        size={iconSize}
+        color="#fff"
+        allowFontScaling={false}
+      />
       {unreadCount > 0 && (
         <View
           className={`absolute -right-px -top-px h-[17px] min-w-[17px] items-center justify-center rounded-full border-[1.5px] bg-red-500 px-[3px] ${getBadgeBorderClassName(badgeBorderColor)}`}

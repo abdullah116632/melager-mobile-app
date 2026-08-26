@@ -78,7 +78,7 @@ export default function MonthPicker({
 
   const monthButton = (
     <TouchableOpacity
-      className={`flex-row items-center justify-center gap-[7px] rounded-full py-2 ${isDashboard ? `${hasCellNavigation ? (isCompact ? "min-w-[132px] px-2" : "min-w-[148px] px-3") : (isCompact ? "min-w-[150px] px-3" : "min-w-[166px] px-4")} border border-slate-200 bg-white shadow-lg shadow-slate-400/20` : "min-w-[166px] bg-slate-100 px-4"}`}
+      className={`flex-row items-center justify-center gap-[7px] rounded-full py-2 ${isDashboard ? `${hasCellNavigation ? (isCompact ? "min-w-[132px] px-2" : "min-w-[148px] px-3") : isCompact ? "min-w-[150px] px-3" : "min-w-[166px] px-4"} border border-slate-200 bg-white shadow-lg shadow-slate-400/20` : "min-w-[166px] bg-slate-100 px-4"}`}
       onPress={openPicker}
       activeOpacity={0.75}
     >
@@ -131,7 +131,7 @@ export default function MonthPicker({
               </TouchableOpacity>
             </View>
 
-            <View className="flex-none self-start items-center justify-center">
+            <View className="flex-none items-center justify-center self-start">
               {monthButton}
             </View>
 

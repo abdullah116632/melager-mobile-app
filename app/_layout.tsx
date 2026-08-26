@@ -55,6 +55,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const inMessSetup = first === "mess-setup";
   const inAccount = first === "account";
   const inAdminOtp = first === "settings" && second === "admin-otp";
+  const redirectingToMessHub = Boolean(
+    user && !activeMess && !inMessHub && !inMessSetup && !inAccount,
+  );
 
   useEffect(() => {
     void dispatch(initializeAuth());
@@ -93,7 +96,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Do not render the previous protected route during the brief interval
   // before the auth redirect runs. This prevents a dashboard flash after
   // launching or reconnecting while signed out.
-  if (authLoading || (!user && !inAuth)) {
+  if (authLoading || (!user && !inAuth) || redirectingToMessHub) {
     return (
       <View className="flex-1 items-center justify-center bg-teal-700">
         <ActivityIndicator size="large" color="#fff" />
