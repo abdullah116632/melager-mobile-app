@@ -119,6 +119,9 @@ export const DashboardMealCard = ({
       <Text className="text-[23px]">{DASHBOARD_MEAL_ICONS[mealType]}</Text>
       <Text
         className={`text-center font-inter-bold text-[15px] ${visual.labelClassName}`}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
       >
         {DASHBOARD_MEAL_LABELS[mealType]}
       </Text>
@@ -134,6 +137,9 @@ export const DashboardMealCard = ({
       ) : (
         <Text
           className={`rounded-full bg-white/55 px-2 py-0.5 font-inter-semibold text-[8px] ${visual.statusClassName}`}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
         >
           {visual.status}
         </Text>

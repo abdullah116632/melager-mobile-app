@@ -152,7 +152,12 @@ export const ExpensesTable = () => {
                       -
                     </Text>
                   ) : hasData ? (
-                    <Text className="font-inter-semibold text-[13px] text-[#0A5954]">
+                    <Text
+                      className="font-inter-semibold text-[13px] text-[#0A5954]"
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >
                       ৳{formatExpenseAmount(expense.total)}
                     </Text>
                   ) : (
@@ -163,7 +168,7 @@ export const ExpensesTable = () => {
                 </View>
 
                 <TouchableOpacity
-                  className="flex-1 justify-center px-3 py-2"
+                  className="min-w-0 flex-1 justify-center px-3 py-2"
                   onPress={() => setViewingDay(day)}
                   disabled={!isMonthReady}
                   activeOpacity={0.7}
@@ -186,7 +191,12 @@ export const ExpensesTable = () => {
                       </View>
                     </View>
                   ) : (
-                    <Text className="font-inter text-[13px] text-slate-500">
+                    <Text
+                      className="font-inter text-[13px] text-slate-500"
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
                       No Expenses
                     </Text>
                   )}
@@ -221,7 +231,12 @@ export const ExpensesTable = () => {
               className="shrink-0 items-end justify-center py-2 pr-2.5"
               style={{ width: EXPENSE_AMOUNT_COLUMN_WIDTH }}
             >
-              <Text className="font-inter-bold text-[15px] text-white">
+              <Text
+                className="font-inter-bold text-[15px] text-white"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 ৳{formatExpenseAmount(monthTotal) || "0"}
               </Text>
             </View>

@@ -1,6 +1,13 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useState } from "react";
-import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { useMess } from "@/redux/hooks";
 
@@ -41,12 +48,14 @@ export default function MonthPicker({
   cellNavEnabled = false,
 }: MonthPickerProps) {
   const { currentYearMonth, currentMonthLabel, goToMonth } = useMess();
+  const { width } = useWindowDimensions();
   const [visible, setVisible] = useState(false);
   const [currentYear, currentMonth] = currentYearMonth.split("-").map(Number);
   const [pickerYear, setPickerYear] = useState(currentYear);
   const accent = accentColor ?? DEFAULT_ACCENT_COLOR;
   const usesDefaultAccent = accent.toUpperCase() === DEFAULT_ACCENT_COLOR;
   const isDashboard = variant === "dashboard";
+  const isCompact = width < 380;
   const hasCellNavigation = Boolean(
     onCellLeft && onCellRight && onCellUp && onCellDown,
   );
@@ -69,7 +78,7 @@ export default function MonthPicker({
 
   const monthButton = (
     <TouchableOpacity
-      className={`flex-row items-center justify-center gap-[7px] rounded-full py-2 ${isDashboard ? `${hasCellNavigation ? "min-w-[148px] px-3" : "min-w-[166px] px-4"} border border-slate-200 bg-white shadow-lg shadow-slate-400/20` : "min-w-[166px] bg-slate-100 px-4"}`}
+      className={`flex-row items-center justify-center gap-[7px] rounded-full py-2 ${isDashboard ? `${hasCellNavigation ? (isCompact ? "min-w-[132px] px-2" : "min-w-[148px] px-3") : (isCompact ? "min-w-[150px] px-3" : "min-w-[166px] px-4")} border border-slate-200 bg-white shadow-lg shadow-slate-400/20` : "min-w-[166px] bg-slate-100 px-4"}`}
       onPress={openPicker}
       activeOpacity={0.75}
     >
@@ -92,10 +101,10 @@ export default function MonthPicker({
         {hasCellNavigation ? (
           <>
             <View
-              className={`flex-1 flex-row items-center justify-end ${isDashboard ? "mt-1.5 gap-4 pr-1" : "gap-3 pr-4"}`}
+              className={`flex-1 flex-row items-center justify-end ${isDashboard ? `mt-3 ${isCompact ? "gap-2" : "gap-4"} pr-1` : "gap-3 pr-4"}`}
             >
               <TouchableOpacity
-                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
+                className={`${isDashboard ? "h-[38px] w-[38px] border-2 shadow-md" : "h-8 w-8 bg-slate-100"} ${isDashboard && (cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15")} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellLeft)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
@@ -108,7 +117,7 @@ export default function MonthPicker({
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
+                className={`${isDashboard ? "h-[38px] w-[38px] border-2 shadow-md" : "h-8 w-8 bg-slate-100"} ${isDashboard && (cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15")} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellRight)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
@@ -122,15 +131,15 @@ export default function MonthPicker({
               </TouchableOpacity>
             </View>
 
-            <View className="flex-none items-center justify-center">
+            <View className="flex-none self-start items-center justify-center">
               {monthButton}
             </View>
 
             <View
-              className={`flex-1 flex-row items-center justify-start ${isDashboard ? "mt-1.5 gap-4 pl-1" : "gap-3 pl-4"}`}
+              className={`flex-1 flex-row items-center justify-start ${isDashboard ? `mt-3 ${isCompact ? "gap-2" : "gap-4"} pl-1` : "gap-3 pl-4"}`}
             >
               <TouchableOpacity
-                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
+                className={`${isDashboard ? "h-[38px] w-[38px] border-2 shadow-md" : "h-8 w-8 bg-slate-100"} ${isDashboard && (cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15")} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellUp)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}
@@ -143,7 +152,7 @@ export default function MonthPicker({
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                className={`${isDashboard ? `h-[38px] w-[38px] border-2 shadow-md ${cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15"}` : "h-8 w-8 bg-slate-100"} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
+                className={`${isDashboard ? "h-[38px] w-[38px] border-2 shadow-md" : "h-8 w-8 bg-slate-100"} ${isDashboard && (cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15")} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
                 onPress={() => handleArrow(onCellDown)}
                 disabled={!cellNavEnabled}
                 activeOpacity={0.7}

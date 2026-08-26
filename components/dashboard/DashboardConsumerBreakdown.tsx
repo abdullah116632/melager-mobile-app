@@ -106,15 +106,20 @@ export const DashboardConsumerBreakdown = ({
           <View className="h-[46px] w-[46px] items-center justify-center rounded-[14px] bg-teal-100">
             <Feather name="bar-chart-2" size={22} color="#047857" />
           </View>
-          <View className="ml-3 flex-1">
+          <View className="ml-3 min-w-0 flex-1">
             <Text className="mb-0.5 font-inter-bold text-[9px] leading-3 tracking-[1.4px] text-slate-500">
               ACCOUNTING OVERVIEW
             </Text>
-            <Text className="font-inter-bold text-[18px] leading-[23px] tracking-[-0.2px] text-slate-950">
+            <Text
+              className="font-inter-bold text-[16px] leading-[20px] tracking-[-0.2px] text-slate-950"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
               Consumer Breakdown
             </Text>
           </View>
-          <View className="flex-row items-center gap-1.5">
+          <View className="shrink-0 flex-row items-center gap-1.5">
             {appliedRange && (
               <View
                 key="custom-range-badge"

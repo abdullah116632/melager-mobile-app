@@ -37,7 +37,12 @@ const SummaryCard = ({
     >
       <Feather name={icon} size={21} color={iconColor} />
     </View>
-    <Text className="font-inter-medium text-[13px] text-slate-600">
+    <Text
+      className="font-inter-medium text-[13px] text-slate-600"
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.78}
+    >
       {label}
     </Text>
     <Text
@@ -48,7 +53,12 @@ const SummaryCard = ({
       {value}
     </Text>
     {sub ? (
-      <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
+      <Text
+        className="mt-0.5 font-inter text-[11px] text-slate-500"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
         {sub}
       </Text>
     ) : null}
@@ -85,10 +95,20 @@ export const DashboardSummaryCards = ({
             <Feather name="credit-card" size={23} color="#FFFFFF" />
           </View>
           <View className="ml-4 mr-2.5 flex-1">
-            <Text className="font-inter-bold text-[15px] text-white">
+            <Text
+              className="font-inter-bold text-[15px] text-white"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+            >
               Current Balance
             </Text>
-            <Text className="mt-1 font-inter text-[11px] leading-[15px] text-white/75">
+            <Text
+              className="mt-1 font-inter text-[11px] leading-[15px] text-white/75"
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
               Total deposits minus total expenses
             </Text>
           </View>

@@ -144,11 +144,21 @@ export const DashboardMealSection = forwardRef<
           onPress={isToday ? undefined : () => setSelectedDate(today)}
           activeOpacity={isToday ? 1 : 0.7}
         >
-          <Text className="text-center font-inter-bold text-base text-slate-900">
+          <Text
+            className="text-center font-inter-bold text-base text-slate-900"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+          >
             {formatDashboardDateLabel(selectedDate, today)}
           </Text>
           {!isToday && (
-            <Text className="mt-0.5 text-center font-inter text-[10px] text-teal-700">
+            <Text
+              className="mt-0.5 text-center font-inter text-[10px] text-teal-700"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
               {formatDashboardFullDate(selectedDate)} · Tap for Today
             </Text>
           )}

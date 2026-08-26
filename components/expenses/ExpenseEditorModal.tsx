@@ -185,8 +185,13 @@ export const ExpenseEditorModal = ({
             <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
 
             <View className="mb-3.5 flex-row items-start justify-between">
-              <View>
-                <Text className="font-inter-bold text-[17px] text-slate-900">
+              <View className="min-w-0 flex-1">
+                <Text
+                  className="font-inter-bold text-[17px] text-slate-900"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
                   Day {day} — {currentMonthLabel}
                 </Text>
                 {total > 0 && (

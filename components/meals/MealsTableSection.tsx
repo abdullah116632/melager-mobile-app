@@ -23,6 +23,7 @@ export const MealsTableSection = () => {
   }, [currentYearMonth]);
 
   const selectCell = useCallback((consumerId: string, day: number) => {
+    gridRef.current?.preserveVerticalPosition();
     setSelectedCell({ consumerId, day });
     if (Platform.OS !== "web") void Haptics.selectionAsync();
   }, []);

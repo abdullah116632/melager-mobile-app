@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  Dimensions,
   Keyboard,
   Platform,
   RefreshControl,
@@ -35,6 +36,7 @@ import { MealsEmptyState } from "./MealsEmptyState";
 
 export interface MealsGridHandle {
   keepDayVisible: (day: number) => void;
+  preserveVerticalPosition: () => void;
 }
 
 interface MealsGridProps {
@@ -65,14 +67,21 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       refreshMonth,
     } = useMeals();
     const isAdmin = role === "admin";
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [refreshing, setRefreshing] = useState(false);
     const [viewportWidth, setViewportWidth] = useState(windowWidth);
     const headerScrollRef = useRef<ScrollView | null>(null);
+    const verticalScrollRef = useRef<ScrollView | null>(null);
     const bodyScrollRef = useRef<ScrollView | null>(null);
     const bodyScrollXRef = useRef(0);
+    const verticalScrollYRef = useRef(0);
+    const preservedVerticalScrollYRef = useRef<number | null>(null);
+    const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isSyncingRef = useRef(false);
     const daysCount = getDaysInMonth(yearMonth);
+    const dayCellWidth = Math.min(
+      DAY_CELL_W,
+      Math.max(40, Math.floor((viewportWidth - NAME_COL_W) / 6)),
+    );
     const days = useMemo(
       () => Array.from({ length: daysCount }, (_, index) => index + 1),
       [daysCount],
@@ -81,8 +90,12 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     const displayedRowCount = isMonthReady
       ? consumers.length
       : PLACEHOLDER_ROW_COUNT;
-    const tableWidth = NAME_COL_W + days.length * DAY_CELL_W + TOTAL_COL_W;
+    const tableWidth = NAME_COL_W + days.length * dayCellWidth + TOTAL_COL_W;
     const tableBodyHeight = (displayedRowCount + 1) * DAY_CELL_H + 4;
+    const extraVerticalScrollSpace =
+      Platform.OS === "web"
+        ? 96
+        : Math.max(240, Dimensions.get("screen").height * 0.5);
 
     const handleBodyScroll = useCallback(
       (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -103,8 +116,8 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     const keepDayVisible = useCallback(
       (day: number) => {
         const currentX = bodyScrollXRef.current;
-        const cellLeft = NAME_COL_W + (day - 1) * DAY_CELL_W;
-        const cellRight = cellLeft + DAY_CELL_W;
+        const cellLeft = NAME_COL_W + (day - 1) * dayCellWidth;
+        const cellRight = cellLeft + dayCellWidth;
         const visibleLeft = currentX + NAME_COL_W;
         const visibleRight = currentX + viewportWidth - TOTAL_COL_W;
         let nextX = currentX;
@@ -122,10 +135,32 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
           headerScrollRef.current?.scrollTo({ x: nextX, animated: true });
         }
       },
-      [tableWidth, viewportWidth],
+      [dayCellWidth, tableWidth, viewportWidth],
     );
 
-    useImperativeHandle(ref, () => ({ keepDayVisible }), [keepDayVisible]);
+    const restoreVerticalPosition = useCallback(() => {
+      const y = preservedVerticalScrollYRef.current;
+      if (y === null) return;
+      requestAnimationFrame(() => {
+        verticalScrollRef.current?.scrollTo({ y, animated: false });
+      });
+    }, []);
+
+    const preserveVerticalPosition = useCallback(() => {
+      preservedVerticalScrollYRef.current = verticalScrollYRef.current;
+      if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = setTimeout(() => {
+        restoreVerticalPosition();
+        preservedVerticalScrollYRef.current = null;
+        restoreTimerRef.current = null;
+      }, 450);
+    }, [restoreVerticalPosition]);
+
+    useImperativeHandle(
+      ref,
+      () => ({ keepDayVisible, preserveVerticalPosition }),
+      [keepDayVisible, preserveVerticalPosition],
+    );
 
     const handleRefresh = useCallback(async () => {
       setRefreshing(true);
@@ -134,21 +169,15 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     }, [refreshMonth]);
 
     useEffect(() => {
-      const showEvent =
-        Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-      const hideEvent =
-        Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-      const showSubscription = Keyboard.addListener(showEvent, (event) => {
-        setKeyboardHeight(event.endCoordinates.height);
-      });
-      const hideSubscription = Keyboard.addListener(hideEvent, () => {
-        setKeyboardHeight(0);
-      });
+      const showSubscription = Keyboard.addListener(
+        "keyboardDidShow",
+        restoreVerticalPosition,
+      );
       return () => {
         showSubscription.remove();
-        hideSubscription.remove();
+        if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
       };
-    }, []);
+    }, [restoreVerticalPosition]);
 
     if (isMonthReady && consumers.length === 0) return <MealsEmptyState />;
 
@@ -169,11 +198,12 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
             {days.map((day) => (
               <View
                 key={day}
-                className={`h-[40px] w-[48px] items-center justify-center border-l border-white/10 ${
+                className={`h-[40px] items-center justify-center border-l border-white/10 ${
                   isMealDayToday(yearMonth, day)
                     ? "bg-teal-500"
                     : "bg-[#08766E]"
                 }`}
+                style={{ width: dayCellWidth }}
               >
                 <Text className="font-inter-semibold text-xs text-white">
                   {day}
@@ -201,10 +231,19 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
         </View>
 
         <ScrollView
+          ref={verticalScrollRef}
           className="flex-1"
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={Platform.OS === "android"}
           keyboardShouldPersistTaps="always"
+          automaticallyAdjustKeyboardInsets={false}
+          scrollEventThrottle={16}
+          onScroll={(event) => {
+            verticalScrollYRef.current = Math.max(
+              0,
+              event.nativeEvent.contentOffset.y,
+            );
+          }}
           contentContainerClassName={
             Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"
           }
@@ -261,6 +300,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                         }
                         isAdmin={isAdmin}
                         tableWidth={tableWidth}
+                        dayCellWidth={dayCellWidth}
                         yearMonth={yearMonth}
                         onCellPress={onCellPress}
                       />
@@ -278,11 +318,12 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                       {days.map((day) => (
                         <View
                           key={day}
-                          className={`h-[48px] w-[48px] items-center justify-center border-r-[0.5px] border-slate-200 ${
+                          className={`h-[48px] items-center justify-center border-r-[0.5px] border-slate-200 ${
                             isMealDayToday(yearMonth, day)
                               ? "border-b-2 border-b-teal-500"
                               : ""
                           }`}
+                          style={{ width: dayCellWidth }}
                         >
                           <Text className="font-inter text-[13px] text-slate-300">
                             -
@@ -305,7 +346,8 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                 {days.map((day) => (
                   <View
                     key={day}
-                    className="h-[52px] w-[48px] items-center justify-center border-l border-white/10"
+                        className="h-[52px] items-center justify-center border-l border-white/10"
+                        style={{ width: dayCellWidth }}
                   >
                     <Text className="font-inter-semibold text-xs text-white">
                       {formatMealValue(
@@ -331,14 +373,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
           </View>
           <View
             pointerEvents="none"
-            style={{
-              height:
-                Platform.OS === "web"
-                  ? 96
-                  : keyboardHeight > 0
-                    ? keyboardHeight + 72
-                    : 96,
-            }}
+            style={{ height: extraVerticalScrollSpace }}
           />
         </ScrollView>
       </View>

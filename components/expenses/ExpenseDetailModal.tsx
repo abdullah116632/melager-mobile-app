@@ -99,8 +99,13 @@ export const ExpenseDetailModal = ({
         <View className="max-h-[72%] rounded-t-3xl bg-white px-5 pb-6 pt-3">
           <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
           <View className="mb-3.5 flex-row items-start justify-between">
-            <View>
-              <Text className="font-inter-bold text-[17px] text-slate-900">
+            <View className="min-w-0 flex-1">
+              <Text
+                className="font-inter-bold text-[17px] text-slate-900"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
                 Expenses · Day {day}
               </Text>
               <Text className="mt-0.5 font-inter-semibold text-[13px] text-teal-700">

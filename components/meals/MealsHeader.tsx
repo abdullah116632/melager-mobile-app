@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
@@ -13,8 +13,10 @@ export const MealsHeader = () => {
   const { openDrawer } = useDrawer();
   const { currentYearMonth, currentMonthLoaded, dataLoading, getGrandTotal } =
     useMeals();
+  const { width } = useWindowDimensions();
   const [showAddConsumer, setShowAddConsumer] = useState(false);
   const isAdmin = role === "admin";
+  const isCompact = width < 380;
   const totalMeals =
     currentMonthLoaded && !dataLoading ? getGrandTotal(currentYearMonth) : 0;
 
@@ -28,7 +30,7 @@ export const MealsHeader = () => {
       >
         <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
         <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
-        <View className="flex-row items-center gap-2.5">
+        <View className={`flex-row items-center ${isCompact ? "gap-1.5" : "gap-2.5"}`}>
           <TouchableOpacity
             className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
             onPress={openDrawer}
@@ -41,17 +43,24 @@ export const MealsHeader = () => {
             <Feather name="coffee" size={19} color="#047857" />
           </View>
           <Text
-            className="flex-1 font-inter-bold text-[18px] tracking-[0.1px] text-white"
+            className="min-w-0 flex-1 font-inter-bold text-[18px] tracking-[0.1px] text-white"
             numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
           >
             Meals
           </Text>
           <NotificationBell badgeBorderColor="#00796F" />
-          <View className="items-center rounded-full border border-white/20 bg-white/15 px-2.5 py-1.5">
+          <View className="shrink-0 items-center rounded-full border border-white/20 bg-white/15 px-2 py-1.5">
             <Text className="font-inter text-[8px] leading-[9px] text-white/75">
               TOTAL
             </Text>
-            <Text className="font-inter-bold text-[12px] leading-[14px] text-white">
+            <Text
+              className="font-inter-bold text-[12px] leading-[14px] text-white"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
               {totalMeals.toLocaleString("en-IN", {
                 maximumFractionDigits: 3,
               })}

@@ -27,7 +27,12 @@ export const DashboardSummaryButton = ({
         ) : (
           <Feather name="send" size={19} color="#fff" />
         )}
-        <Text className="flex-1 text-center font-inter-semibold text-[15px] text-white">
+        <Text
+          className="flex-1 text-center font-inter-semibold text-[15px] text-white"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+        >
           {sending ? "Sending…" : "Email Monthly Summary to Members"}
         </Text>
         {!sending && <Feather name="chevron-right" size={21} color="#fff" />}

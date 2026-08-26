@@ -108,18 +108,21 @@ export const MealCellEditor = forwardRef<
   return (
     <View className="mx-3 mb-2 rounded-2xl border border-teal-100 bg-white px-3.5 py-2.5 shadow-sm shadow-slate-300/30">
       <View className="mb-2 flex-row items-center justify-between">
-        <View className="flex-row items-center gap-2">
+        <View className="min-w-0 flex-1 flex-row items-center gap-2">
           <View className="h-7 w-7 items-center justify-center rounded-lg bg-teal-50">
             <Feather name="edit-3" size={14} color="#0F766E" />
           </View>
-          <View>
+          <View className="min-w-0 flex-1">
             <Text
-              className="max-w-[210px] font-inter-semibold text-[12px] text-slate-900"
+              className="font-inter-semibold text-[12px] text-slate-900"
               numberOfLines={1}
             >
               {consumer?.name ?? "Consumer"} · Day {cell.day}
             </Text>
-            <Text className="font-inter text-[10px] text-slate-500">
+            <Text
+              className="font-inter text-[10px] text-slate-500"
+              numberOfLines={1}
+            >
               Enter meal value · maximum 3 decimals
             </Text>
           </View>

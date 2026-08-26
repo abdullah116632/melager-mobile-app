@@ -12,6 +12,7 @@ interface MealGridRowProps {
   selectedDay: number | null;
   isAdmin: boolean;
   tableWidth: number;
+  dayCellWidth: number;
   yearMonth: string;
   onCellPress: (consumerId: string, day: number) => void;
 }
@@ -26,6 +27,7 @@ export const MealGridRow = memo(
     selectedDay,
     isAdmin,
     tableWidth,
+    dayCellWidth,
     yearMonth,
     onCellPress,
   }: MealGridRowProps) => (
@@ -43,7 +45,7 @@ export const MealGridRow = memo(
           <TouchableOpacity
             key={day}
             disabled={!isAdmin}
-            className={`h-[48px] w-[48px] items-center justify-center ${
+            className={`h-[48px] items-center justify-center ${
               count > 0 ? "bg-[#E5FAF3]" : ""
             } ${
               selected
@@ -57,11 +59,12 @@ export const MealGridRow = memo(
             style={
               selected
                 ? {
+                    width: dayCellWidth,
                     borderWidth: 2,
                     borderColor: "#0F766E",
                     zIndex: 10,
                   }
-                : undefined
+                : { width: dayCellWidth }
             }
             onPress={() => onCellPress(consumer.id, day)}
             activeOpacity={isAdmin ? 0.65 : 1}
@@ -95,6 +98,7 @@ export const MealGridRow = memo(
     previous.selectedDay === next.selectedDay &&
     previous.isAdmin === next.isAdmin &&
     previous.tableWidth === next.tableWidth &&
+    previous.dayCellWidth === next.dayCellWidth &&
     previous.yearMonth === next.yearMonth &&
     previous.onCellPress === next.onCellPress &&
     previous.counts.length === next.counts.length &&

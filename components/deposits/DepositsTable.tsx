@@ -161,6 +161,9 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
                     <View className="w-[118px] justify-center border-r border-slate-200 px-2.5">
                       <Text
                         className={`text-right font-inter-semibold text-[13px] ${total > 0 ? "text-teal-700" : total < 0 ? "text-red-600" : "text-slate-500"}`}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.7}
                       >
                         ৳{formatDepositAmount(total)}
                       </Text>
@@ -177,7 +180,12 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
                         activeOpacity={consumerEntries.length > 0 ? 0.7 : 1}
                       >
                         {consumerEntries.length === 0 ? (
-                          <Text className="font-inter text-xs italic text-slate-500">
+                          <Text
+                            className="font-inter text-xs italic text-slate-500"
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.75}
+                          >
                             No deposits
                           </Text>
                         ) : (
@@ -212,7 +220,12 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
                 </Text>
               </View>
               <View className="w-[118px] justify-center border-r px-2.5">
-                <Text className="text-right font-inter-bold text-[13px] text-white">
+                <Text
+                  className="text-right font-inter-bold text-[13px] text-white"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   ৳{formatDepositAmount(grandTotal)}
                 </Text>
               </View>

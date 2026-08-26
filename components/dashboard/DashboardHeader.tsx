@@ -39,9 +39,9 @@ export const DashboardHeader = () => {
         <View className="h-[40px] w-[40px] items-center justify-center rounded-full border-2 border-white bg-emerald-50 shadow-lg shadow-black/20">
           <Feather name="coffee" size={19} color="#047857" />
         </View>
-        <View className="flex-1 justify-center">
+        <View className="min-w-0 flex-1 justify-center">
           <Text
-            className="font-inter-bold text-[18px] tracking-[0.1px] text-white"
+            className="font-inter-bold text-[20px] tracking-[0.1px] text-white"
             numberOfLines={1}
           >
             Dashboard
@@ -49,13 +49,18 @@ export const DashboardHeader = () => {
         </View>
         <NotificationBell badgeBorderColor="#00796F" />
         <TouchableOpacity
-          className="flex-row items-center gap-1.5 rounded-full border border-white/15 bg-white/15 px-3 py-2"
+          className="shrink-0 flex-row items-center gap-1.5 rounded-full border border-white/15 bg-white/15 px-2.5 py-2"
           onPress={() => void copyMessKey()}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Copy mess key"
         >
-          <Text className="font-inter-bold text-[11px] tracking-[1.4px] text-white">
+          <Text
+            className="font-inter-bold text-[11px] tracking-[1.4px] text-white"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {mess?.messKey ?? "——"}
           </Text>
           <Feather
