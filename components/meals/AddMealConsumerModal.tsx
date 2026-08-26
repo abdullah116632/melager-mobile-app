@@ -18,11 +18,13 @@ import { useMeals } from "@/redux/hooks";
 interface AddMealConsumerModalProps {
   visible: boolean;
   onClose: () => void;
+  onAdded?: () => void | Promise<void>;
 }
 
 export const AddMealConsumerModal = ({
   visible,
   onClose,
+  onAdded,
 }: AddMealConsumerModalProps) => {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const { addConsumer } = useMeals();
@@ -84,6 +86,7 @@ export const AddMealConsumerModal = ({
       );
       resetForm();
       onClose();
+      void onAdded?.();
       if (invitationSent) {
         Alert.alert(
           "Member added",
@@ -127,14 +130,14 @@ export const AddMealConsumerModal = ({
           <View className="mb-2 h-1 w-11 self-center rounded-sm bg-slate-200" />
           <View className="flex-row items-center justify-between gap-3">
             <Text className="flex-1 font-inter-bold text-lg text-slate-900">
-              Add Consumer
+              Add Member
             </Text>
             <TouchableOpacity
               className="h-8 w-8 items-center justify-center rounded-full bg-teal-700/[0.06]"
               onPress={closeModal}
               activeOpacity={0.7}
               hitSlop={10}
-              accessibilityLabel="Close add consumer form"
+              accessibilityLabel="Close add member form"
             >
               <Feather name="x" size={20} color="#64748B" />
             </TouchableOpacity>

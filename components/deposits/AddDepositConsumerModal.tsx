@@ -128,12 +128,12 @@ export const AddDepositConsumerModal = ({
             <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
             <View className="mb-1 flex-row items-center justify-between">
               <Text className="font-inter-bold text-lg text-slate-900">
-                Add Consumer
+                Add Member
               </Text>
               <TouchableOpacity
                 className="h-[34px] w-[34px] items-center justify-center rounded-full bg-slate-100"
                 onPress={close}
-                accessibilityLabel="Close add consumer form"
+                accessibilityLabel="Close add member form"
               >
                 <Feather name="x" size={20} color="#64748B" />
               </TouchableOpacity>

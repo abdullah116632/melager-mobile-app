@@ -6,12 +6,14 @@ type ConsumersHeaderProps = {
   loading: boolean;
   totalConsumers: number;
   onRefresh: () => void;
+  onAddMember?: () => void;
 };
 
 export const ConsumersHeader = ({
   loading,
   totalConsumers,
   onRefresh,
+  onAddMember,
 }: ConsumersHeaderProps) => {
   const router = useRouter();
 
@@ -37,6 +39,16 @@ export const ConsumersHeader = ({
           </Text>
         </View>
       )}
+      {onAddMember ? (
+        <TouchableOpacity
+          className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10"
+          onPress={onAddMember}
+          activeOpacity={0.7}
+          accessibilityLabel="Add member"
+        >
+          <Feather name="user-plus" size={18} color="#FFFFFF" />
+        </TouchableOpacity>
+      ) : null}
       <TouchableOpacity
         className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10"
         onPress={onRefresh}
