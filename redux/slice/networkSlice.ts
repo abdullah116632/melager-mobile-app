@@ -22,7 +22,7 @@ const initialState: NetworkState = {
   requestError: null,
 };
 
-export const networkStatusChanged = createAction<boolean>(
+export const networkStatusChanged = createAction<boolean | null>(
   "network/statusChanged",
 );
 export const offlineQueueSizeChanged = createAction<number>(
@@ -44,6 +44,11 @@ const networkSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(networkStatusChanged, (state, action) => {
+        if (action.payload === null) {
+          state.isOnline = false;
+          state.isCheckingNetwork = true;
+          return;
+        }
         state.isOnline = action.payload;
         state.isCheckingNetwork = false;
       })

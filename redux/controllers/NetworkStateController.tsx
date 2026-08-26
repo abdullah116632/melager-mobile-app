@@ -27,8 +27,16 @@ export const NetworkStateController = ({
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
+      const isCheckingReachability =
+        state.isConnected === null ||
+        (state.isConnected === true && state.isInternetReachable === null);
+      if (isCheckingReachability) {
+        dispatch(networkStatusChanged(null));
+        return;
+      }
+
       const isOnline =
-        state.isConnected === true && state.isInternetReachable !== false;
+        state.isConnected === true && state.isInternetReachable === true;
       dispatch(networkStatusChanged(isOnline));
       if (isOnline && wasOfflineRef.current) {
         void dispatch(syncOfflineQueue());

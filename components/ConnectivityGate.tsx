@@ -98,7 +98,8 @@ export function ConnectivityGate({ children }: { children: ReactNode }) {
                 You’re offline
               </Text>
               <Text className="mt-2 max-w-[285px] text-center font-inter text-[14px] leading-[21px] text-slate-500">
-                Turn on Wi-Fi or mobile data to continue using Meal Manager.
+                Check that your Wi-Fi or mobile data has working internet access
+                to continue using Meal Manager.
               </Text>
             </View>
 
