@@ -2,14 +2,45 @@ import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import Feather from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import React from "react";
-import { Platform, View, useColorScheme } from "react-native";
+import { Platform, Text, View, useColorScheme } from "react-native";
 import { cssInterop } from "nativewind";
 
 import { useColors } from "@/hooks/useColors";
 
 const NativeWindBlurView = cssInterop(BlurView, { className: "style" });
+
+type ClassicTabIconProps = {
+  name: React.ComponentProps<typeof Ionicons>["name"];
+  activeName: React.ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  focused: boolean;
+};
+
+function ClassicTabIcon({
+  name,
+  activeName,
+  color,
+  focused,
+}: ClassicTabIconProps) {
+  return (
+    <View
+      style={{
+        width: 50,
+        height: 26,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Ionicons
+        name={focused ? activeName : name}
+        size={focused ? 23 : 22}
+        color={color}
+      />
+    </View>
+  );
+}
 
 function NativeTabLayout() {
   return (
@@ -21,7 +52,9 @@ function NativeTabLayout() {
         <Label>Dashboard</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="meals">
-        <Icon sf={{ default: "fork.knife", selected: "fork.knife" }} />
+        <Icon
+          sf={{ default: "fork.knife", selected: "fork.knife.circle.fill" }}
+        />
         <Label>Meals</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="expenses">
@@ -57,6 +90,26 @@ function ClassicTabLayout() {
         animation: "none",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarActiveBackgroundColor: "transparent",
+        tabBarInactiveBackgroundColor: "transparent",
+        tabBarLabel: ({ focused, color, children }) => (
+          <Text
+            numberOfLines={1}
+            style={{
+              color,
+              fontFamily: focused ? "Inter_600SemiBold" : "Inter_400Regular",
+              fontSize: 11,
+              lineHeight: 14,
+            }}
+          >
+            {children}
+          </Text>
+        ),
+        tabBarItemStyle: {
+          marginHorizontal: 3,
+          marginTop: 1,
+          transform: [{ translateY: -4 }],
+        },
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
@@ -82,8 +135,13 @@ function ClassicTabLayout() {
         name="dashboard"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color }) => (
-            <Feather name="layout" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <ClassicTabIcon
+              name="grid-outline"
+              activeName="grid"
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
@@ -93,8 +151,13 @@ function ClassicTabLayout() {
           title: "Meals",
           lazy: false,
           freezeOnBlur: false,
-          tabBarIcon: ({ color }) => (
-            <Feather name="coffee" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <ClassicTabIcon
+              name="restaurant-outline"
+              activeName="restaurant"
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
@@ -104,8 +167,13 @@ function ClassicTabLayout() {
           title: "Expenses",
           lazy: false,
           freezeOnBlur: false,
-          tabBarIcon: ({ color }) => (
-            <Feather name="dollar-sign" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <ClassicTabIcon
+              name="cash-outline"
+              activeName="cash"
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
@@ -115,8 +183,13 @@ function ClassicTabLayout() {
           title: "Deposits",
           lazy: false,
           freezeOnBlur: false,
-          tabBarIcon: ({ color }) => (
-            <Feather name="credit-card" size={22} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <ClassicTabIcon
+              name="card-outline"
+              activeName="card"
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
