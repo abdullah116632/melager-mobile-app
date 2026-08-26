@@ -20,9 +20,9 @@ import { ConnectivityGate } from "@/components/ConnectivityGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { MessStateController } from "@/redux/MessStateController";
-import { NetworkStateController } from "@/redux/NetworkStateController";
-import { NotificationStateController } from "@/redux/NotificationStateController";
+import { MessStateController } from "@/redux/controllers/MessStateController";
+import { NetworkStateController } from "@/redux/controllers/NetworkStateController";
+import { NotificationStateController } from "@/redux/controllers/NotificationStateController";
 import {
   initializeAuth,
   selectActiveMess,
