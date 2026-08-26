@@ -113,6 +113,8 @@ function ClassicTabLayout() {
         name="deposits"
         options={{
           title: "Deposits",
+          lazy: false,
+          freezeOnBlur: false,
           tabBarIcon: ({ color }) => (
             <Feather name="credit-card" size={22} color={color} />
           ),

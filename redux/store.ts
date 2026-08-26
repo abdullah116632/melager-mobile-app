@@ -1,7 +1,14 @@
-import { configureStore, type Action, type ThunkAction } from "@reduxjs/toolkit";
+import {
+  configureStore,
+  type Action,
+  type ThunkAction,
+} from "@reduxjs/toolkit";
 
 import authReducer from "@/redux/slice/authSlice";
+import depositsReducer from "@/redux/slice/depositsSlice";
 import drawerReducer from "@/redux/slice/drawerSlice";
+import expenseReducer from "@/redux/slice/expenseSlice";
+import mealsReducer from "@/redux/slice/mealsSlice";
 import messReducer from "@/redux/slice/messSlice";
 import networkReducer from "@/redux/slice/networkSlice";
 import notificationReducer from "@/redux/slice/notificationSlice";
@@ -9,7 +16,10 @@ import notificationReducer from "@/redux/slice/notificationSlice";
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    deposits: depositsReducer,
     drawer: drawerReducer,
+    expenses: expenseReducer,
+    meals: mealsReducer,
     mess: messReducer,
     network: networkReducer,
     notification: notificationReducer,

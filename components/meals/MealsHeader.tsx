@@ -5,14 +5,14 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
-import { useMess } from "@/redux/hooks";
+import { useMeals } from "@/redux/hooks";
 import { AddMealConsumerModal } from "./AddMealConsumerModal";
 
 export const MealsHeader = () => {
   const { role } = useAuth();
   const { openDrawer } = useDrawer();
   const { currentYearMonth, currentMonthLoaded, dataLoading, getGrandTotal } =
-    useMess();
+    useMeals();
   const [showAddConsumer, setShowAddConsumer] = useState(false);
   const isAdmin = role === "admin";
   const totalMeals =

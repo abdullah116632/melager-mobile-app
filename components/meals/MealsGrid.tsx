@@ -26,7 +26,7 @@ import {
   TOTAL_COL_W,
 } from "@/constants/meal";
 import { useAuth } from "@/redux/hooks";
-import { useMess } from "@/redux/hooks";
+import { useMeals } from "@/redux/hooks";
 import type { ActiveMealCell } from "@/types/meal";
 import { formatMealValue, isMealDayToday } from "@/utils/meal";
 import { MealGridRow } from "./MealGridRow";
@@ -63,7 +63,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       getGrandTotal,
       getDaysInMonth,
       refreshMonth,
-    } = useMess();
+    } = useMeals();
     const isAdmin = role === "admin";
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [refreshing, setRefreshing] = useState(false);

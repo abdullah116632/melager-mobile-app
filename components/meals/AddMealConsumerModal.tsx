@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMess } from "@/redux/hooks";
+import { useMeals } from "@/redux/hooks";
 
 interface AddMealConsumerModalProps {
   visible: boolean;
@@ -25,7 +25,7 @@ export const AddMealConsumerModal = ({
   onClose,
 }: AddMealConsumerModalProps) => {
   const { bottom: bottomInset } = useSafeAreaInsets();
-  const { addConsumer } = useMess();
+  const { addConsumer } = useMeals();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

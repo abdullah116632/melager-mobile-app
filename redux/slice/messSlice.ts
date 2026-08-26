@@ -11,20 +11,10 @@ import {
 import { api, clearApiCache, type MonthData } from "@/lib/api";
 import { loadFromCache, saveToCache } from "@/lib/cache";
 import type { AuthState } from "@/redux/slice/authSlice";
-import type { Consumer, DayExpenseItem } from "@/types/mess";
-
-type MealData = Record<string, Record<string, Record<string, number>>>;
-type ExpenseData = Record<
-  string,
-  Record<string, { items: DayExpenseItem[] }>
->;
-type DepositData = Record<string, Record<string, Record<string, number>>>;
+import type { Consumer } from "@/types/mess";
 
 export interface MessState {
   consumers: Consumer[];
-  meals: MealData;
-  expenses: ExpenseData;
-  deposits: DepositData;
   currentYear: number;
   currentMonth: number;
   scopeMessId: number | null;
@@ -48,9 +38,6 @@ const createInitialState = (
   scopeMessId: number | null = null,
 ): MessState => ({
   consumers: [],
-  meals: {},
-  expenses: {},
-  deposits: {},
   currentYear,
   currentMonth,
   scopeMessId,
@@ -73,7 +60,7 @@ export const goToSpecificMonth = createAction<{ year: number; month: number }>(
   "mess/goToSpecificMonth",
 );
 
-const monthDataReceived = createAction<{
+export const monthDataReceived = createAction<{
   messId: number;
   yearMonth: string;
   data: MonthData;
@@ -196,93 +183,11 @@ export const removeConsumer = createMessAsyncThunk<
   return { id, removed: true };
 });
 
-interface SetMealArgs {
-  yearMonth: string;
-  consumerId: string;
-  day: number;
-  count: number;
-  isOnline: boolean;
-}
-
-export const setMeal = createMessAsyncThunk<void, SetMealArgs>(
-  "mess/setMeal",
-  async ({ yearMonth, consumerId, day, count }, { getState }) => {
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) return;
-    await api
-      .setMeal(
-        consumerId,
-        yearMonth,
-        day,
-        count,
-        token,
-        activeMess.id,
-      )
-      .catch(() => undefined);
-  },
-  {
-    condition: ({ isOnline }) => isOnline,
-  },
-);
-
-export const setExpense = createMessAsyncThunk<
-  { yearMonth: string; day: number; items: DayExpenseItem[] },
-  {
-    yearMonth: string;
-    day: number;
-    items: DayExpenseItem[];
-    isOnline: boolean;
-  }
->(
-  "mess/setExpense",
-  async ({ yearMonth, day, items, isOnline }, { getState }) => {
-    if (!isOnline) throw new Error("Internet connection required.");
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) {
-      throw new Error("Please select a mess and sign in again.");
-    }
-    await api.setExpense(yearMonth, day, items, token, activeMess.id);
-    return { yearMonth, day, items };
-  },
-);
-
-interface SetDepositArgs {
-  yearMonth: string;
-  consumerId: string;
-  day: number;
-  amount: number;
-  isOnline: boolean;
-}
-
-export const setDeposit = createMessAsyncThunk<void, SetDepositArgs>(
-  "mess/setDeposit",
-  async ({ yearMonth, consumerId, day, amount }, { getState }) => {
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) return;
-    await api
-      .setDeposit(
-        consumerId,
-        yearMonth,
-        day,
-        amount,
-        token,
-        activeMess.id,
-      )
-      .catch(() => undefined);
-  },
-  {
-    condition: ({ isOnline }) => isOnline,
-  },
-);
-
 const messAsyncThunks = [
   loadMonth,
   refreshMonth,
   addConsumer,
   removeConsumer,
-  setMeal,
-  setExpense,
-  setDeposit,
 ] as const;
 
 const applyMonthData = (
@@ -296,9 +201,6 @@ const applyMonthData = (
     id: consumer.id.toString(),
     name: consumer.name,
   }));
-  state.meals[yearMonth] = data.meals;
-  state.expenses[yearMonth] = data.expenses;
-  state.deposits[yearMonth] = data.deposits;
   state.loadedMonths[monthKey(messId, yearMonth)] = true;
 };
 
@@ -382,29 +284,6 @@ const messSlice = createSlice({
         state.consumers = state.consumers.filter(
           (consumer) => consumer.id !== id,
         );
-        Object.values(state.meals).forEach((month) => {
-          delete month[id];
-        });
-        Object.values(state.deposits).forEach((month) => {
-          delete month[id];
-        });
-      })
-      .addCase(setMeal.pending, (state, action) => {
-        const { yearMonth, consumerId, day, count } = action.meta.arg;
-        state.meals[yearMonth] ??= {};
-        state.meals[yearMonth][consumerId] ??= {};
-        state.meals[yearMonth][consumerId][day.toString()] = count;
-      })
-      .addCase(setExpense.fulfilled, (state, action) => {
-        const { yearMonth, day, items } = action.payload;
-        state.expenses[yearMonth] ??= {};
-        state.expenses[yearMonth][day.toString()] = { items };
-      })
-      .addCase(setDeposit.pending, (state, action) => {
-        const { yearMonth, consumerId, day, amount } = action.meta.arg;
-        state.deposits[yearMonth] ??= {};
-        state.deposits[yearMonth][consumerId] ??= {};
-        state.deposits[yearMonth][consumerId][day.toString()] = amount;
       })
       .addMatcher(isPending(...messAsyncThunks), (state) => {
         state.requestStatus = "loading";

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import MonthPicker from "@/components/MonthPicker";
 import { useAuth } from "@/redux/hooks";
-import { useMess } from "@/redux/hooks";
+import { useMeals } from "@/redux/hooks";
 import type { ActiveMealCell, MealCellDirection } from "@/types/meal";
 import { MealCellEditor, type MealCellEditorHandle } from "./MealCellEditor";
 import { MealsGrid, type MealsGridHandle } from "./MealsGrid";
@@ -11,7 +11,7 @@ import { MealsGrid, type MealsGridHandle } from "./MealsGrid";
 export const MealsTableSection = () => {
   const { role } = useAuth();
   const { consumers, currentYearMonth, getMealCount, setMeal, getDaysInMonth } =
-    useMess();
+    useMeals();
   const isAdmin = role === "admin";
   const [selectedCell, setSelectedCell] = useState<ActiveMealCell | null>(null);
   const editorRef = useRef<MealCellEditorHandle | null>(null);

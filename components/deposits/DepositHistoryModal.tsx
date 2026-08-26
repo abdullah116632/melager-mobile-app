@@ -11,8 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth, useMess, useNetwork } from "@/redux/hooks";
-import { deleteDepositEntry } from "@/services/depositService";
+import { useAuth, useDeposits, useNetwork } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
   formatDepositAmount,
@@ -23,25 +22,20 @@ import {
 
 interface DepositHistoryModalProps {
   consumerId: string | null;
-  entries: DepositEntry[];
   onEdit: (entry: DepositEntry) => void;
-  onDeleted: (entryId: number) => void;
   onClose: () => void;
 }
 
 export const DepositHistoryModal = ({
   consumerId,
-  entries,
   onEdit,
-  onDeleted,
   onClose,
 }: DepositHistoryModalProps) => {
-  const { role, token, activeMess } = useAuth();
+  const { role } = useAuth();
   const { isOnline } = useNetwork();
-  const { consumers } = useMess();
+  const { consumers, entries, deleteEntry: removeEntry } = useDeposits();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const isAdmin = role === "admin";
-  const messId = activeMess?.id ?? null;
   const consumerName =
     consumers.find((consumer) => consumer.id === consumerId)?.name ?? "";
   const historyEntries = consumerId
@@ -55,7 +49,6 @@ export const DepositHistoryModal = ({
     : [];
 
   const deleteEntry = (entryId: number) => {
-    if (!messId || !token) return;
     if (!isOnline) {
       Alert.alert(
         "Offline",
@@ -71,8 +64,7 @@ export const DepositHistoryModal = ({
         onPress: async () => {
           setDeletingId(entryId);
           try {
-            await deleteDepositEntry(entryId, messId, token);
-            onDeleted(entryId);
+            await removeEntry(entryId);
           } catch (error) {
             Alert.alert(
               "Error",

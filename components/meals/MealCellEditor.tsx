@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useMess } from "@/redux/hooks";
+import { useMeals } from "@/redux/hooks";
 import type { ActiveMealCell } from "@/types/meal";
 
 export interface MealCellEditorHandle {
@@ -35,7 +35,7 @@ export const MealCellEditor = forwardRef<
   MealCellEditorHandle,
   MealCellEditorProps
 >(({ cell, onDone }, ref) => {
-  const { consumers, currentYearMonth, getMealCount, setMeal } = useMess();
+  const { consumers, currentYearMonth, getMealCount, setMeal } = useMeals();
   const consumer = consumers.find((item) => item.id === cell.consumerId);
   const initialValue = getMealCount(
     currentYearMonth,

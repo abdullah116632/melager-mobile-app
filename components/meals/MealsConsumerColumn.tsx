@@ -1,6 +1,6 @@
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "@/redux/hooks";
-import { useMess } from "@/redux/hooks";
+import { useMeals } from "@/redux/hooks";
 
 const CONSUMER_ACCENTS = [
   "#059669",
@@ -29,7 +29,7 @@ export const MealsConsumerColumn = ({
   placeholderCount = 8,
 }: MealsConsumerColumnProps) => {
   const { role } = useAuth();
-  const { consumers, removeConsumer } = useMess();
+  const { consumers, removeConsumer } = useMeals();
   const isAdmin = role === "admin";
 
   const removeSelectedConsumer = (consumerId: string, consumerName: string) => {

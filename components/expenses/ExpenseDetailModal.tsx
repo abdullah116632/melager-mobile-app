@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
-import { useAuth, useMess } from "@/redux/hooks";
+import { useAuth, useExpenses } from "@/redux/hooks";
 import { formatExpenseAmount } from "@/utils/expense";
 
 interface ExpenseDetailModalProps {
@@ -23,7 +23,7 @@ export const ExpenseDetailModal = ({
   onEditItem,
 }: ExpenseDetailModalProps) => {
   const { role } = useAuth();
-  const { currentYearMonth, getExpense, setExpense } = useMess();
+  const { currentYearMonth, getExpense, setExpense } = useExpenses();
   const isAdmin = role === "admin";
   const expense = day === null ? null : getExpense(currentYearMonth, day);
 

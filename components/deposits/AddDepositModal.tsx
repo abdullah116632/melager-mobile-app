@@ -14,8 +14,7 @@ import {
   View,
 } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import { useAuth, useMess, useNetwork } from "@/redux/hooks";
-import { addDepositEntry, updateDepositEntry } from "@/services/depositService";
+import { useAuth, useDeposits, useNetwork } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
   formatDepositPickerDate,
@@ -30,18 +29,16 @@ interface AddDepositModalProps {
   consumerId?: string | null;
   entry?: DepositEntry | null;
   onClose: () => void;
-  onSaved: (entry: DepositEntry) => void;
 }
 
 export const AddDepositModal = ({
   consumerId = null,
   entry = null,
   onClose,
-  onSaved,
 }: AddDepositModalProps) => {
-  const { token, activeMess } = useAuth();
+  const { activeMess } = useAuth();
   const { isOnline } = useNetwork();
-  const { consumers } = useMess();
+  const { consumers, addEntry, updateEntry } = useDeposits();
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(getCurrentDepositDate());
   const [time, setTime] = useState(getCurrentDepositTime());
@@ -114,7 +111,7 @@ export const AddDepositModal = ({
   };
 
   const submit = async () => {
-    if (!messId || !token || !activeConsumerId) return;
+    if (!messId || !activeConsumerId) return;
     const trimmedAmount = amount.trim();
     const numericAmount = Number(trimmedAmount);
     if (
@@ -151,28 +148,23 @@ export const AddDepositModal = ({
     }
 
     try {
-      const savedEntry = entry
-        ? await updateDepositEntry(
-            entry.id,
-            {
-              messId,
-              amount: numericAmount,
-              depositedAt: depositedAt.toISOString(),
-              note: note.trim() || undefined,
-            },
-            token,
-          )
-        : await addDepositEntry(
-            {
-              messId,
-              consumerId: parseInt(activeConsumerId, 10),
-              amount: numericAmount,
-              depositedAt: depositedAt.toISOString(),
-              note: note.trim() || undefined,
-            },
-            token,
-          );
-      onSaved(savedEntry);
+      if (entry) {
+        await updateEntry(entry.id, {
+          messId,
+          amount: numericAmount,
+          depositedAt: depositedAt.toISOString(),
+          note: note.trim() || undefined,
+        });
+      } else {
+        await addEntry({
+          messId,
+          consumerId: parseInt(activeConsumerId, 10),
+          amount: numericAmount,
+          depositedAt: depositedAt.toISOString(),
+          note: note.trim() || undefined,
+        });
+      }
+      close();
       if (Platform.OS !== "web") {
         void Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,

@@ -7,7 +7,7 @@ import {
 } from "react";
 import { Alert } from "react-native";
 import { useAuth } from "@/redux/hooks";
-import { useMess } from "@/redux/hooks";
+import { useDeposits, useExpenses, useMeals, useMess } from "@/redux/hooks";
 import { getDashboardRangeData } from "@/services/dashboardService";
 import type { DashboardDateRange, MonthData } from "@/types/dashboard";
 import {
@@ -26,16 +26,10 @@ export const DashboardAccountingSection = forwardRef<
   object
 >((_props, ref) => {
   const { mess, token } = useAuth();
-  const {
-    consumers,
-    currentYearMonth,
-    getGrandTotal,
-    getMonthExpenseTotal,
-    getGrandDepositTotal,
-    getConsumerTotal,
-    getConsumerDepositTotal,
-    refreshMonth,
-  } = useMess();
+  const { consumers, currentYearMonth, refreshMonth } = useMess();
+  const { getGrandTotal, getConsumerTotal } = useMeals();
+  const { getMonthExpenseTotal } = useExpenses();
+  const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
   const defaultRange = getDefaultDashboardRange(currentYearMonth);
   const [draftStartDate, setDraftStartDate] = useState(defaultRange.startDate);
   const [draftEndDate, setDraftEndDate] = useState(defaultRange.endDate);

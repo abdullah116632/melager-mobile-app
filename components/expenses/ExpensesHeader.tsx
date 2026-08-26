@@ -2,7 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useAuth, useDrawer, useMess } from "@/redux/hooks";
+import { useAuth, useDrawer, useExpenses } from "@/redux/hooks";
 import { formatExpenseAmount } from "@/utils/expense";
 
 export const ExpensesHeader = () => {
@@ -13,7 +13,7 @@ export const ExpensesHeader = () => {
     currentMonthLoaded,
     dataLoading,
     getMonthExpenseTotal,
-  } = useMess();
+  } = useExpenses();
   const isAdmin = role === "admin";
   const monthTotal =
     currentMonthLoaded && !dataLoading

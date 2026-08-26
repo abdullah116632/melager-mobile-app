@@ -30,6 +30,22 @@ import {
   selectDrawerIsOpen,
 } from "@/redux/slice/drawerSlice";
 import {
+  addDepositEntry as addDepositEntryAction,
+  deleteDepositEntry as deleteDepositEntryAction,
+  loadDepositEntries,
+  selectDepositsState,
+  setDeposit as setDepositAction,
+  updateDepositEntry as updateDepositEntryAction,
+} from "@/redux/slice/depositsSlice";
+import {
+  selectExpenseState,
+  setExpense as setExpenseAction,
+} from "@/redux/slice/expenseSlice";
+import {
+  selectMealsState,
+  setMeal as setMealAction,
+} from "@/redux/slice/mealsSlice";
+import {
   addConsumer as addMessConsumer,
   getDaysInMonth,
   goToFollowingMonth,
@@ -38,9 +54,6 @@ import {
   refreshMonth as refreshMessMonth,
   removeConsumer as removeMessConsumer,
   selectMessState,
-  setDeposit as setMessDeposit,
-  setExpense as setMessExpense,
-  setMeal as setMessMeal,
   formatYearMonth,
 } from "@/redux/slice/messSlice";
 import {
@@ -56,6 +69,7 @@ import {
   selectNotificationState,
 } from "@/redux/slice/notificationSlice";
 import type { AppDispatch, RootState } from "@/redux/store";
+import type { DepositEntryInput } from "@/types/deposit";
 import type { DayExpenseItem } from "@/types/mess";
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
@@ -224,71 +238,6 @@ export const useMess = () => {
     state.scopeMessId !== null &&
     Boolean(state.loadedMonths[`${state.scopeMessId}:${currentYearMonth}`]);
 
-  const getMealCount = (
-    yearMonth: string,
-    consumerId: string,
-    day: number,
-  ) => state.meals[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
-
-  const getConsumerTotal = (yearMonth: string, consumerId: string) =>
-    Object.values(state.meals[yearMonth]?.[consumerId] ?? {}).reduce(
-      (sum, value) => sum + value,
-      0,
-    );
-
-  const getDayTotal = (yearMonth: string, day: number) =>
-    Object.values(state.meals[yearMonth] ?? {}).reduce(
-      (sum, consumerDays) => sum + (consumerDays[day.toString()] ?? 0),
-      0,
-    );
-
-  const getGrandTotal = (yearMonth: string) =>
-    state.consumers.reduce(
-      (sum, consumer) => sum + getConsumerTotal(yearMonth, consumer.id),
-      0,
-    );
-
-  const getExpense = (yearMonth: string, day: number) => {
-    const items = state.expenses[yearMonth]?.[day.toString()]?.items ?? [];
-    return {
-      items,
-      total: items.reduce((sum, item) => sum + item.amount, 0),
-    };
-  };
-
-  const getMonthExpenseTotal = (yearMonth: string) =>
-    Object.values(state.expenses[yearMonth] ?? {}).reduce(
-      (total, day) =>
-        total +
-        (day.items ?? []).reduce((sum, item) => sum + item.amount, 0),
-      0,
-    );
-
-  const getDeposit = (
-    yearMonth: string,
-    consumerId: string,
-    day: number,
-  ) => state.deposits[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
-
-  const getConsumerDepositTotal = (yearMonth: string, consumerId: string) =>
-    Object.values(state.deposits[yearMonth]?.[consumerId] ?? {}).reduce(
-      (sum, value) => sum + value,
-      0,
-    );
-
-  const getDayDepositTotal = (yearMonth: string, day: number) =>
-    Object.values(state.deposits[yearMonth] ?? {}).reduce(
-      (sum, consumerDays) => sum + (consumerDays[day.toString()] ?? 0),
-      0,
-    );
-
-  const getGrandDepositTotal = (yearMonth: string) =>
-    state.consumers.reduce(
-      (sum, consumer) =>
-        sum + getConsumerDepositTotal(yearMonth, consumer.id),
-      0,
-    );
-
   return {
     consumers: state.consumers,
     currentYearMonth,
@@ -326,7 +275,47 @@ export const useMess = () => {
         dispatch(removeMessConsumer({ id, isOnline })),
       );
     },
+    getDaysInMonth,
+  };
+};
+
+export const useMeals = () => {
+  const dispatch = useAppDispatch();
+  const shared = useMess();
+  const { isOnline } = useAppSelector(selectNetworkState);
+  const state = useAppSelector(selectMealsState);
+
+  const getMealCount = (
+    yearMonth: string,
+    consumerId: string,
+    day: number,
+  ) => state.months[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+
+  const getConsumerTotal = (yearMonth: string, consumerId: string) =>
+    Object.values(state.months[yearMonth]?.[consumerId] ?? {}).reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+
+  const getDayTotal = (yearMonth: string, day: number) =>
+    Object.values(state.months[yearMonth] ?? {}).reduce(
+      (sum, consumerDays) => sum + (consumerDays[day.toString()] ?? 0),
+      0,
+    );
+
+  const getGrandTotal = (yearMonth: string) =>
+    shared.consumers.reduce(
+      (sum, consumer) => sum + getConsumerTotal(yearMonth, consumer.id),
+      0,
+    );
+
+  return {
+    ...shared,
+    meals: state.months,
     getMealCount,
+    getConsumerTotal,
+    getDayTotal,
+    getGrandTotal,
     setMeal: (
       yearMonth: string,
       consumerId: string,
@@ -334,37 +323,148 @@ export const useMess = () => {
       count: number,
     ) => {
       void dispatch(
-        setMessMeal({ yearMonth, consumerId, day, count, isOnline }),
+        setMealAction({ yearMonth, consumerId, day, count, isOnline }),
       );
     },
-    getConsumerTotal,
-    getDayTotal,
-    getGrandTotal,
+  };
+};
+
+export const useExpenses = () => {
+  const dispatch = useAppDispatch();
+  const shared = useMess();
+  const { isOnline } = useAppSelector(selectNetworkState);
+  const state = useAppSelector(selectExpenseState);
+
+  const getExpense = (yearMonth: string, day: number) => {
+    const items = state.months[yearMonth]?.[day.toString()]?.items ?? [];
+    return {
+      items,
+      total: items.reduce((sum, item) => sum + item.amount, 0),
+    };
+  };
+
+  const getMonthExpenseTotal = (yearMonth: string) =>
+    Object.values(state.months[yearMonth] ?? {}).reduce(
+      (total, day) =>
+        total +
+        (day.items ?? []).reduce((sum, item) => sum + item.amount, 0),
+      0,
+    );
+
+  return {
+    ...shared,
+    expenses: state.months,
+    expenseRequestStatus: state.requestStatus,
+    expenseRequestError: state.requestError,
     getExpense,
+    getMonthExpenseTotal,
     setExpense: async (
       yearMonth: string,
       day: number,
       items: DayExpenseItem[],
     ) => {
       await unwrapAsyncResult(
-        dispatch(setMessExpense({ yearMonth, day, items, isOnline })),
+        dispatch(setExpenseAction({ yearMonth, day, items, isOnline })),
       );
     },
-    getMonthExpenseTotal,
+  };
+};
+
+export const useDeposits = () => {
+  const dispatch = useAppDispatch();
+  const shared = useMess();
+  const { isOnline } = useAppSelector(selectNetworkState);
+  const state = useAppSelector(selectDepositsState);
+  const yearMonth = shared.currentYearMonth;
+
+  const getDeposit = (
+    selectedYearMonth: string,
+    consumerId: string,
+    day: number,
+  ) =>
+    state.months[selectedYearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+
+  const getConsumerDepositTotal = (
+    selectedYearMonth: string,
+    consumerId: string,
+  ) =>
+    Object.values(
+      state.months[selectedYearMonth]?.[consumerId] ?? {},
+    ).reduce((sum, value) => sum + value, 0);
+
+  const getDayDepositTotal = (selectedYearMonth: string, day: number) =>
+    Object.values(state.months[selectedYearMonth] ?? {}).reduce(
+      (sum, consumerDays) => sum + (consumerDays[day.toString()] ?? 0),
+      0,
+    );
+
+  const getGrandDepositTotal = (selectedYearMonth: string) =>
+    shared.consumers.reduce(
+      (sum, consumer) =>
+        sum + getConsumerDepositTotal(selectedYearMonth, consumer.id),
+      0,
+    );
+
+  return {
+    ...shared,
+    depositsScopeMessId: state.scopeMessId,
+    deposits: state.months,
+    entries: state.entriesByMonth[yearMonth] ?? [],
+    entriesLoaded: Boolean(state.loadedEntryMonths[yearMonth]),
+    entriesLoading: Boolean(state.loadingEntryMonths[yearMonth]),
+    entriesError: state.entryErrors[yearMonth] ?? "",
+    entriesReady:
+      shared.currentMonthLoaded &&
+      !shared.dataLoading &&
+      Boolean(state.loadedEntryMonths[yearMonth]),
     getDeposit,
+    getConsumerDepositTotal,
+    getDayDepositTotal,
+    getGrandDepositTotal,
     setDeposit: (
-      yearMonth: string,
+      selectedYearMonth: string,
       consumerId: string,
       day: number,
       amount: number,
     ) => {
       void dispatch(
-        setMessDeposit({ yearMonth, consumerId, day, amount, isOnline }),
+        setDepositAction({
+          yearMonth: selectedYearMonth,
+          consumerId,
+          day,
+          amount,
+          isOnline,
+        }),
       );
     },
-    getConsumerDepositTotal,
-    getDayDepositTotal,
-    getGrandDepositTotal,
-    getDaysInMonth,
+    loadEntries: async (force = false) => {
+      if (state.scopeMessId === null) {
+        throw new Error("Please select a mess and sign in again.");
+      }
+      await unwrapAsyncResult(
+        dispatch(
+          loadDepositEntries({
+            messId: state.scopeMessId,
+            yearMonth,
+            force,
+          }),
+        ),
+      );
+    },
+    addEntry: async (data: DepositEntryInput) =>
+      unwrapAsyncResult(
+        dispatch(addDepositEntryAction({ yearMonth, data })),
+      ),
+    updateEntry: async (
+      entryId: number,
+      data: Omit<DepositEntryInput, "consumerId">,
+    ) =>
+      unwrapAsyncResult(
+        dispatch(updateDepositEntryAction({ yearMonth, entryId, data })),
+      ),
+    deleteEntry: async (entryId: number) =>
+      unwrapAsyncResult(
+        dispatch(deleteDepositEntryAction({ yearMonth, entryId })),
+      ),
   };
 };

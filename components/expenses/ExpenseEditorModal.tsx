@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
-import { useMess } from "@/redux/hooks";
+import { useExpenses } from "@/redux/hooks";
 import type { ExpenseDraftItem } from "@/types/expense";
 import {
   createExpenseDraftItem,
@@ -36,7 +36,7 @@ export const ExpenseEditorModal = ({
   onClose,
 }: ExpenseEditorModalProps) => {
   const { currentYearMonth, currentMonthLabel, getExpense, setExpense } =
-    useMess();
+    useExpenses();
   const [drafts, setDrafts] = useState<ExpenseDraftItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

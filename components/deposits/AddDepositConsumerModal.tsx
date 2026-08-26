@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useMess } from "@/redux/hooks";
+import { useDeposits } from "@/redux/hooks";
 
 interface AddDepositConsumerModalProps {
   visible: boolean;
@@ -23,7 +23,7 @@ export const AddDepositConsumerModal = ({
   visible,
   onClose,
 }: AddDepositConsumerModalProps) => {
-  const { addConsumer } = useMess();
+  const { addConsumer } = useDeposits();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");

@@ -14,7 +14,7 @@ import {
   EXPENSE_DAY_COLUMN_WIDTH,
   EXPENSE_PRIMARY,
 } from "@/constants/expense";
-import { useAuth, useMess } from "@/redux/hooks";
+import { useAuth, useExpenses } from "@/redux/hooks";
 import { formatExpenseAmount, isExpenseDayToday } from "@/utils/expense";
 import { ExpenseDetailModal } from "./ExpenseDetailModal";
 import { ExpenseEditorModal } from "./ExpenseEditorModal";
@@ -29,7 +29,7 @@ export const ExpensesTable = () => {
     getMonthExpenseTotal,
     getDaysInMonth,
     refreshMonth,
-  } = useMess();
+  } = useExpenses();
   const [refreshing, setRefreshing] = useState(false);
   const [viewingDay, setViewingDay] = useState<number | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
