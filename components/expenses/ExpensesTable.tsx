@@ -23,6 +23,8 @@ export const ExpensesTable = () => {
   const { role } = useAuth();
   const {
     currentYearMonth,
+    currentMonthLoaded,
+    dataLoading,
     getExpense,
     getMonthExpenseTotal,
     getDaysInMonth,
@@ -33,16 +35,18 @@ export const ExpensesTable = () => {
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const isAdmin = role === "admin";
+  const isMonthReady = currentMonthLoaded && !dataLoading;
   const days = Array.from(
     { length: getDaysInMonth(currentYearMonth) },
     (_, index) => index + 1,
   );
-  const monthTotal = getMonthExpenseTotal(currentYearMonth);
+  const monthTotal = isMonthReady ? getMonthExpenseTotal(currentYearMonth) : 0;
   const amountColumnRight =
     EXPENSE_DAY_COLUMN_WIDTH + EXPENSE_AMOUNT_COLUMN_WIDTH;
-  const recordedDays = days.filter(
-    (day) => getExpense(currentYearMonth, day).items.length > 0,
-  ).length;
+  const recordedDays = isMonthReady
+    ? days.filter((day) => getExpense(currentYearMonth, day).items.length > 0)
+        .length
+    : 0;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -51,7 +55,7 @@ export const ExpensesTable = () => {
   };
 
   const openEditor = (day: number) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !isMonthReady) return;
     if (Platform.OS !== "web") void Haptics.selectionAsync();
     setEditingItemId(null);
     setEditingDay(day);
@@ -109,12 +113,14 @@ export const ExpensesTable = () => {
         <View className="relative">
           {days.map((day, index) => {
             const expense = getExpense(currentYearMonth, day);
-            const hasData = expense.items.length > 0;
+            const hasData = isMonthReady && expense.items.length > 0;
             const isToday = isExpenseDayToday(currentYearMonth, day);
-            const itemSummary = expense.items
-              .map((item) => item.name)
-              .filter(Boolean)
-              .join(", ");
+            const itemSummary = isMonthReady
+              ? expense.items
+                  .map((item) => item.name)
+                  .filter(Boolean)
+                  .join(", ")
+              : "";
 
             return (
               <View
@@ -141,7 +147,11 @@ export const ExpensesTable = () => {
                   className="shrink-0 items-end justify-center py-2 pr-2.5"
                   style={{ width: EXPENSE_AMOUNT_COLUMN_WIDTH }}
                 >
-                  {hasData ? (
+                  {!isMonthReady ? (
+                    <Text className="font-inter text-[13px] text-slate-300">
+                      -
+                    </Text>
+                  ) : hasData ? (
                     <Text className="font-inter-semibold text-[13px] text-[#0A5954]">
                       ৳{formatExpenseAmount(expense.total)}
                     </Text>
@@ -155,9 +165,12 @@ export const ExpensesTable = () => {
                 <TouchableOpacity
                   className="flex-1 justify-center px-3 py-2"
                   onPress={() => setViewingDay(day)}
+                  disabled={!isMonthReady}
                   activeOpacity={0.7}
                 >
-                  {hasData ? (
+                  {!isMonthReady ? (
+                    <View className="h-2.5 w-24 rounded-full bg-slate-200" />
+                  ) : hasData ? (
                     <View className="flex-row items-center gap-1.5">
                       <Text
                         className="flex-1 font-inter text-[13px] text-slate-900"
@@ -181,8 +194,9 @@ export const ExpensesTable = () => {
 
                 {isAdmin && (
                   <TouchableOpacity
-                    className="ml-1.5 mr-2.5 h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-white/80 bg-teal-700"
+                    className={`ml-1.5 mr-2.5 h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-white/80 bg-teal-700 ${isMonthReady ? "opacity-100" : "opacity-40"}`}
                     onPress={() => openEditor(day)}
+                    disabled={!isMonthReady}
                     activeOpacity={0.8}
                     hitSlop={6}
                     accessibilityLabel={`Edit expenses for day ${day}`}

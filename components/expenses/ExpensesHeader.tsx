@@ -8,9 +8,17 @@ import { formatExpenseAmount } from "@/utils/expense";
 export const ExpensesHeader = () => {
   const { role } = useAuth();
   const { openDrawer } = useDrawer();
-  const { currentYearMonth, getMonthExpenseTotal } = useMess();
+  const {
+    currentYearMonth,
+    currentMonthLoaded,
+    dataLoading,
+    getMonthExpenseTotal,
+  } = useMess();
   const isAdmin = role === "admin";
-  const monthTotal = getMonthExpenseTotal(currentYearMonth);
+  const monthTotal =
+    currentMonthLoaded && !dataLoading
+      ? getMonthExpenseTotal(currentYearMonth)
+      : 0;
 
   return (
     <LinearGradient

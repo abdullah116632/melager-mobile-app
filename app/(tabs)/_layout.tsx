@@ -102,6 +102,8 @@ function ClassicTabLayout() {
         name="expenses"
         options={{
           title: "Expenses",
+          lazy: false,
+          freezeOnBlur: false,
           tabBarIcon: ({ color }) => (
             <Feather name="dollar-sign" size={22} color={color} />
           ),
