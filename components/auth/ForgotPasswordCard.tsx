@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { requestPasswordReset } from "@/services/authService";
 import { savePendingPasswordReset } from "@/services/pendingPasswordResetService";
+import { isValidEmail } from "@/utils/email";
 import { BackRow, ErrorBox } from "./AuthFeedback";
 
 interface ForgotPasswordCardProps {
@@ -27,20 +28,25 @@ export const ForgotPasswordCard = ({
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setError("Please enter your email address.");
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Please enter a valid email address.");
       return;
     }
 
     setError("");
     setLoading(true);
     try {
-      const data = await requestPasswordReset(email.trim());
+      const data = await requestPasswordReset(normalizedEmail);
       await savePendingPasswordReset({
         email: data.pendingEmail,
         requestedAt: Date.now(),
       });
-      onCodeRequested(data.pendingEmail, email);
+      onCodeRequested(data.pendingEmail, normalizedEmail);
     } catch (caughtError: unknown) {
       setError(
         caughtError instanceof Error
