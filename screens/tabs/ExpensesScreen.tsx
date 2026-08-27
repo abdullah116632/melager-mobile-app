@@ -5,9 +5,11 @@ import { ExpensesHeader } from "@/components/expenses/ExpensesHeader";
 import { ExpensesTable } from "@/components/expenses/ExpensesTable";
 import MonthPicker from "@/components/MonthPicker";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
+import { useExpenses } from "@/redux/hooks";
 
 export const ExpensesScreen = () => {
   const insets = useSafeAreaInsets();
+  const { dataLoading } = useExpenses();
 
   return (
     <View
@@ -22,7 +24,11 @@ export const ExpensesScreen = () => {
         />
       )}
       <ExpensesHeader />
-      <MonthPicker accentColor={EXPENSE_PRIMARY} variant="dashboard" />
+      <MonthPicker
+        accentColor={EXPENSE_PRIMARY}
+        variant="dashboard"
+        monthDataLoading={dataLoading}
+      />
       <ExpensesTable />
     </View>
   );

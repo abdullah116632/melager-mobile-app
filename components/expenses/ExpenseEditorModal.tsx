@@ -55,12 +55,18 @@ export const ExpenseEditorModal = ({
       return;
     }
 
+    if (!focusItemId) {
+      setDrafts([createExpenseDraftItem()]);
+      setError("");
+      return;
+    }
+
     const nextDrafts = toExpenseDraftItems(
       getExpense(currentYearMonth, day).items,
     );
     setDrafts(nextDrafts.length > 0 ? nextDrafts : [createExpenseDraftItem()]);
     setError("");
-  }, [currentYearMonth, day]);
+  }, [currentYearMonth, day, focusItemId]);
 
   useEffect(() => {
     const showEvent =
@@ -115,7 +121,10 @@ export const ExpenseEditorModal = ({
     setSaving(true);
     setError("");
     try {
-      await setExpense(currentYearMonth, day, items);
+      const nextItems = focusItemId
+        ? items
+        : [...getExpense(currentYearMonth, day).items, ...items];
+      await setExpense(currentYearMonth, day, nextItems);
       close();
       if (Platform.OS !== "web") {
         void Haptics.notificationAsync(
@@ -192,7 +201,7 @@ export const ExpenseEditorModal = ({
                   adjustsFontSizeToFit
                   minimumFontScale={0.75}
                 >
-                  Day {day} — {currentMonthLabel}
+                  {`${focusItemId ? "Edit expenses" : "Add expense"} · Day ${day} · ${currentMonthLabel}`}
                 </Text>
                 {total > 0 && (
                   <Text className="mt-0.5 font-inter-semibold text-[13px] text-teal-700">

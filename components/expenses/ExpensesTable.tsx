@@ -209,7 +209,7 @@ export const ExpensesTable = () => {
                     disabled={!isMonthReady}
                     activeOpacity={0.8}
                     hitSlop={6}
-                    accessibilityLabel={`Edit expenses for day ${day}`}
+                    accessibilityLabel={`Add expense for day ${day}`}
                   >
                     <Feather name="plus" size={16} color="#fff" />
                   </TouchableOpacity>

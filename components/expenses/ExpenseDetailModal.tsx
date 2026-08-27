@@ -1,5 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
+import { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
@@ -24,17 +26,21 @@ export const ExpenseDetailModal = ({
 }: ExpenseDetailModalProps) => {
   const { role } = useAuth();
   const { currentYearMonth, getExpense, setExpense } = useExpenses();
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
   const isAdmin = role === "admin";
   const expense = day === null ? null : getExpense(currentYearMonth, day);
+  const deletionInProgress = deletingAll || deletingItemId !== null;
 
   const deleteExpenseItem = (itemId: string) => {
-    if (!isAdmin || day === null) return;
+    if (!isAdmin || day === null || deletionInProgress) return;
     Alert.alert("Delete item", "Remove this expense item?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
+          setDeletingItemId(itemId);
           const current = getExpense(currentYearMonth, day);
           try {
             await setExpense(
@@ -49,6 +55,8 @@ export const ExpenseDetailModal = ({
                 ? error.message
                 : "Failed to delete expense.",
             );
+          } finally {
+            setDeletingItemId(null);
           }
         },
       },
@@ -56,7 +64,7 @@ export const ExpenseDetailModal = ({
   };
 
   const deleteAllExpenseItems = () => {
-    if (!isAdmin || day === null) return;
+    if (!isAdmin || day === null || deletionInProgress) return;
     Alert.alert(
       "Delete all expenses",
       "Remove every expense item for this day?",
@@ -66,6 +74,7 @@ export const ExpenseDetailModal = ({
           text: "Delete all",
           style: "destructive",
           onPress: async () => {
+            setDeletingAll(true);
             try {
               await setExpense(currentYearMonth, day, []);
               onClose();
@@ -76,6 +85,8 @@ export const ExpenseDetailModal = ({
                   ? error.message
                   : "Failed to delete expenses.",
               );
+            } finally {
+              setDeletingAll(false);
             }
           },
         },
@@ -117,9 +128,14 @@ export const ExpenseDetailModal = ({
                 <TouchableOpacity
                   className="h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50"
                   onPress={deleteAllExpenseItems}
+                  disabled={deletionInProgress}
                   accessibilityLabel="Delete all expenses for this day"
                 >
-                  <Feather name="trash-2" size={16} color="#DC2626" />
+                  {deletingAll ? (
+                    <ActivityIndicator size="small" color="#DC2626" />
+                  ) : (
+                    <Feather name="trash-2" size={16} color="#DC2626" />
+                  )}
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -159,6 +175,7 @@ export const ExpenseDetailModal = ({
                       <TouchableOpacity
                         className="h-8 w-8 items-center justify-center rounded-full bg-teal-50"
                         onPress={() => onEditItem(item.id)}
+                        disabled={deletionInProgress}
                         accessibilityLabel={`Edit ${item.name || "expense item"}`}
                       >
                         <Feather
@@ -170,9 +187,14 @@ export const ExpenseDetailModal = ({
                       <TouchableOpacity
                         className="h-8 w-8 items-center justify-center rounded-full bg-red-50"
                         onPress={() => deleteExpenseItem(item.id)}
+                        disabled={deletionInProgress}
                         accessibilityLabel={`Delete ${item.name || "expense item"}`}
                       >
-                        <Feather name="trash-2" size={16} color="#DC2626" />
+                        {deletingItemId === item.id ? (
+                          <ActivityIndicator size="small" color="#DC2626" />
+                        ) : (
+                          <Feather name="trash-2" size={16} color="#DC2626" />
+                        )}
                       </TouchableOpacity>
                     </View>
                   )}

@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   Text,
@@ -31,6 +32,7 @@ const DEFAULT_ACCENT_COLOR = "#0F766E";
 interface MonthPickerProps {
   accentColor?: string;
   variant?: "default" | "dashboard";
+  monthDataLoading?: boolean;
   onSwitchMess?: () => void;
   onCellLeft?: () => void;
   onCellRight?: () => void;
@@ -42,6 +44,7 @@ interface MonthPickerProps {
 export default function MonthPicker({
   accentColor,
   variant = "default",
+  monthDataLoading = false,
   onSwitchMess,
   onCellLeft,
   onCellRight,
@@ -52,6 +55,15 @@ export default function MonthPicker({
   const { currentYearMonth, currentMonthLabel, goToMonth } = useMess();
   const { width } = useWindowDimensions();
   const [visible, setVisible] = useState(false);
+  const [waitingForSelectedMonth, setWaitingForSelectedMonth] =
+    useState(false);
+  const [loadingMonth, setLoadingMonth] = useState<{
+    year: number;
+    month: number;
+  } | null>(null);
+  const [selectedMonthRequestFinished, setSelectedMonthRequestFinished] =
+    useState(false);
+  const monthChangeFrame = useRef<number | null>(null);
   const [currentYear, currentMonth] = currentYearMonth.split("-").map(Number);
   const [pickerYear, setPickerYear] = useState(currentYear);
   const accent = accentColor ?? DEFAULT_ACCENT_COLOR;
@@ -63,13 +75,64 @@ export default function MonthPicker({
   );
   const navigationIconColor = cellNavEnabled ? "#0369A1" : "#3B82F6";
 
+  useEffect(() => {
+    if (
+      !waitingForSelectedMonth ||
+      !selectedMonthRequestFinished ||
+      monthDataLoading
+    ) {
+      return;
+    }
+    setWaitingForSelectedMonth(false);
+    setSelectedMonthRequestFinished(false);
+    setLoadingMonth(null);
+    setVisible(false);
+  }, [monthDataLoading, selectedMonthRequestFinished, waitingForSelectedMonth]);
+
+  useEffect(() => {
+    if (!waitingForSelectedMonth) return;
+    const timeout = setTimeout(() => {
+      setWaitingForSelectedMonth(false);
+      setSelectedMonthRequestFinished(false);
+      setLoadingMonth(null);
+      setVisible(false);
+    }, 22_000);
+    return () => clearTimeout(timeout);
+  }, [waitingForSelectedMonth]);
+
+  useEffect(
+    () => () => {
+      if (monthChangeFrame.current !== null) {
+        cancelAnimationFrame(monthChangeFrame.current);
+      }
+    },
+    [],
+  );
+
   const openPicker = () => {
     setPickerYear(currentYear);
     setVisible(true);
   };
 
   const selectMonth = (month: number) => {
-    goToMonth(pickerYear, month);
+    if (pickerYear === currentYear && month === currentMonth) {
+      setVisible(false);
+      return;
+    }
+    const selectedYear = pickerYear;
+    setLoadingMonth({ year: selectedYear, month });
+    setSelectedMonthRequestFinished(false);
+    setWaitingForSelectedMonth(true);
+    monthChangeFrame.current = requestAnimationFrame(() => {
+      monthChangeFrame.current = null;
+      void goToMonth(selectedYear, month)
+        .catch(() => undefined)
+        .finally(() => setSelectedMonthRequestFinished(true));
+    });
+  };
+
+  const closePicker = () => {
+    if (waitingForSelectedMonth) return;
     setVisible(false);
   };
 
@@ -82,6 +145,7 @@ export default function MonthPicker({
     <TouchableOpacity
       className={`flex-row items-center justify-center gap-[7px] rounded-full py-2 ${isDashboard ? `${hasCellNavigation ? (isCompact ? "min-w-[132px] px-2" : "min-w-[148px] px-3") : isCompact ? "min-w-[150px] px-3" : "min-w-[166px] px-4"} border border-slate-200 bg-white shadow-lg shadow-slate-400/20` : "min-w-[166px] bg-slate-100 px-4"}`}
       onPress={openPicker}
+      disabled={monthDataLoading}
       activeOpacity={0.75}
     >
       <Feather name="calendar" size={14} color={accent} />
@@ -192,12 +256,12 @@ export default function MonthPicker({
         visible={visible}
         transparent
         animationType="fade"
-        onRequestClose={() => setVisible(false)}
+        onRequestClose={closePicker}
         statusBarTranslucent
       >
         <Pressable
           className="flex-1 items-center justify-center bg-black/45 px-7"
-          onPress={() => setVisible(false)}
+          onPress={closePicker}
         >
           <Pressable
             className="w-full max-w-[380px] overflow-hidden rounded-[20px] bg-white shadow-2xl shadow-black/15"
@@ -208,8 +272,9 @@ export default function MonthPicker({
                 Select Month
               </Text>
               <TouchableOpacity
-                className="p-1"
-                onPress={() => setVisible(false)}
+                className={`p-1 ${waitingForSelectedMonth ? "opacity-40" : "opacity-100"}`}
+                onPress={closePicker}
+                disabled={waitingForSelectedMonth}
               >
                 <Feather name="x" size={18} color="#64748B" />
               </TouchableOpacity>
@@ -219,6 +284,7 @@ export default function MonthPicker({
               <TouchableOpacity
                 className="p-1.5"
                 onPress={() => setPickerYear((year) => year - 1)}
+                disabled={waitingForSelectedMonth}
               >
                 <Feather name="chevron-left" size={22} color={accent} />
               </TouchableOpacity>
@@ -228,6 +294,7 @@ export default function MonthPicker({
               <TouchableOpacity
                 className="p-1.5"
                 onPress={() => setPickerYear((year) => year + 1)}
+                disabled={waitingForSelectedMonth}
               >
                 <Feather name="chevron-right" size={22} color={accent} />
               </TouchableOpacity>
@@ -238,13 +305,18 @@ export default function MonthPicker({
                 const month = index + 1;
                 const isSelected =
                   month === currentMonth && pickerYear === currentYear;
+                const isLoadingMonth =
+                  waitingForSelectedMonth &&
+                  loadingMonth?.year === pickerYear &&
+                  loadingMonth.month === month;
+                const isHighlighted = isSelected || isLoadingMonth;
                 const usesCustomSelectedColor =
-                  isSelected && !usesDefaultAccent;
+                  isHighlighted && !usesDefaultAccent;
 
                 return (
                   <View key={month} className="w-1/4 p-[5px]">
                     <TouchableOpacity
-                      className={`items-center justify-center rounded-[10px] border py-[11px] ${isSelected ? (usesDefaultAccent ? "border-teal-700 bg-teal-700" : "border-transparent") : "border-slate-200 bg-white"}`}
+                      className={`items-center justify-center rounded-[10px] border py-[11px] ${isHighlighted ? (usesDefaultAccent ? "border-teal-700 bg-teal-700" : "border-transparent") : "border-slate-200 bg-white"}`}
                       style={
                         usesCustomSelectedColor
                           ? {
@@ -254,13 +326,18 @@ export default function MonthPicker({
                           : undefined
                       }
                       onPress={() => selectMonth(month)}
+                      disabled={waitingForSelectedMonth}
                       activeOpacity={0.7}
                     >
-                      <Text
-                        className={`text-[13px] ${isSelected ? "font-inter-bold text-white" : "font-inter-medium text-slate-900"}`}
-                      >
-                        {name}
-                      </Text>
+                      {isLoadingMonth ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text
+                          className={`text-[13px] ${isHighlighted ? "font-inter-bold text-white" : "font-inter-medium text-slate-900"}`}
+                        >
+                          {name}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   </View>
                 );

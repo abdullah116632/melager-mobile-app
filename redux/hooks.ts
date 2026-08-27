@@ -51,6 +51,7 @@ import {
   goToFollowingMonth,
   goToPreviousMonth,
   goToSpecificMonth,
+  loadMonth as loadMessMonth,
   refreshMonth as refreshMessMonth,
   removeConsumer as removeMessConsumer,
   selectMessState,
@@ -251,8 +252,14 @@ export const useMess = () => {
     },
     goToPrevMonth: () => dispatch(goToPreviousMonth()),
     goToNextMonth: () => dispatch(goToFollowingMonth()),
-    goToMonth: (year: number, month: number) =>
-      dispatch(goToSpecificMonth({ year, month })),
+    goToMonth: async (year: number, month: number) => {
+      const yearMonth = formatYearMonth(year, month);
+      dispatch(goToSpecificMonth({ year, month }));
+      if (state.scopeMessId === null) return;
+      await unwrapAsyncResult(
+        dispatch(loadMessMonth({ messId: state.scopeMessId, yearMonth })),
+      );
+    },
     addConsumer: async (
       name: string,
       email: string,

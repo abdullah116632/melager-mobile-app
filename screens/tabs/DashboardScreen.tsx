@@ -4,11 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DashboardContent } from "@/components/dashboard/DashboardContent";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import MonthPicker from "@/components/MonthPicker";
-import { useAuth } from "@/redux/hooks";
+import { useAuth, useMess } from "@/redux/hooks";
 
 export const DashboardScreen = () => {
   const insets = useSafeAreaInsets();
   const { exitMess } = useAuth();
+  const { dataLoading } = useMess();
 
   return (
     <View
@@ -23,7 +24,11 @@ export const DashboardScreen = () => {
         />
       )}
       <DashboardHeader />
-      <MonthPicker variant="dashboard" onSwitchMess={exitMess} />
+      <MonthPicker
+        variant="dashboard"
+        monthDataLoading={dataLoading}
+        onSwitchMess={exitMess}
+      />
       <DashboardContent />
     </View>
   );

@@ -13,6 +13,7 @@ export const DepositsContent = () => {
   const { isOnline } = useNetwork();
   const {
     currentYearMonth,
+    dataLoading,
     depositsScopeMessId,
     entries,
     entriesReady,
@@ -55,7 +56,11 @@ export const DepositsContent = () => {
       <DepositsHeader
         grandTotal={entriesReady ? getDepositTotal(entries) : 0}
       />
-      <MonthPicker accentColor={DEPOSIT_PRIMARY} variant="dashboard" />
+      <MonthPicker
+        accentColor={DEPOSIT_PRIMARY}
+        variant="dashboard"
+        monthDataLoading={dataLoading || entriesLoading}
+      />
       {!entriesLoading && loadError ? (
         <View className="mx-4 my-2 flex-row items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
           <Text className="flex-1 pr-3 font-inter text-xs leading-4 text-red-700">

@@ -10,8 +10,14 @@ import { MealsGrid, type MealsGridHandle } from "./MealsGrid";
 
 export const MealsTableSection = () => {
   const { role } = useAuth();
-  const { consumers, currentYearMonth, getMealCount, setMeal, getDaysInMonth } =
-    useMeals();
+  const {
+    consumers,
+    currentYearMonth,
+    dataLoading,
+    getMealCount,
+    setMeal,
+    getDaysInMonth,
+  } = useMeals();
   const isAdmin = role === "admin";
   const [selectedCell, setSelectedCell] = useState<ActiveMealCell | null>(null);
   const editorRef = useRef<MealCellEditorHandle | null>(null);
@@ -82,6 +88,7 @@ export const MealsTableSection = () => {
     <>
       <MonthPicker
         variant="dashboard"
+        monthDataLoading={dataLoading}
         onCellLeft={isAdmin ? () => copyAndMove("left") : undefined}
         onCellRight={isAdmin ? () => copyAndMove("right") : undefined}
         onCellUp={isAdmin ? () => copyAndMove("up") : undefined}
