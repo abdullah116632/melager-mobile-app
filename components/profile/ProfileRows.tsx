@@ -46,6 +46,42 @@ export const ProfileRow = ({
   </View>
 );
 
+interface ProfileDestructiveRowProps {
+  icon: FeatherIconName;
+  label: string;
+  description: string;
+  onPress: () => void;
+}
+
+export const ProfileDestructiveRow = ({
+  icon,
+  label,
+  description,
+  onPress,
+}: ProfileDestructiveRowProps) => (
+  <TouchableOpacity
+    className="flex-row items-center gap-3 px-3.5 py-[13px]"
+    onPress={onPress}
+    activeOpacity={0.7}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+  >
+    <View className="h-[34px] w-[34px] items-center justify-center rounded-lg bg-red-50">
+      <Feather name={icon} size={16} color="#DC2626" />
+    </View>
+    <View className="min-w-0 flex-1">
+      <Text className="font-inter-semibold text-sm text-red-600">{label}</Text>
+      <Text
+        className="mt-px font-inter text-[11px] text-red-500/80"
+        numberOfLines={1}
+      >
+        {description}
+      </Text>
+    </View>
+    <Feather name="chevron-right" size={17} color="#DC2626" />
+  </TouchableOpacity>
+);
+
 interface ProfileEditableRowProps extends ProfileRowProps {
   onEdit?: () => void;
 }

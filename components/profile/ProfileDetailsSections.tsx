@@ -5,10 +5,12 @@ import { Platform } from "react-native";
 import { useAuth } from "@/redux/hooks";
 import type { ProfileEditField } from "@/types/profile";
 
+import { DeleteAccountModal } from "./DeleteAccountModal";
 import { MessKeyRow } from "./MessKeyRow";
 import { ProfileInviteRow } from "./ProfileInviteRow";
 import {
   ProfileEditableRow,
+  ProfileDestructiveRow,
   ProfileEditRow,
   ProfileRow,
 } from "./ProfileRows";
@@ -20,6 +22,7 @@ export const ProfileDetailsSections = () => {
   const [editValue, setEditValue] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const displayName = user?.name ?? "User";
   const displayEmail = user?.email ?? "";
   const isAdmin = role === "admin";
@@ -95,7 +98,18 @@ export const ProfileDetailsSections = () => {
             showDivider
           />
         )}
-        <ProfileRow icon="mail" label="Email" value={displayEmail} />
+        <ProfileRow
+          icon="mail"
+          label="Email"
+          value={displayEmail}
+          showDivider
+        />
+        <ProfileDestructiveRow
+          icon="trash-2"
+          label="Delete Account"
+          description="Permanently remove your account"
+          onPress={() => setDeleteModalVisible(true)}
+        />
       </ProfileSectionCard>
 
       {mess && (
@@ -137,6 +151,10 @@ export const ProfileDetailsSections = () => {
           />
         </ProfileSectionCard>
       )}
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+      />
     </>
   );
 };

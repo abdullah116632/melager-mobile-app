@@ -31,6 +31,7 @@ const DEFAULT_ACCENT_COLOR = "#0F766E";
 interface MonthPickerProps {
   accentColor?: string;
   variant?: "default" | "dashboard";
+  onSwitchMess?: () => void;
   onCellLeft?: () => void;
   onCellRight?: () => void;
   onCellUp?: () => void;
@@ -41,6 +42,7 @@ interface MonthPickerProps {
 export default function MonthPicker({
   accentColor,
   variant = "default",
+  onSwitchMess,
   onCellLeft,
   onCellRight,
   onCellUp,
@@ -167,7 +169,20 @@ export default function MonthPicker({
             </View>
           </>
         ) : (
-          <View className="flex-1 items-center justify-center">
+          <View className="relative flex-1 items-center justify-center">
+            {isDashboard && onSwitchMess ? (
+              <TouchableOpacity
+                className="absolute left-1 h-10 w-10 items-center justify-center rounded-xl border border-teal-100 bg-white shadow-md shadow-slate-400/20"
+                style={{ transform: [{ translateY: 11 }] }}
+                onPress={onSwitchMess}
+                activeOpacity={0.72}
+                accessibilityRole="button"
+                accessibilityLabel="Switch mess"
+                accessibilityHint="Go to the mess selection page"
+              >
+                <Feather name="repeat" size={19} color="#0F766E" />
+              </TouchableOpacity>
+            ) : null}
             {monthButton}
           </View>
         )}
