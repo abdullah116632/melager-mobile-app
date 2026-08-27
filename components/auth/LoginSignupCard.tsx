@@ -10,6 +10,7 @@ import {
 import { useAuth } from "@/redux/hooks";
 import { savePendingSignupOtp } from "@/services/pendingSignupOtpService";
 import type { AuthCredentialsDraft, AuthMode } from "@/types/auth";
+import { isValidEmail } from "@/utils/email";
 import { ErrorBox } from "./AuthFeedback";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 
@@ -59,8 +60,13 @@ export const LoginSignupCard = ({
 
   const submit = async () => {
     setError("");
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password.trim()) {
       setError("Email and password are required.");
+      return;
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Please enter a valid email address.");
       return;
     }
     if (mode === "signup" && !name.trim()) {
@@ -81,7 +87,7 @@ export const LoginSignupCard = ({
           return;
         }
         const { pendingEmail } = await signup(
-          email.trim(),
+          normalizedEmail,
           name.trim(),
           password,
           mobileNumber.trim(),
@@ -93,7 +99,7 @@ export const LoginSignupCard = ({
         });
         onSignupPending(pendingEmail, getDraft({ confirmPassword: "" }));
       } else {
-        await login(email.trim(), password);
+        await login(normalizedEmail, password);
       }
     } catch (caughtError: unknown) {
       setError(
@@ -240,8 +246,13 @@ export const LoginSignupCard = ({
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text className="font-inter-bold text-base tracking-[0.2px] text-white">
-            {mode === "signup" ? "Sign Up" : "Log In"}
+          <Text
+            className="font-inter-bold text-base tracking-[0.2px] text-white"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {mode === "signup" ? "Sign Up" : "Log\u00A0In"}
           </Text>
         )}
       </TouchableOpacity>
@@ -257,12 +268,17 @@ export const LoginSignupCard = ({
       <GoogleSignInButton disabled={loading} />
 
       <TouchableOpacity className="mt-[18px] items-center" onPress={toggleMode}>
-        <Text className="font-inter text-sm text-gray-500">
+        <Text
+          className="text-center font-inter text-sm text-gray-500"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
           {mode === "signup"
             ? "Already have an account? "
             : "Don't have an account? "}
           <Text className="font-inter-bold text-teal-700">
-            {mode === "signup" ? "Log In" : "Sign Up"}
+            {mode === "signup" ? "Log\u00A0In" : "Sign\u00A0Up"}
           </Text>
         </Text>
       </TouchableOpacity>
