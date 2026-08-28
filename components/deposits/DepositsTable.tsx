@@ -10,6 +10,10 @@ import {
   View,
 } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
+import {
+  RemoveMemberConfirmModal,
+  type PendingMemberRemoval,
+} from "@/components/RemoveMemberConfirmModal";
 import { useAuth, useDeposits } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
@@ -35,6 +39,9 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
   const [historyConsumerId, setHistoryConsumerId] = useState<string | null>(
     null,
   );
+  const [pendingRemoval, setPendingRemoval] =
+    useState<PendingMemberRemoval | null>(null);
+  const [removing, setRemoving] = useState(false);
   const isAdmin = role === "admin";
   const ready = entriesReady;
   const grandTotal = ready ? getDepositTotal(entries) : 0;
@@ -50,14 +57,25 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
 
   const remove = (consumerId: string, consumerName: string) => {
     if (!isAdmin || !ready) return;
-    Alert.alert("Remove Consumer", `Remove "${consumerName}" from the mess?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => removeConsumer(consumerId),
-      },
-    ]);
+    setPendingRemoval({ id: consumerId, name: consumerName });
+  };
+
+  const confirmRemoval = async () => {
+    if (!pendingRemoval || removing) return;
+    setRemoving(true);
+    try {
+      await removeConsumer(pendingRemoval.id);
+      setPendingRemoval(null);
+    } catch (caughtError) {
+      Alert.alert(
+        "Remove failed",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Failed to remove member.",
+      );
+    } finally {
+      setRemoving(false);
+    }
   };
 
   return (
@@ -246,6 +264,12 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
         consumerId={historyConsumerId}
         onEdit={setEditingEntry}
         onClose={() => setHistoryConsumerId(null)}
+      />
+      <RemoveMemberConfirmModal
+        member={pendingRemoval}
+        loading={removing}
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={() => void confirmRemoval()}
       />
     </>
   );

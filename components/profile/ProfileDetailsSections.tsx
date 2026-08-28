@@ -7,7 +7,6 @@ import type { ProfileEditField } from "@/types/profile";
 
 import { DeleteAccountModal } from "./DeleteAccountModal";
 import { MessKeyRow } from "./MessKeyRow";
-import { ProfileInviteRow } from "./ProfileInviteRow";
 import {
   ProfileEditableRow,
   ProfileDestructiveRow,
@@ -136,7 +135,6 @@ export const ProfileDetailsSections = () => {
             />
           )}
           <MessKeyRow />
-          <ProfileInviteRow />
           <ProfileRow
             icon="shield"
             label="Your Role"

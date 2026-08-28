@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -28,6 +29,7 @@ export const AddDepositConsumerModal = ({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const nameInputRef = useRef<TextInput | null>(null);
 
@@ -54,7 +56,7 @@ export const AddDepositConsumerModal = ({
     return () => clearTimeout(timer);
   }, [visible]);
 
-  const close = () => {
+  const resetAndClose = () => {
     Keyboard.dismiss();
     setName("");
     setEmail("");
@@ -63,7 +65,13 @@ export const AddDepositConsumerModal = ({
     onClose();
   };
 
+  const close = () => {
+    if (submitting) return;
+    resetAndClose();
+  };
+
   const submit = async () => {
+    if (submitting) return;
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedPhone = phone.trim() || undefined;
@@ -80,25 +88,28 @@ export const AddDepositConsumerModal = ({
       setError("Phone must be exactly 11 digits.");
       return;
     }
+    setSubmitting(true);
     try {
       const { invitationSent } = await addConsumer(
         trimmedName,
         trimmedEmail,
         trimmedPhone,
       );
-      close();
-      if (invitationSent) {
-        Alert.alert(
-          "Invitation sent",
-          "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference.",
-        );
-      }
+      resetAndClose();
+      Alert.alert(
+        "Member added",
+        invitationSent
+          ? "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference."
+          : "The member was added successfully. Login credentials have been sent by email.",
+      );
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to add consumer.",
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -133,6 +144,7 @@ export const AddDepositConsumerModal = ({
               <TouchableOpacity
                 className="h-[34px] w-[34px] items-center justify-center rounded-full bg-slate-100"
                 onPress={close}
+                disabled={submitting}
                 accessibilityLabel="Close add member form"
               >
                 <Feather name="x" size={20} color="#64748B" />
@@ -155,6 +167,7 @@ export const AddDepositConsumerModal = ({
                 placeholderTextColor="#64748B"
                 value={name}
                 onChangeText={setName}
+                editable={!submitting}
                 returnKeyType="next"
               />
               <TextInput
@@ -163,6 +176,7 @@ export const AddDepositConsumerModal = ({
                 placeholderTextColor="#64748B"
                 value={email}
                 onChangeText={setEmail}
+                editable={!submitting}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 returnKeyType="next"
@@ -176,6 +190,7 @@ export const AddDepositConsumerModal = ({
                   setPhone(value.replace(/\D/g, "").slice(0, 11))
                 }
                 keyboardType="phone-pad"
+                editable={!submitting}
                 returnKeyType="done"
                 onSubmitEditing={() => void submit()}
               />
@@ -188,11 +203,15 @@ export const AddDepositConsumerModal = ({
 
             <View className="mt-5 flex-row gap-2.5">
               <TouchableOpacity
-                className="flex-1 items-center justify-center rounded-xl bg-teal-700 px-4 py-[13px]"
+                className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-[13px] ${submitting ? "opacity-70" : "opacity-100"}`}
                 onPress={() => void submit()}
+                disabled={submitting}
               >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : null}
                 <Text className="font-inter-semibold text-white">
-                  Add &amp; Send Credentials
+                  {submitting ? "Adding Member..." : "Add & Send Credentials"}
                 </Text>
               </TouchableOpacity>
             </View>

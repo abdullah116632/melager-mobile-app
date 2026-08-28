@@ -44,11 +44,7 @@ export const AdminOtpContent = () => {
   }, [router, user?.id]);
 
   const returnToSecurity = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/settings/security");
-    }
+    router.dismissTo("/settings/security");
   }, [router]);
 
   const leavePage = useCallback(async () => {

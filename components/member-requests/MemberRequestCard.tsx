@@ -36,13 +36,16 @@ export const MemberRequestCard = ({
 }: MemberRequestCardProps) => {
   const { token, refreshMe } = useAuth();
   const { refreshCount } = useNotifications();
-  const [acting, setActing] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "accept" | "reject" | null
+  >(null);
+  const acting = pendingAction !== null;
   const avatarClassName =
     AVATAR_CLASS_BY_COLOR[getAvatarColor(request.name)] ?? "bg-teal-600";
 
   const handleAccept = async () => {
     if (!token) return;
-    setActing(true);
+    setPendingAction("accept");
     try {
       await acceptMemberRequest(request.id, token);
       onResolved(request.id);
@@ -56,13 +59,13 @@ export const MemberRequestCard = ({
     } catch {
       // Keep the existing silent failure behavior.
     } finally {
-      setActing(false);
+      setPendingAction(null);
     }
   };
 
   const handleReject = async () => {
     if (!token) return;
-    setActing(true);
+    setPendingAction("reject");
     try {
       await rejectMemberRequest(request.id, token);
       onResolved(request.id);
@@ -70,7 +73,7 @@ export const MemberRequestCard = ({
     } catch {
       // Keep the existing silent failure behavior.
     } finally {
-      setActing(false);
+      setPendingAction(null);
     }
   };
 
@@ -109,7 +112,7 @@ export const MemberRequestCard = ({
           disabled={acting}
           activeOpacity={0.8}
         >
-          {acting ? (
+          {pendingAction === "reject" ? (
             <ActivityIndicator size="small" color="#DC2626" />
           ) : (
             <>
@@ -127,7 +130,7 @@ export const MemberRequestCard = ({
           disabled={acting}
           activeOpacity={0.8}
         >
-          {acting ? (
+          {pendingAction === "accept" ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>

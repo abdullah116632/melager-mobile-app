@@ -2,6 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -33,6 +34,7 @@ export const AddMealConsumerModal = ({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener(
@@ -57,11 +59,13 @@ export const AddMealConsumerModal = ({
   };
 
   const closeModal = () => {
+    if (submitting) return;
     resetForm();
     onClose();
   };
 
   const submitConsumer = async () => {
+    if (submitting) return;
     const normalizedName = name.trim();
     const normalizedEmail = email.trim();
     const normalizedPhone = phone.trim() || undefined;
@@ -78,6 +82,7 @@ export const AddMealConsumerModal = ({
       setError("Phone must be exactly 11 digits.");
       return;
     }
+    setSubmitting(true);
     try {
       const { invitationSent } = await addConsumer(
         normalizedName,
@@ -87,12 +92,12 @@ export const AddMealConsumerModal = ({
       resetForm();
       onClose();
       void onAdded?.();
-      if (invitationSent) {
-        Alert.alert(
-          "Member added",
-          "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference.",
-        );
-      }
+      Alert.alert(
+        "Member added",
+        invitationSent
+          ? "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference."
+          : "The member was added successfully. Login credentials have been sent by email.",
+      );
       if (Platform.OS !== "web") {
         void Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,
@@ -104,11 +109,18 @@ export const AddMealConsumerModal = ({
           ? submitError.message
           : "Failed to add consumer.",
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={closeModal}
+    >
       <KeyboardAvoidingView
         className="flex-1 justify-end bg-black/45"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -135,6 +147,7 @@ export const AddMealConsumerModal = ({
             <TouchableOpacity
               className="h-8 w-8 items-center justify-center rounded-full bg-teal-700/[0.06]"
               onPress={closeModal}
+              disabled={submitting}
               activeOpacity={0.7}
               hitSlop={10}
               accessibilityLabel="Close add member form"
@@ -151,6 +164,7 @@ export const AddMealConsumerModal = ({
             placeholderTextColor="#64748B"
             value={name}
             onChangeText={setName}
+            editable={!submitting}
             autoFocus
             returnKeyType="next"
           />
@@ -160,6 +174,7 @@ export const AddMealConsumerModal = ({
             placeholderTextColor="#64748B"
             value={email}
             onChangeText={setEmail}
+            editable={!submitting}
             keyboardType="email-address"
             autoCapitalize="none"
             returnKeyType="next"
@@ -173,6 +188,7 @@ export const AddMealConsumerModal = ({
               setPhone(value.replace(/\D/g, "").slice(0, 11))
             }
             keyboardType="phone-pad"
+            editable={!submitting}
             returnKeyType="done"
             onSubmitEditing={() => void submitConsumer()}
           />
@@ -182,11 +198,15 @@ export const AddMealConsumerModal = ({
             </Text>
           ) : null}
           <TouchableOpacity
-            className="items-center justify-center rounded-[10px] bg-teal-700 py-3.5"
+            className={`flex-row items-center justify-center gap-2 rounded-[10px] bg-teal-700 py-3.5 ${submitting ? "opacity-70" : "opacity-100"}`}
             onPress={() => void submitConsumer()}
+            disabled={submitting}
           >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : null}
             <Text className="font-inter-semibold text-white">
-              Add &amp; Send Credentials
+              {submitting ? "Adding Member..." : "Add & Send Credentials"}
             </Text>
           </TouchableOpacity>
         </View>
