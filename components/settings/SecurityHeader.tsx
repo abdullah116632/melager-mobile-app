@@ -6,13 +6,13 @@ import { useAuth } from "@/redux/hooks";
 
 export const SecurityHeader = () => {
   const router = useRouter();
-  const { role } = useAuth();
+  const { role, mess } = useAuth();
   const isAdmin = role === "admin";
   const goBack = () => {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace("/(tabs)/profile");
+      router.replace(mess ? "/(tabs)/profile" : "/account");
     }
   };
 
@@ -34,7 +34,7 @@ export const SecurityHeader = () => {
         <View className="ml-3 flex-1">
           <Text className="font-inter-bold text-xl text-white">Security</Text>
           <Text className="mt-0.5 font-inter text-xs text-teal-100/75">
-            Protect your account and mess
+            {mess ? "Protect your account and mess" : "Protect your account"}
           </Text>
         </View>
         <View className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10">
@@ -54,11 +54,13 @@ export const SecurityHeader = () => {
             Sensitive changes require email verification.
           </Text>
         </View>
-        <View className="rounded-full bg-white/15 px-2.5 py-1.5">
-          <Text className="font-inter-semibold text-[10px] text-teal-50">
-            {isAdmin ? "ADMIN" : "MEMBER"}
-          </Text>
-        </View>
+        {mess && (
+          <View className="rounded-full bg-white/15 px-2.5 py-1.5">
+            <Text className="font-inter-semibold text-[10px] text-teal-50">
+              {isAdmin ? "ADMIN" : "MEMBER"}
+            </Text>
+          </View>
+        )}
       </View>
     </LinearGradient>
   );

@@ -54,9 +54,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const inMessHub = !first || first === "index";
   const inMessSetup = first === "mess-setup";
   const inAccount = first === "account";
+  const inAccountSecurity = first === "settings" && second === "security";
   const inAdminOtp = first === "settings" && second === "admin-otp";
   const redirectingToMessHub = Boolean(
-    user && !activeMess && !inMessHub && !inMessSetup && !inAccount,
+    user &&
+    !activeMess &&
+    !inMessHub &&
+    !inMessSetup &&
+    !inAccount &&
+    !inAccountSecurity,
   );
 
   useEffect(() => {
@@ -72,7 +78,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       if (!user) {
         if (!inAuth) router.replace("/auth");
       } else if (!activeMess) {
-        if (!inMessHub && !inMessSetup && !inAccount) router.replace("/");
+        if (!inMessHub && !inMessSetup && !inAccount && !inAccountSecurity) {
+          router.replace("/");
+        }
       } else {
         const pendingAdminOtp = await getPendingAdminOtp();
         if (cancelled) return;

@@ -133,8 +133,7 @@ export const useAuth = () => {
       ),
     verifyOtp: (email: string, otp: string) =>
       unwrapAsyncResult(dispatch(verifyOtp({ email, otp }))),
-    resendOtp: (email: string) =>
-      unwrapAsyncResult(dispatch(resendOtp(email))),
+    resendOtp: (email: string) => unwrapAsyncResult(dispatch(resendOtp(email))),
     logout: () => unwrapAsyncResult(dispatch(logout())),
     deleteAccount: (password: string) =>
       unwrapAsyncResult(dispatch(deleteAccount(password))),
@@ -142,8 +141,7 @@ export const useAuth = () => {
       unwrapAsyncResult(dispatch(requestAccountDeletionOtp())),
     deleteAccountWithOtp: (otp: string) =>
       unwrapAsyncResult(dispatch(deleteAccountWithOtp(otp))),
-    createMess: (name: string) =>
-      unwrapAsyncResult(dispatch(createMess(name))),
+    createMess: (name: string) => unwrapAsyncResult(dispatch(createMess(name))),
     joinMess: (messKey: string) =>
       unwrapAsyncResult(dispatch(joinMess(messKey))),
     retryJoin: (requestId: number) =>
@@ -260,11 +258,7 @@ export const useMess = () => {
         dispatch(loadMessMonth({ messId: state.scopeMessId, yearMonth })),
       );
     },
-    addConsumer: async (
-      name: string,
-      email: string,
-      mobileNumber?: string,
-    ) => {
+    addConsumer: async (name: string, email: string, mobileNumber?: string) => {
       const result = await unwrapAsyncResult(
         dispatch(
           addMessConsumer({
@@ -278,9 +272,7 @@ export const useMess = () => {
       return { invitationSent: result.invitationSent };
     },
     removeConsumer: async (id: string) => {
-      await unwrapAsyncResult(
-        dispatch(removeMessConsumer({ id, isOnline })),
-      );
+      await unwrapAsyncResult(dispatch(removeMessConsumer({ id, isOnline })));
     },
     getDaysInMonth,
   };
@@ -292,11 +284,8 @@ export const useMeals = () => {
   const { isOnline } = useAppSelector(selectNetworkState);
   const state = useAppSelector(selectMealsState);
 
-  const getMealCount = (
-    yearMonth: string,
-    consumerId: string,
-    day: number,
-  ) => state.months[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+  const getMealCount = (yearMonth: string, consumerId: string, day: number) =>
+    state.months[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
 
   const getConsumerTotal = (yearMonth: string, consumerId: string) =>
     Object.values(state.months[yearMonth]?.[consumerId] ?? {}).reduce(
@@ -353,8 +342,7 @@ export const useExpenses = () => {
   const getMonthExpenseTotal = (yearMonth: string) =>
     Object.values(state.months[yearMonth] ?? {}).reduce(
       (total, day) =>
-        total +
-        (day.items ?? []).reduce((sum, item) => sum + item.amount, 0),
+        total + (day.items ?? []).reduce((sum, item) => sum + item.amount, 0),
       0,
     );
 
@@ -388,16 +376,16 @@ export const useDeposits = () => {
     selectedYearMonth: string,
     consumerId: string,
     day: number,
-  ) =>
-    state.months[selectedYearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+  ) => state.months[selectedYearMonth]?.[consumerId]?.[day.toString()] ?? 0;
 
   const getConsumerDepositTotal = (
     selectedYearMonth: string,
     consumerId: string,
   ) =>
-    Object.values(
-      state.months[selectedYearMonth]?.[consumerId] ?? {},
-    ).reduce((sum, value) => sum + value, 0);
+    Object.values(state.months[selectedYearMonth]?.[consumerId] ?? {}).reduce(
+      (sum, value) => sum + value,
+      0,
+    );
 
   const getDayDepositTotal = (selectedYearMonth: string, day: number) =>
     Object.values(state.months[selectedYearMonth] ?? {}).reduce(
@@ -459,9 +447,7 @@ export const useDeposits = () => {
       );
     },
     addEntry: async (data: DepositEntryInput) =>
-      unwrapAsyncResult(
-        dispatch(addDepositEntryAction({ yearMonth, data })),
-      ),
+      unwrapAsyncResult(dispatch(addDepositEntryAction({ yearMonth, data }))),
     updateEntry: async (
       entryId: number,
       data: Omit<DepositEntryInput, "consumerId">,

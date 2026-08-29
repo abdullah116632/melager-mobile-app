@@ -117,7 +117,8 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
   {
     condition: ({ messId, yearMonth }, { getState }) => {
       const state = getState();
-      if (!state.auth.token || state.auth.activeMess?.id !== messId) return false;
+      if (!state.auth.token || state.auth.activeMess?.id !== messId)
+        return false;
       return !state.mess.loadingMonths[monthKey(messId, yearMonth)];
     },
   },
@@ -134,7 +135,9 @@ export const refreshMonth = createMessAsyncThunk<void, void>(
       state.mess.currentMonth,
     );
     clearApiCache();
-    const result = await dispatch(loadMonth({ messId, yearMonth, force: true }));
+    const result = await dispatch(
+      loadMonth({ messId, yearMonth, force: true }),
+    );
     if (loadMonth.rejected.match(result) && result.meta.condition) return;
     unwrapResult(result);
   },

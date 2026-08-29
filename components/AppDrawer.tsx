@@ -33,13 +33,7 @@ const getInitials = (name: string): string =>
     .slice(0, 2);
 
 const getAvatarColor = (name: string): string => {
-  const palette = [
-    "#DB2777",
-    "#0284C7",
-    "#7C3AED",
-    "#EA580C",
-    "#059669",
-  ];
+  const palette = ["#DB2777", "#0284C7", "#7C3AED", "#EA580C", "#059669"];
   let hash = 0;
   for (let index = 0; index < name.length; index += 1) {
     hash = name.charCodeAt(index) + ((hash << 5) - hash);
@@ -165,7 +159,10 @@ export function AppDrawer() {
         >
           <View className="absolute -bottom-16 -left-16 h-[170px] w-[130%] rotate-[-7deg] rounded-[100%] bg-white/[0.06]" />
           <View className="absolute -bottom-20 right-[-50px] h-[150px] w-[110%] rotate-[8deg] rounded-[100%] border border-white/[0.08]" />
-          <View className="absolute left-5 top-9 flex-row flex-wrap opacity-25" style={{ width: 38 }}>
+          <View
+            className="absolute left-5 top-9 flex-row flex-wrap opacity-25"
+            style={{ width: 38 }}
+          >
             {Array.from({ length: 16 }, (_, index) => (
               <View
                 key={index}
@@ -186,16 +183,18 @@ export function AppDrawer() {
                   </Text>
                 </View>
               </View>
-              <View className="mt-1.5 flex-row items-center gap-1 rounded-lg border border-white/10 bg-white/15 px-2 py-1">
-                <Feather
-                  name={isAdmin ? "shield" : "user"}
-                  size={11}
-                  color="#FFFFFF"
-                />
-                <Text className="font-inter-bold text-[10px] text-white">
-                  {isAdmin ? "Admin" : "Member"}
-                </Text>
-              </View>
+              {mess && (
+                <View className="mt-1.5 flex-row items-center gap-1 rounded-lg border border-white/10 bg-white/15 px-2 py-1">
+                  <Feather
+                    name={isAdmin ? "shield" : "user"}
+                    size={11}
+                    color="#FFFFFF"
+                  />
+                  <Text className="font-inter-bold text-[10px] text-white">
+                    {isAdmin ? "Admin" : "Member"}
+                  </Text>
+                </View>
+              )}
             </View>
             <View className="flex-1">
               <Text
@@ -286,19 +285,21 @@ export function AppDrawer() {
               icon="user"
               label="Profile"
               sublabel="View your account"
-              onPress={() => navigateTo("/(tabs)/profile")}
+              onPress={() => navigateTo(mess ? "/(tabs)/profile" : "/account")}
               showChevron
             />
-            <DrawerRow
-              icon="grid"
-              label="Switch Mess"
-              sublabel="Go back to mess hub"
-              onPress={() => {
-                exitMess();
-                closeDrawer();
-              }}
-              showChevron
-            />
+            {mess && (
+              <DrawerRow
+                icon="grid"
+                label="Switch Mess"
+                sublabel="Go back to mess hub"
+                onPress={() => {
+                  exitMess();
+                  closeDrawer();
+                }}
+                showChevron
+              />
+            )}
             <DrawerRow
               icon="shield"
               label="Security"
@@ -351,7 +352,11 @@ const SectionLabel = ({ label }: { label: string }) => (
   </Text>
 );
 
-const IconBadge = ({ icon }: { icon: React.ComponentProps<typeof Feather>["name"] }) => (
+const IconBadge = ({
+  icon,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+}) => (
   <View className="h-[42px] w-[42px] items-center justify-center rounded-[12px] bg-teal-50">
     <Feather name={icon} size={19} color="#0F766E" />
   </View>

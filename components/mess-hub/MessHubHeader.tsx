@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "@/redux/hooks";
+import { useAuth, useDrawer } from "@/redux/hooks";
 
 interface MessHubHeaderProps {
   loading: boolean;
@@ -17,6 +17,7 @@ interface MessHubHeaderProps {
 export const MessHubHeader = ({ loading }: MessHubHeaderProps) => {
   const router = useRouter();
   const { user, messes, requests, logout } = useAuth();
+  const { openDrawer } = useDrawer();
   const firstName = user?.name?.split(" ")[0];
   const messCount = messes.length;
   const requestCount = requests.length;
@@ -41,22 +42,34 @@ export const MessHubHeader = ({ loading }: MessHubHeaderProps) => {
         className="absolute right-24 top-16 h-12 w-12 rounded-full border border-white/[0.12]"
       />
 
-      <View className="flex-row items-center gap-3.5">
+      <View className="flex-row items-center gap-2.5">
         <TouchableOpacity
-          className="flex-1 flex-row items-center gap-3.5"
+          className="h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-sm shadow-black/20"
+          onPress={openDrawer}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Open navigation menu"
+        >
+          <Feather name="menu" size={23} color="#ECFDF5" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="min-w-0 flex-1 flex-row items-center gap-2.5"
           onPress={() => router.push("/account")}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Open account profile"
         >
-          <View className="h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-sm shadow-black/20">
+          <View className="h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/15 shadow-sm shadow-black/20">
             <Feather name="user" size={23} color="#ECFDF5" />
           </View>
-          <View className="flex-1">
+          <View className="min-w-0 flex-1">
             <Text className="font-inter-semibold text-[11px] tracking-[1.2px] text-teal-100/75">
               MELAGER · VIEW PROFILE
             </Text>
-            <Text className="mt-0.5 font-inter-bold text-[22px] text-white">
+            <Text
+              className="mt-0.5 font-inter-bold text-[20px] text-white"
+              numberOfLines={1}
+            >
               Hello, {firstName ?? "there"}!
             </Text>
             {!!user?.email && (
