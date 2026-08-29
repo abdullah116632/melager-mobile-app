@@ -13,7 +13,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useConsumerUserLookup } from "@/hooks/useConsumerUserLookup";
 import { useDeposits } from "@/redux/hooks";
+import { isValidEmail } from "@/utils/email";
 
 interface AddDepositConsumerModalProps {
   visible: boolean;
@@ -31,7 +33,17 @@ export const AddDepositConsumerModal = ({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const nameInputRef = useRef<TextInput | null>(null);
+  const emailInputRef = useRef<TextInput | null>(null);
+  const lookup = useConsumerUserLookup(email, visible);
+  const lookupPending =
+    isValidEmail(email) &&
+    (lookup.status === "idle" || lookup.status === "loading");
+  const canEditName =
+    lookup.status === "not-found" || lookup.status === "error";
+
+  useEffect(() => {
+    if (lookup.status === "found" && lookup.name) setName(lookup.name);
+  }, [lookup.name, lookup.status]);
 
   useEffect(() => {
     const showEvent =
@@ -52,7 +64,7 @@ export const AddDepositConsumerModal = ({
 
   useEffect(() => {
     if (!visible) return;
-    const timer = setTimeout(() => nameInputRef.current?.focus(), 350);
+    const timer = setTimeout(() => emailInputRef.current?.focus(), 350);
     return () => clearTimeout(timer);
   }, [visible]);
 
@@ -72,16 +84,20 @@ export const AddDepositConsumerModal = ({
 
   const submit = async () => {
     if (submitting) return;
-    const trimmedName = name.trim();
     const trimmedEmail = email.trim();
+    const trimmedName = (lookup.name ?? name).trim();
     const trimmedPhone = phone.trim() || undefined;
     setError("");
-    if (!trimmedName) {
-      setError("Name is required.");
+    if (!isValidEmail(trimmedEmail)) {
+      setError("Enter a valid email address.");
       return;
     }
-    if (!trimmedEmail) {
-      setError("Email is required.");
+    if (lookupPending) {
+      setError("Please wait while we check this email.");
+      return;
+    }
+    if (!trimmedName) {
+      setError("Name is required.");
       return;
     }
     if (trimmedPhone && trimmedPhone.length !== 11) {
@@ -151,7 +167,8 @@ export const AddDepositConsumerModal = ({
               </TouchableOpacity>
             </View>
             <Text className="mb-4 font-inter text-[13px] text-slate-500">
-              A login account will be created and credentials sent by email.
+              Enter an email first. We will use the existing account or create a
+              new one.
             </Text>
 
             <ScrollView
@@ -161,24 +178,54 @@ export const AddDepositConsumerModal = ({
               keyboardDismissMode="on-drag"
             >
               <TextInput
-                ref={nameInputRef}
+                ref={emailInputRef}
                 className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
-                placeholder="Full name *"
-                placeholderTextColor="#64748B"
-                value={name}
-                onChangeText={setName}
-                editable={!submitting}
-                returnKeyType="next"
-              />
-              <TextInput
-                className="mt-2.5 rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
                 placeholder="Email *"
                 placeholderTextColor="#64748B"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setName("");
+                  setError("");
+                }}
                 editable={!submitting}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                returnKeyType="next"
+              />
+              {lookup.status === "loading" ? (
+                <View className="mt-2 flex-row items-center gap-2">
+                  <ActivityIndicator size="small" color="#0F766E" />
+                  <Text className="font-inter text-[12px] text-slate-500">
+                    Checking for an existing account...
+                  </Text>
+                </View>
+              ) : lookup.status === "found" ? (
+                <Text className="mt-2 font-inter text-[12px] text-emerald-700">
+                  Existing account found. Name filled automatically.
+                </Text>
+              ) : lookup.status === "not-found" ? (
+                <Text className="mt-2 font-inter text-[12px] text-slate-500">
+                  No account found. Enter a name to create one.
+                </Text>
+              ) : lookup.status === "error" ? (
+                <Text className="mt-2 font-inter text-[12px] text-amber-700">
+                  Could not check this email. You can still enter the name.
+                </Text>
+              ) : null}
+              <TextInput
+                className={`mt-2.5 rounded-[10px] border border-slate-200 px-3 py-2.5 font-inter text-[15px] text-slate-900 ${canEditName ? "bg-slate-50" : "bg-slate-200"}`}
+                placeholder={
+                  lookup.status === "loading"
+                    ? "Checking account..."
+                    : lookup.status === "idle"
+                      ? "Enter a valid email first"
+                      : "Full name *"
+                }
+                placeholderTextColor="#64748B"
+                value={name}
+                onChangeText={setName}
+                editable={!submitting && canEditName}
                 returnKeyType="next"
               />
               <TextInput
@@ -203,9 +250,9 @@ export const AddDepositConsumerModal = ({
 
             <View className="mt-5 flex-row gap-2.5">
               <TouchableOpacity
-                className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-[13px] ${submitting ? "opacity-70" : "opacity-100"}`}
+                className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-[13px] ${submitting || lookupPending ? "opacity-70" : "opacity-100"}`}
                 onPress={() => void submit()}
-                disabled={submitting}
+                disabled={submitting || lookupPending}
               >
                 {submitting ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />

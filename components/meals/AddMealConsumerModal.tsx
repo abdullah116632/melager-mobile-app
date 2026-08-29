@@ -14,7 +14,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useConsumerUserLookup } from "@/hooks/useConsumerUserLookup";
 import { useMeals } from "@/redux/hooks";
+import { isValidEmail } from "@/utils/email";
 
 interface AddMealConsumerModalProps {
   visible: boolean;
@@ -35,6 +37,16 @@ export const AddMealConsumerModal = ({
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const lookup = useConsumerUserLookup(email, visible);
+  const lookupPending =
+    isValidEmail(email) &&
+    (lookup.status === "idle" || lookup.status === "loading");
+  const canEditName =
+    lookup.status === "not-found" || lookup.status === "error";
+
+  useEffect(() => {
+    if (lookup.status === "found" && lookup.name) setName(lookup.name);
+  }, [lookup.name, lookup.status]);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener(
@@ -66,16 +78,20 @@ export const AddMealConsumerModal = ({
 
   const submitConsumer = async () => {
     if (submitting) return;
-    const normalizedName = name.trim();
     const normalizedEmail = email.trim();
+    const normalizedName = (lookup.name ?? name).trim();
     const normalizedPhone = phone.trim() || undefined;
     setError("");
-    if (!normalizedName) {
-      setError("Name is required.");
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Enter a valid email address.");
       return;
     }
-    if (!normalizedEmail) {
-      setError("Email is required.");
+    if (lookupPending) {
+      setError("Please wait while we check this email.");
+      return;
+    }
+    if (!normalizedName) {
+      setError("Name is required.");
       return;
     }
     if (normalizedPhone && normalizedPhone.length !== 11) {
@@ -156,27 +172,58 @@ export const AddMealConsumerModal = ({
             </TouchableOpacity>
           </View>
           <Text className="my-1 font-inter text-[13px] text-slate-500">
-            A login account will be created and credentials sent by email.
+            Enter an email first. We will use the existing account or create a
+            new one.
           </Text>
           <TextInput
             className="rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 font-inter text-base text-slate-900"
-            placeholder="Full name *"
-            placeholderTextColor="#64748B"
-            value={name}
-            onChangeText={setName}
-            editable={!submitting}
-            autoFocus
-            returnKeyType="next"
-          />
-          <TextInput
-            className="mt-2.5 rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 font-inter text-base text-slate-900"
             placeholder="Email *"
             placeholderTextColor="#64748B"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(value) => {
+              setEmail(value);
+              setName("");
+              setError("");
+            }}
             editable={!submitting}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoFocus
+            returnKeyType="next"
+          />
+          {lookup.status === "loading" ? (
+            <View className="mt-2 flex-row items-center gap-2">
+              <ActivityIndicator size="small" color="#0F766E" />
+              <Text className="font-inter text-[12px] text-slate-500">
+                Checking for an existing account...
+              </Text>
+            </View>
+          ) : lookup.status === "found" ? (
+            <Text className="mt-2 font-inter text-[12px] text-emerald-700">
+              Existing account found. Name filled automatically.
+            </Text>
+          ) : lookup.status === "not-found" ? (
+            <Text className="mt-2 font-inter text-[12px] text-slate-500">
+              No account found. Enter a name to create one.
+            </Text>
+          ) : lookup.status === "error" ? (
+            <Text className="mt-2 font-inter text-[12px] text-amber-700">
+              Could not check this email. You can still enter the name.
+            </Text>
+          ) : null}
+          <TextInput
+            className={`mt-2.5 rounded-[10px] border border-slate-200 px-3.5 py-3 font-inter text-base text-slate-900 ${canEditName ? "bg-slate-50" : "bg-slate-200"}`}
+            placeholder={
+              lookup.status === "loading"
+                ? "Checking account..."
+                : lookup.status === "idle"
+                  ? "Enter a valid email first"
+                  : "Full name *"
+            }
+            placeholderTextColor="#64748B"
+            value={name}
+            onChangeText={setName}
+            editable={!submitting && canEditName}
             returnKeyType="next"
           />
           <TextInput
@@ -198,9 +245,9 @@ export const AddMealConsumerModal = ({
             </Text>
           ) : null}
           <TouchableOpacity
-            className={`flex-row items-center justify-center gap-2 rounded-[10px] bg-teal-700 py-3.5 ${submitting ? "opacity-70" : "opacity-100"}`}
+            className={`flex-row items-center justify-center gap-2 rounded-[10px] bg-teal-700 py-3.5 ${submitting || lookupPending ? "opacity-70" : "opacity-100"}`}
             onPress={() => void submitConsumer()}
-            disabled={submitting}
+            disabled={submitting || lookupPending}
           >
             {submitting ? (
               <ActivityIndicator size="small" color="#FFFFFF" />

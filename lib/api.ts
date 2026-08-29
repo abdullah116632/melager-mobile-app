@@ -306,6 +306,14 @@ export const api = {
       token,
     ),
 
+  lookupConsumerUser: (email: string, token: string, messId: number) =>
+    req<{ exists: boolean; name?: string }>(
+      "GET",
+      `/mess/consumer-user?messId=${messId}&email=${encodeURIComponent(email)}`,
+      undefined,
+      token,
+    ),
+
   deleteConsumer: (consumerId: number, token: string, messId: number) =>
     req<{ success: boolean }>(
       "DELETE",
