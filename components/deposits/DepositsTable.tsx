@@ -16,12 +16,14 @@ import {
 } from "@/components/RemoveMemberConfirmModal";
 import { useAuth, useDeposits } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
+import type { Consumer } from "@/types/mess";
 import {
   formatDepositAmount,
   getConsumerDepositEntries,
   getDepositTotal,
 } from "@/utils/deposit";
 import { AddDepositModal } from "./AddDepositModal";
+import { DepositConsumerDetailModal } from "./DepositConsumerDetailModal";
 import { DepositHistoryModal } from "./DepositHistoryModal";
 
 interface DepositsTableProps {
@@ -32,10 +34,19 @@ const DEPOSIT_PLACEHOLDER_ROWS = Array.from({ length: 8 }, (_, index) => index);
 
 export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
   const { role } = useAuth();
-  const { consumers, entries, entriesReady, removeConsumer } = useDeposits();
+  const {
+    consumers,
+    currentMonthLabel,
+    entries,
+    entriesReady,
+    removeConsumer,
+  } = useDeposits();
   const [refreshing, setRefreshing] = useState(false);
   const [addingConsumerId, setAddingConsumerId] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<DepositEntry | null>(null);
+  const [selectedConsumer, setSelectedConsumer] = useState<Consumer | null>(
+    null,
+  );
   const [historyConsumerId, setHistoryConsumerId] = useState<string | null>(
     null,
   );
@@ -165,8 +176,15 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
                   >
                     <TouchableOpacity
                       className="w-[120px] justify-center border-r border-slate-200"
-                      onLongPress={() => remove(consumer.id, consumer.name)}
+                      onPress={() => setSelectedConsumer(consumer)}
+                      onLongPress={
+                        isAdmin
+                          ? () => remove(consumer.id, consumer.name)
+                          : undefined
+                      }
                       activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View deposits for ${consumer.name}`}
                     >
                       <Text
                         className="px-2.5 py-2 font-inter-medium text-[13px] text-slate-900"
@@ -264,6 +282,18 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
         consumerId={historyConsumerId}
         onEdit={setEditingEntry}
         onClose={() => setHistoryConsumerId(null)}
+      />
+      <DepositConsumerDetailModal
+        consumer={selectedConsumer}
+        monthLabel={currentMonthLabel}
+        totalDeposits={
+          selectedConsumer
+            ? getDepositTotal(
+                getConsumerDepositEntries(entries, selectedConsumer.id),
+              )
+            : 0
+        }
+        onClose={() => setSelectedConsumer(null)}
       />
       <RemoveMemberConfirmModal
         member={pendingRemoval}
