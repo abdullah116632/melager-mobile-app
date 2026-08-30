@@ -6,6 +6,8 @@ import {
 } from "@/components/RemoveMemberConfirmModal";
 import { useAuth } from "@/redux/hooks";
 import { useMeals } from "@/redux/hooks";
+import type { Consumer } from "@/types/mess";
+import { MealConsumerDetailModal } from "./MealConsumerDetailModal";
 
 const CONSUMER_ACCENTS = [
   "#059669",
@@ -34,8 +36,17 @@ export const MealsConsumerColumn = ({
   placeholderCount = 8,
 }: MealsConsumerColumnProps) => {
   const { role } = useAuth();
-  const { consumers, removeConsumer } = useMeals();
+  const {
+    consumers,
+    currentYearMonth,
+    currentMonthLabel,
+    getConsumerTotal,
+    removeConsumer,
+  } = useMeals();
   const isAdmin = role === "admin";
+  const [selectedConsumer, setSelectedConsumer] = useState<Consumer | null>(
+    null,
+  );
   const [pendingRemoval, setPendingRemoval] =
     useState<PendingMemberRemoval | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -73,7 +84,7 @@ export const MealsConsumerColumn = ({
           ? Array.from({ length: placeholderCount }, (_, index) => (
               <View
                 key={index}
-                className={`h-[48px] w-[110px] justify-center border-b-[0.5px] border-r border-slate-200 px-3 ${
+                className={`h-[52px] w-[110px] justify-center border-b-[0.5px] border-r border-slate-200 px-3 ${
                   index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
                 }`}
               >
@@ -83,19 +94,24 @@ export const MealsConsumerColumn = ({
           : consumers.map((consumer, index) => (
               <TouchableOpacity
                 key={consumer.id}
-                disabled={!isAdmin}
-                className={`h-[48px] w-[110px] flex-row items-center border-b-[0.5px] border-r border-slate-200 px-3 ${
+                className={`h-[52px] w-[110px] flex-row items-center overflow-hidden border-b-[0.5px] border-r border-slate-200 px-3 ${
                   index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
                 }`}
-                onLongPress={() =>
-                  removeSelectedConsumer(consumer.id, consumer.name)
+                onPress={() => setSelectedConsumer(consumer)}
+                onLongPress={
+                  isAdmin
+                    ? () =>
+                        removeSelectedConsumer(consumer.id, consumer.name)
+                    : undefined
                 }
-                activeOpacity={isAdmin ? 0.7 : 1}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`View meal details for ${consumer.name}`}
               >
                 <Text
-                  className="flex-1 font-inter-semibold text-[13px]"
+                  className="flex-1 font-inter-semibold text-[13px] leading-4"
                   style={{ color: getConsumerNameColor(consumer.id) }}
-                  numberOfLines={1}
+                  numberOfLines={2}
                 >
                   {consumer.name}
                 </Text>
@@ -110,6 +126,16 @@ export const MealsConsumerColumn = ({
         loading={removing}
         onCancel={() => setPendingRemoval(null)}
         onConfirm={() => void confirmRemoval()}
+      />
+      <MealConsumerDetailModal
+        consumer={selectedConsumer}
+        monthLabel={currentMonthLabel}
+        totalMeals={
+          selectedConsumer
+            ? getConsumerTotal(currentYearMonth, selectedConsumer.id)
+            : 0
+        }
+        onClose={() => setSelectedConsumer(null)}
       />
     </>
   );

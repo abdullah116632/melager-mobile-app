@@ -91,7 +91,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       ? consumers.length
       : PLACEHOLDER_ROW_COUNT;
     const tableWidth = NAME_COL_W + days.length * dayCellWidth + TOTAL_COL_W;
-    const tableBodyHeight = (displayedRowCount + 1) * DAY_CELL_H + 4;
+    const tableBodyHeight = displayedRowCount * DAY_CELL_H + 52;
     const extraVerticalScrollSpace =
       Platform.OS === "web"
         ? 96
@@ -309,16 +309,16 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                 : PLACEHOLDER_ROWS.map((row) => (
                     <View
                       key={row}
-                      className={`h-[48px] flex-row border-b-[0.5px] border-slate-200 ${
+                      className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
                         row % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
                       }`}
                       style={{ width: tableWidth }}
                     >
-                      <View className="h-[48px] w-[110px] border-r border-slate-200" />
+                      <View className="h-[52px] w-[110px] border-r border-slate-200" />
                       {days.map((day) => (
                         <View
                           key={day}
-                          className={`h-[48px] items-center justify-center border-r-[0.5px] border-slate-200 ${
+                          className={`h-[52px] items-center justify-center border-r-[0.5px] border-slate-200 ${
                             isMealDayToday(yearMonth, day)
                               ? "border-b-2 border-b-teal-500"
                               : ""
@@ -330,7 +330,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                           </Text>
                         </View>
                       ))}
-                      <View className="h-[48px] w-[54px] items-center justify-center bg-slate-100">
+                      <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
                         <Text className="font-inter-bold text-sm text-slate-300">
                           -
                         </Text>

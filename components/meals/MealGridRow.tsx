@@ -32,12 +32,12 @@ export const MealGridRow = memo(
     onCellPress,
   }: MealGridRowProps) => (
     <View
-      className={`h-[48px] flex-row border-b-[0.5px] border-slate-200 ${
+      className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
         index % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
       }`}
       style={{ width: tableWidth }}
     >
-      <View className="h-[48px] w-[110px] border-r border-slate-200" />
+      <View className="h-[52px] w-[110px] border-r border-slate-200" />
       {days.map((day, dayIndex) => {
         const count = counts[dayIndex] ?? 0;
         const selected = selectedDay === day;
@@ -45,7 +45,7 @@ export const MealGridRow = memo(
           <TouchableOpacity
             key={day}
             disabled={!isAdmin}
-            className={`h-[48px] items-center justify-center ${
+            className={`h-[52px] items-center justify-center ${
               count > 0 ? "bg-[#E5FAF3]" : ""
             } ${
               selected
@@ -82,7 +82,7 @@ export const MealGridRow = memo(
           </TouchableOpacity>
         );
       })}
-      <View className="h-[48px] w-[54px] items-center justify-center bg-slate-100">
+      <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
         <Text className="font-inter-bold text-sm text-teal-700">
           {formatMealValue(total)}
         </Text>
