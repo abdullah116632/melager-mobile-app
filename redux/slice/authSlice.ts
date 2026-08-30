@@ -21,6 +21,7 @@ import {
   type MeAuthResponse,
 } from "@/lib/api";
 import { clearOfflineQueue } from "@/lib/offlineQueue";
+import { patchCachedConsumerProfile } from "@/lib/cache";
 import { loadGoogleSignInModule } from "@/services/googleSignInService";
 
 const TOKEN_KEY = "@mess_auth_token";
@@ -126,17 +127,10 @@ const clearLocalSession = async () => {
   } catch {
     // Local app logout must still finish without a Google/native session.
   }
-  await AsyncStorage.multiRemove([
-    TOKEN_KEY,
-    AUTH_CACHE_KEY,
-    ACTIVE_MESS_KEY,
-  ]);
+  await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
 };
 
-export const initializeAuth = createAuthAsyncThunk<
-  AuthState | null,
-  void
->(
+export const initializeAuth = createAuthAsyncThunk<AuthState | null, void>(
   "auth/initialize",
   async (_arg, { dispatch }) => {
     const values = await AsyncStorage.multiGet([
@@ -197,8 +191,7 @@ export const initializeAuth = createAuthAsyncThunk<
     }
   },
   {
-    condition: (_arg, { getState }) =>
-      !getState().auth.initializationStarted,
+    condition: (_arg, { getState }) => !getState().auth.initializationStarted,
   },
 );
 
@@ -210,13 +203,13 @@ export const login = createAuthAsyncThunk<
   return loadSession(token);
 });
 
-export const loginWithGoogle = createAuthAsyncThunk<
-  AuthSessionPayload,
-  string
->("auth/loginWithGoogle", async (idToken) => {
-  const { token } = await api.googleLogin(idToken);
-  return loadSession(token);
-});
+export const loginWithGoogle = createAuthAsyncThunk<AuthSessionPayload, string>(
+  "auth/loginWithGoogle",
+  async (idToken) => {
+    const { token } = await api.googleLogin(idToken);
+    return loadSession(token);
+  },
+);
 
 export const signup = createAuthAsyncThunk<
   { pendingEmail: string },
@@ -340,25 +333,42 @@ export const refreshMe = createAuthAsyncThunk<
   return { me, activeMess: refreshedActiveMess };
 });
 
-export const updateProfileName = createAuthAsyncThunk<string, string>(
-  "auth/updateProfileName",
-  async (name, { getState }) => {
+export const updateProfileName = createAuthAsyncThunk<
+  { userId: number; email: string; name: string },
+  string
+>("auth/updateProfileName", async (name, { getState }) => {
+  const { token, user } = getState().auth;
+  if (!token || !user) throw new Error("Not authenticated");
+  const result = await api.updateProfile(name, token);
+  try {
+    const cachedRaw = await AsyncStorage.getItem(AUTH_CACHE_KEY);
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw) as MeAuthResponse;
+      if (cached.user.id === user.id) {
+        cached.user.name = result.name;
+        await AsyncStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(cached));
+      }
+    }
+  } catch {
+    // Redux remains the source of truth if the local session cache is unavailable.
+  }
+  await patchCachedConsumerProfile({
+    userId: user.id,
+    email: user.email,
+    name: result.name,
+  });
+  return { userId: user.id, email: user.email, name: result.name };
+});
+
+export const updatePhone = createAuthAsyncThunk<string | null, string | null>(
+  "auth/updatePhone",
+  async (phone, { getState }) => {
     const { token } = getState().auth;
     if (!token) throw new Error("Not authenticated");
-    const result = await api.updateProfile(name, token);
-    return result.name;
+    const result = await api.updatePhone(phone, token);
+    return result.mobileNumber;
   },
 );
-
-export const updatePhone = createAuthAsyncThunk<
-  string | null,
-  string | null
->("auth/updatePhone", async (phone, { getState }) => {
-  const { token } = getState().auth;
-  if (!token) throw new Error("Not authenticated");
-  const result = await api.updatePhone(phone, token);
-  return result.mobileNumber;
-});
 
 export const updateMessName = createAuthAsyncThunk<string, string>(
   "auth/updateMessName",
@@ -468,7 +478,7 @@ const authSlice = createSlice({
         state.activeMess = action.payload.activeMess;
       })
       .addCase(updateProfileName.fulfilled, (state, action) => {
-        if (state.user) state.user.name = action.payload;
+        if (state.user) state.user.name = action.payload.name;
       })
       .addCase(updatePhone.fulfilled, (state, action) => {
         if (state.user) state.user.mobileNumber = action.payload;
@@ -496,19 +506,23 @@ const authSlice = createSlice({
   },
 });
 
-export const selectMess = (mess: ApiMessWithRole): AuthThunk => (dispatch) => {
-  dispatch(setActiveMess(mess));
-  void AsyncStorage.setItem(ACTIVE_MESS_KEY, mess.id.toString());
-};
+export const selectMess =
+  (mess: ApiMessWithRole): AuthThunk =>
+  (dispatch) => {
+    dispatch(setActiveMess(mess));
+    void AsyncStorage.setItem(ACTIVE_MESS_KEY, mess.id.toString());
+  };
 
 export const exitMess = (): AuthThunk => (dispatch) => {
   dispatch(setActiveMess(null));
   void AsyncStorage.removeItem(ACTIVE_MESS_KEY);
 };
 
-export const patchMess = (update: Partial<ApiMess>): AuthThunk => (dispatch) => {
-  dispatch(patchActiveMess(update));
-};
+export const patchMess =
+  (update: Partial<ApiMess>): AuthThunk =>
+  (dispatch) => {
+    dispatch(patchActiveMess(update));
+  };
 
 export const selectAuthState = (state: AuthRootState) => state.auth;
 export const selectAuthUser = (state: AuthRootState) => state.auth.user;
@@ -520,9 +534,7 @@ export const selectAuthRole = (state: AuthRootState) =>
   state.auth.activeMess?.role ?? null;
 export const selectCurrentMess = (state: AuthRootState): ApiMess | null => {
   const mess = state.auth.activeMess;
-  return mess
-    ? { id: mess.id, name: mess.name, messKey: mess.messKey }
-    : null;
+  return mess ? { id: mess.id, name: mess.name, messKey: mess.messKey } : null;
 };
 
 export default authSlice.reducer;

@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Platform } from "react-native";
 
-import { useAuth } from "@/redux/hooks";
+import { useAuth, useMess } from "@/redux/hooks";
 import type { ProfileEditField } from "@/types/profile";
 
 import { DeleteAccountModal } from "./DeleteAccountModal";
@@ -17,6 +17,7 @@ import { ProfileSectionCard } from "./ProfileSectionCard";
 
 export const ProfileDetailsSections = () => {
   const { user, mess, role, updateProfileName, updateMessName } = useAuth();
+  const { refreshConsumers } = useMess();
   const [editing, setEditing] = useState<ProfileEditField | null>(null);
   const [editValue, setEditValue] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -53,8 +54,12 @@ export const ProfileDetailsSections = () => {
     setEditSaving(true);
     setEditError("");
     try {
-      if (editing === "name") await updateProfileName(value);
-      else await updateMessName(value);
+      if (editing === "name") {
+        await updateProfileName(value);
+        await refreshConsumers().catch(() => undefined);
+      } else {
+        await updateMessName(value);
+      }
       if (Platform.OS !== "web") {
         void Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,
@@ -139,13 +144,9 @@ export const ProfileDetailsSections = () => {
             icon="shield"
             label="Your Role"
             value={
-              isAdmin
-                ? "Admin \u2014 can edit data"
-                : "Member \u2014 view only"
+              isAdmin ? "Admin \u2014 can edit data" : "Member \u2014 view only"
             }
-            valueClassName={
-              isAdmin ? "text-emerald-600" : "text-slate-500"
-            }
+            valueClassName={isAdmin ? "text-emerald-600" : "text-slate-500"}
           />
         </ProfileSectionCard>
       )}

@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { Modal, Text, TouchableOpacity, View } from "react-native";
 
+import { CopyableContactRow } from "@/components/CopyableContactRow";
 import type { Consumer } from "@/types/mess";
 import { formatDepositAmount } from "@/utils/deposit";
 
@@ -10,33 +11,6 @@ interface DepositConsumerDetailModalProps {
   totalDeposits: number;
   onClose: () => void;
 }
-
-const DetailRow = ({
-  icon,
-  label,
-  value,
-}: {
-  icon: keyof typeof Feather.glyphMap;
-  label: string;
-  value: string;
-}) => (
-  <View className="flex-row items-center gap-3 border-b-[0.5px] border-slate-200 py-3">
-    <View className="h-9 w-9 items-center justify-center rounded-[11px] bg-teal-50">
-      <Feather name={icon} size={17} color="#0F766E" />
-    </View>
-    <View className="min-w-0 flex-1">
-      <Text className="font-inter-medium text-[11px] text-slate-500">
-        {label}
-      </Text>
-      <Text
-        className="mt-0.5 font-inter-semibold text-[14px] text-slate-900"
-        selectable
-      >
-        {value}
-      </Text>
-    </View>
-  </View>
-);
 
 export const DepositConsumerDetailModal = ({
   consumer,
@@ -81,17 +55,19 @@ export const DepositConsumerDetailModal = ({
           </TouchableOpacity>
         </View>
 
-        <DetailRow
+        <CopyableContactRow
           icon="mail"
           label="Email"
           value={consumer?.email || "Not available"}
+          copyable
         />
-        <DetailRow
+        <CopyableContactRow
           icon="phone"
           label="Phone"
           value={consumer?.mobileNumber || "Not available"}
+          copyable
         />
-        <DetailRow
+        <CopyableContactRow
           icon="shield"
           label="Role"
           value={consumer?.isAdmin ? "Admin" : "Member"}

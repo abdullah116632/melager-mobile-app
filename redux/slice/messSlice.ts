@@ -10,7 +10,7 @@ import {
 
 import { api, clearApiCache, type MonthData } from "@/lib/api";
 import { loadFromCache, saveToCache } from "@/lib/cache";
-import type { AuthState } from "@/redux/slice/authSlice";
+import { updateProfileName, type AuthState } from "@/redux/slice/authSlice";
 import type { Consumer } from "@/types/mess";
 
 export interface MessState {
@@ -142,6 +142,28 @@ export const refreshMonth = createMessAsyncThunk<void, void>(
     unwrapResult(result);
   },
 );
+
+export const refreshConsumers = createMessAsyncThunk<
+  { messId: number; consumers: Consumer[] } | null,
+  void
+>("mess/refreshConsumers", async (_arg, { getState }) => {
+  const { token, activeMess } = getState().auth;
+  if (!token || !activeMess) return null;
+  clearApiCache();
+  const result = await api.getConsumers(token, activeMess.id);
+  return {
+    messId: activeMess.id,
+    consumers: result.consumers.map((consumer) => ({
+      id: consumer.id.toString(),
+      name: consumer.name,
+      userId: consumer.userId,
+      email: consumer.email,
+      mobileNumber: consumer.mobileNumber,
+      isAdmin: consumer.isAdmin,
+      accountDeletedAt: consumer.accountDeletedAt,
+    })),
+  };
+});
 
 export const addConsumer = createMessAsyncThunk<
   { consumer: Consumer | null; invitationSent: boolean },
@@ -292,6 +314,20 @@ const messSlice = createSlice({
         state.consumers = state.consumers.filter(
           (consumer) => consumer.id !== id,
         );
+      })
+      .addCase(refreshConsumers.fulfilled, (state, action) => {
+        if (!action.payload || state.scopeMessId !== action.payload.messId)
+          return;
+        state.consumers = action.payload.consumers;
+      })
+      .addCase(updateProfileName.fulfilled, (state, action) => {
+        const consumer = state.consumers.find(
+          (candidate) =>
+            candidate.userId === action.payload.userId ||
+            candidate.email?.trim().toLowerCase() ===
+              action.payload.email.trim().toLowerCase(),
+        );
+        if (consumer) consumer.name = action.payload.name;
       })
       .addMatcher(isPending(...messAsyncThunks), (state) => {
         state.requestStatus = "loading";

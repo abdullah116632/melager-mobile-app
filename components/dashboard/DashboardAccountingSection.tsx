@@ -5,9 +5,11 @@ import {
   useImperativeHandle,
   useState,
 } from "react";
+import { useFocusEffect } from "expo-router";
 import { Alert } from "react-native";
-import { useAuth } from "@/redux/hooks";
+import { useAppDispatch, useAuth } from "@/redux/hooks";
 import { useDeposits, useExpenses, useMeals, useMess } from "@/redux/hooks";
+import { refreshConsumers } from "@/redux/slice/messSlice";
 import { getDashboardRangeData } from "@/services/dashboardService";
 import type { DashboardDateRange, MonthData } from "@/types/dashboard";
 import {
@@ -25,6 +27,7 @@ export const DashboardAccountingSection = forwardRef<
   DashboardAccountingSectionHandle,
   object
 >((_props, ref) => {
+  const dispatch = useAppDispatch();
   const { mess, token } = useAuth();
   const { consumers, currentYearMonth, refreshMonth } = useMess();
   const { getGrandTotal, getConsumerTotal } = useMeals();
@@ -38,6 +41,15 @@ export const DashboardAccountingSection = forwardRef<
   );
   const [rangeData, setRangeData] = useState<Record<string, MonthData>>({});
   const [rangeLoading, setRangeLoading] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!mess) return;
+      void dispatch(refreshConsumers())
+        .unwrap()
+        .catch(() => undefined);
+    }, [dispatch, mess?.id]),
+  );
 
   useEffect(() => {
     const nextRange = getDefaultDashboardRange(currentYearMonth);
