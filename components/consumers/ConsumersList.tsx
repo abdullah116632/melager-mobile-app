@@ -12,6 +12,7 @@ import { useAuth } from "@/redux/hooks";
 import { deleteConsumer } from "@/services/consumerService";
 import type { Consumer } from "@/types/consumer";
 import { ConsumerSearchBar } from "./ConsumerSearchBar";
+import { ConsumerDetailModal } from "./ConsumerDetailModal";
 import { ConsumerTableSection } from "./ConsumerTableSection";
 import { ConsumersEmptyState } from "./ConsumersEmptyState";
 import { DeleteConsumerModal } from "./DeleteConsumerModal";
@@ -40,6 +41,9 @@ export const ConsumersList = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Consumer | null>(null);
+  const [selectedConsumer, setSelectedConsumer] = useState<Consumer | null>(
+    null,
+  );
   const messId = activeMess?.id;
 
   const copy = async (value: string, key: string, label: string) => {
@@ -151,6 +155,7 @@ export const ConsumersList = ({
               copiedId={copiedId}
               onCopy={copy}
               onDelete={confirmDelete}
+              onSelect={setSelectedConsumer}
               deletingId={deletingId}
             />
           )}
@@ -162,6 +167,7 @@ export const ConsumersList = ({
               onCopy={copy}
               topMargin={registeredConsumers.length > 0}
               onDelete={confirmDelete}
+              onSelect={setSelectedConsumer}
               deletingId={deletingId}
             />
           )}
@@ -176,6 +182,7 @@ export const ConsumersList = ({
                 manuallyAddedConsumers.length > 0
               }
               onDelete={confirmDelete}
+              onSelect={setSelectedConsumer}
               deletingId={deletingId}
             />
           )}
@@ -189,6 +196,10 @@ export const ConsumersList = ({
           void remove(consumerId);
           setPendingDelete(null);
         }}
+      />
+      <ConsumerDetailModal
+        consumer={selectedConsumer}
+        onClose={() => setSelectedConsumer(null)}
       />
     </>
   );

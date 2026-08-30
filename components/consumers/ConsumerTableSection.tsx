@@ -21,6 +21,7 @@ type ConsumerTableSectionProps = {
   onCopy: (value: string, key: string, label: string) => void;
   topMargin?: boolean;
   onDelete: (consumer: Consumer) => void;
+  onSelect: (consumer: Consumer) => void;
   deletingId: number | null;
 };
 
@@ -103,6 +104,7 @@ export const ConsumerTableSection = ({
   onCopy,
   topMargin = false,
   onDelete,
+  onSelect,
   deletingId,
 }: ConsumerTableSectionProps) => {
   const { role } = useAuth();
@@ -116,6 +118,7 @@ export const ConsumerTableSection = ({
       topMargin={topMargin}
       isAdmin={role === "admin"}
       onDelete={onDelete}
+      onSelect={onSelect}
       deletingId={deletingId}
     />
   );
@@ -129,6 +132,7 @@ const ConsumerTable = ({
   topMargin = false,
   isAdmin,
   onDelete,
+  onSelect,
   deletingId,
 }: ConsumerTableProps) => {
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -161,9 +165,13 @@ const ConsumerTable = ({
           </View>
 
           {consumers.map((consumer, index) => (
-            <View
+            <TouchableOpacity
               key={consumer.id}
               className={`h-16 justify-center px-3 ${index > 0 ? "border-t border-slate-100" : ""}`}
+              onPress={() => onSelect(consumer)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`View details for ${consumer.name}`}
             >
               <ConsumerName
                 name={consumer.name}
@@ -171,7 +179,7 @@ const ConsumerTable = ({
                   consumerNameColors[consumer.id % consumerNameColors.length]
                 }
               />
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -210,9 +218,13 @@ const ConsumerTable = ({
               const phoneCopyId = `phone-${consumer.id}`;
 
               return (
-                <View
+                <TouchableOpacity
                   key={consumer.id}
                   className={`h-16 flex-row ${index > 0 ? "border-t border-slate-100" : ""}`}
+                  onPress={() => onSelect(consumer)}
+                  activeOpacity={0.82}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View details for ${consumer.name}`}
                 >
                   <View className="w-[210px] justify-center px-3.5">
                     {consumer.email ? (
@@ -225,9 +237,10 @@ const ConsumerTable = ({
                         </Text>
                         <TouchableOpacity
                           className={`h-7 w-7 items-center justify-center rounded-lg ${copiedId === emailCopyId ? "bg-emerald-50" : "bg-slate-100"}`}
-                          onPress={() =>
-                            onCopy(consumer.email!, emailCopyId, "Email")
-                          }
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onCopy(consumer.email!, emailCopyId, "Email");
+                          }}
                           activeOpacity={0.7}
                           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                         >
@@ -258,9 +271,14 @@ const ConsumerTable = ({
                         </Text>
                         <TouchableOpacity
                           className={`h-7 w-7 items-center justify-center rounded-lg ${copiedId === phoneCopyId ? "bg-emerald-50" : "bg-slate-100"}`}
-                          onPress={() =>
-                            onCopy(consumer.mobileNumber!, phoneCopyId, "Phone")
-                          }
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onCopy(
+                              consumer.mobileNumber!,
+                              phoneCopyId,
+                              "Phone",
+                            );
+                          }}
                           activeOpacity={0.7}
                           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                         >
@@ -295,7 +313,10 @@ const ConsumerTable = ({
                       ) : (
                         <TouchableOpacity
                           className="h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50"
-                          onPress={() => onDelete(consumer)}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onDelete(consumer);
+                          }}
                           activeOpacity={0.7}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
@@ -304,7 +325,7 @@ const ConsumerTable = ({
                       )}
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
