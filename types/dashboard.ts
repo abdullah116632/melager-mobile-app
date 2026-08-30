@@ -11,6 +11,11 @@ export interface DashboardDateRange {
 export interface DashboardConsumer {
   id: string;
   name: string;
+  userId?: number | null;
+  email?: string | null;
+  mobileNumber?: string | null;
+  isAdmin?: boolean | null;
+  accountDeletedAt?: string | null;
 }
 
 export interface DashboardConsumerRow extends DashboardConsumer {

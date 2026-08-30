@@ -272,15 +272,13 @@ export function AppDrawer() {
                 showChevron
               />
             )}
-            {isAdmin && (
-              <DrawerRow
-                icon="list"
-                label="All Members"
-                sublabel="View all members & contacts"
-                onPress={() => navigateTo("/consumers")}
-                showChevron
-              />
-            )}
+            <DrawerRow
+              icon="list"
+              label="All Members"
+              sublabel="View all members & contacts"
+              onPress={() => navigateTo("/consumers")}
+              showChevron
+            />
             <DrawerRow
               icon="user"
               label="Profile"

@@ -203,6 +203,11 @@ const applyMonthData = (
   state.consumers = data.consumers.map((consumer) => ({
     id: consumer.id.toString(),
     name: consumer.name,
+    userId: consumer.userId,
+    email: consumer.email,
+    mobileNumber: consumer.mobileNumber,
+    isAdmin: consumer.isAdmin,
+    accountDeletedAt: consumer.accountDeletedAt,
   }));
   state.loadedMonths[monthKey(messId, yearMonth)] = true;
 };

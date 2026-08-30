@@ -1,8 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import type {
   DashboardAccounting,
+  DashboardConsumerRow,
   DashboardDateRange,
 } from "@/types/dashboard";
 import {
@@ -10,6 +11,7 @@ import {
   formatDashboardRate,
   formatDashboardShortDate,
 } from "@/utils/dashboard";
+import { DashboardConsumerDetailModal } from "./DashboardConsumerDetailModal";
 
 interface DashboardBreakdownTableProps {
   accounting: DashboardAccounting;
@@ -32,29 +34,19 @@ const CONSUMER_COLUMN_RATIO = COLUMN_WEIGHTS.consumer / TOTAL_COLUMN_WEIGHT;
 
 const COLUMN_STYLES = {
   consumer: {
-    flexBasis: 0,
-    flexGrow: COLUMN_WEIGHTS.consumer,
-    flexShrink: 1,
+    width: `${COLUMN_WEIGHTS.consumer}%`,
   },
   meals: {
-    flexBasis: 0,
-    flexGrow: COLUMN_WEIGHTS.meals,
-    flexShrink: 1,
+    width: `${COLUMN_WEIGHTS.meals}%`,
   },
   cost: {
-    flexBasis: 0,
-    flexGrow: COLUMN_WEIGHTS.cost,
-    flexShrink: 1,
+    width: `${COLUMN_WEIGHTS.cost}%`,
   },
   deposit: {
-    flexBasis: 0,
-    flexGrow: COLUMN_WEIGHTS.deposit,
-    flexShrink: 1,
+    width: `${COLUMN_WEIGHTS.deposit}%`,
   },
   balance: {
-    flexBasis: 0,
-    flexGrow: COLUMN_WEIGHTS.balance,
-    flexShrink: 1,
+    width: `${COLUMN_WEIGHTS.balance}%`,
   },
 } as const;
 
@@ -119,6 +111,8 @@ export const DashboardBreakdownTable = ({
 }: DashboardBreakdownTableProps) => {
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [tableViewportWidth, setTableViewportWidth] = useState(0);
+  const [selectedConsumer, setSelectedConsumer] =
+    useState<DashboardConsumerRow | null>(null);
   const tableWidth = Math.max(MIN_TABLE_WIDTH, tableViewportWidth);
   const fixedConsumerWidth = tableWidth * CONSUMER_COLUMN_RATIO;
   const {
@@ -167,23 +161,26 @@ export const DashboardBreakdownTable = ({
                   ? "text-red-600"
                   : "text-slate-500";
               return (
-                <View
+                <TouchableOpacity
                   key={row.id}
-                  className={`relative h-[43px] flex-row items-center border-b-[0.5px] border-slate-300 ${index % 2 === 0 ? "bg-slate-50" : "bg-[#EDF2F7]"}`}
+                  className={`relative h-[52px] flex-row items-center border-b-[0.5px] border-slate-300 ${index % 2 === 0 ? "bg-slate-50" : "bg-[#EDF2F7]"}`}
+                  onPress={() => setSelectedConsumer(row)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View details for ${row.name}`}
                 >
-                  <Text
-                    className="px-2.5 font-inter text-[13px] text-slate-900"
+                  <View
+                    className="justify-center overflow-hidden px-2.5"
                     style={COLUMN_STYLES.consumer}
-                    numberOfLines={1}
-                  >
-                    {row.name}
-                  </Text>
-                  <Text
-                    className="text-center font-inter-medium text-[13px] text-slate-900"
+                  />
+                  <View
+                    className="items-center justify-center"
                     style={COLUMN_STYLES.meals}
                   >
-                    {row.meals}
-                  </Text>
+                    <Text className="text-center font-inter-medium text-[13px] text-slate-900">
+                      {row.meals}
+                    </Text>
+                  </View>
                   {[
                     { amount: row.cost, style: COLUMN_STYLES.cost },
                     { amount: row.deposits, style: COLUMN_STYLES.deposit },
@@ -211,7 +208,7 @@ export const DashboardBreakdownTable = ({
                     </Text>
                   ))}
                   <ColumnDividers />
-                </View>
+                </TouchableOpacity>
               );
             })}
 
@@ -222,12 +219,14 @@ export const DashboardBreakdownTable = ({
               >
                 Total
               </Text>
-              <Text
-                className="text-center font-inter-bold text-[13px] text-white"
+              <View
+                className="items-center justify-center"
                 style={COLUMN_STYLES.meals}
               >
-                {totalMeals}
-              </Text>
+                <Text className="text-center font-inter-bold text-[13px] text-white">
+                  {totalMeals}
+                </Text>
+              </View>
               {[
                 { amount: totalExpenses, style: COLUMN_STYLES.cost },
                 { amount: totalDeposits, style: COLUMN_STYLES.deposit },
@@ -272,11 +271,12 @@ export const DashboardBreakdownTable = ({
           {consumerRows.map((row, index) => (
             <View
               key={`fixed-${row.id}`}
-              className={`h-[43px] justify-center border-b-[0.5px] border-r-[0.5px] border-slate-300 pl-2.5 pr-2 ${index % 2 === 0 ? "bg-slate-50" : "bg-[#EDF2F7]"}`}
+              className={`h-[52px] justify-center overflow-hidden border-b-[0.5px] border-r-[0.5px] border-slate-300 pl-2.5 pr-2 ${index % 2 === 0 ? "bg-slate-50" : "bg-[#EDF2F7]"}`}
             >
               <Text
-                className="font-inter text-[13px] text-slate-900"
-                numberOfLines={1}
+                className="font-inter text-[13px] leading-[17px] text-slate-900"
+                numberOfLines={2}
+                ellipsizeMode="clip"
               >
                 {row.name}
               </Text>
@@ -311,6 +311,11 @@ export const DashboardBreakdownTable = ({
               : "Balance = Deposit − Cost"}
         </Text>
       </View>
+
+      <DashboardConsumerDetailModal
+        consumer={selectedConsumer}
+        onClose={() => setSelectedConsumer(null)}
+      />
     </>
   );
 };
