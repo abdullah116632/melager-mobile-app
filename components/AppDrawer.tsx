@@ -335,7 +335,7 @@ export function AppDrawer() {
           <View className="mt-3 flex-row items-center justify-center gap-2">
             <Feather name="shield" size={13} color="#0F766E" />
             <Text className="font-inter text-[10px] text-slate-500">
-              Meal Manager v1.0.0
+              Meal Manager v1.0.1
             </Text>
           </View>
         </View>
