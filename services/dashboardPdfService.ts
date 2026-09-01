@@ -82,7 +82,7 @@ const createBreakdownHtml = (data: DashboardPdfData): string => {
       <body>
         <div class="header">
           <div>
-            <div class="brand">Melager</div>
+            <div class="brand">Mealager</div>
             <h1>Consumer Breakdown</h1>
             <div class="mess">${escapeHtml(messName)}</div>
           </div>

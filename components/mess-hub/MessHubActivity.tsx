@@ -18,7 +18,7 @@ export const MessHubActivity = () => {
       {messes.length > 0 && (
         <View className="mb-2 gap-2.5">
           <Text className="mb-1 px-0.5 font-inter-semibold text-[11px] tracking-[0.8px] text-gray-500">
-            MY MESSES
+            MY MESSES ({messes.length})
           </Text>
           {messes.map((mess) => (
             <MessCard key={mess.id} mess={mess} />

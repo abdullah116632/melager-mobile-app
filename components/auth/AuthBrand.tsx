@@ -7,7 +7,7 @@ export const AuthBrand = () => (
       <Feather name="coffee" size={38} color="#0F766E" />
     </View>
     <Text className="mb-1.5 font-inter-bold text-[30px] tracking-[0.3px] text-white">
-      Melager
+      Mealager
     </Text>
     <Text className="font-inter text-sm tracking-[0.1px] text-white/70">
       Track meals, expenses & deposits

@@ -1,4 +1,4 @@
-# Melager — Mobile (Expo + React Native)
+# Mealager — Mobile (Expo + React Native)
 
 Expo Router + React Native + TanStack Query.
 

@@ -111,7 +111,7 @@ export const AddMealConsumerModal = ({
       Alert.alert(
         "Member added",
         invitationSent
-          ? "This person already has a Melager account and has been added to this mess. We emailed the mess key for reference."
+          ? "This person already has a Mealager account and has been added to this mess. We emailed the mess key for reference."
           : "The member was added successfully. Login credentials have been sent by email.",
       );
       if (Platform.OS !== "web") {
