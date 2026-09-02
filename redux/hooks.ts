@@ -246,6 +246,9 @@ export const useMess = () => {
     dataLoading: state.dataLoading,
     requestStatus: state.requestStatus,
     requestError: state.requestError,
+    dataSource: state.dataSource,
+    lastLiveSyncAt: state.lastLiveSyncAt,
+    lastRefreshError: state.lastRefreshError,
     refreshMonth: async () => {
       await unwrapAsyncResult(dispatch(refreshMessMonth()));
     },

@@ -34,7 +34,9 @@ export const DepositsHeader = ({ grandTotal }: DepositsHeaderProps) => {
       >
         <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
         <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
-        <View className={`flex-row items-center ${isCompact ? "gap-1.5" : "gap-3"}`}>
+        <View
+          className={`flex-row items-center ${isCompact ? "gap-1.5" : "gap-3"}`}
+        >
           <TouchableOpacity
             className={`${isCompact ? "h-[34px] w-[34px]" : "h-[38px] w-[38px]"} items-center justify-center rounded-[11px] border border-white/10 bg-white/15`}
             onPress={openDrawer}
@@ -43,9 +45,6 @@ export const DepositsHeader = ({ grandTotal }: DepositsHeaderProps) => {
           >
             <Feather name="menu" size={isCompact ? 19 : 21} color="#fff" />
           </TouchableOpacity>
-          <View className="h-[40px] w-[40px] items-center justify-center rounded-full border-2 border-white bg-blue-50 shadow-lg shadow-black/20">
-            <Feather name="archive" size={19} color="#2563EB" />
-          </View>
           <Text
             className="min-w-0 flex-1 font-inter-bold text-[18px] tracking-[0.1px] text-white"
             numberOfLines={1}
@@ -74,7 +73,11 @@ export const DepositsHeader = ({ grandTotal }: DepositsHeaderProps) => {
               activeOpacity={0.75}
               accessibilityLabel="Add consumer"
             >
-              <Feather name="user-plus" size={isCompact ? 18 : 20} color="#fff" />
+              <Feather
+                name="user-plus"
+                size={isCompact ? 18 : 20}
+                color="#fff"
+              />
             </TouchableOpacity>
           ) : (
             <View className="items-center rounded-md bg-white/20 px-1.5 py-1">

@@ -23,6 +23,9 @@ export interface MessState {
   dataLoading: boolean;
   requestStatus: "idle" | "loading" | "succeeded" | "failed";
   requestError: string | null;
+  dataSource: "none" | "cache" | "live";
+  lastLiveSyncAt: number | null;
+  lastRefreshError: string | null;
 }
 
 type MessRootState = {
@@ -46,6 +49,9 @@ const createInitialState = (
   dataLoading: false,
   requestStatus: "idle",
   requestError: null,
+  dataSource: "none",
+  lastLiveSyncAt: null,
+  lastRefreshError: null,
 });
 
 const initialState = createInitialState();
@@ -91,11 +97,10 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
     const key = monthKey(messId, yearMonth);
     const alreadyLoaded = Boolean(getState().mess.loadedMonths[key]);
 
-    // Preserve the previous cache-first behavior while the network request is
-    // already in flight.
-    const networkRequest = api
-      .getMonthData(yearMonth, token, messId)
-      .catch(() => null);
+    // Show a saved snapshot immediately when available, but do not hide a
+    // failed network refresh. The caller needs the rejection to distinguish
+    // fresh server data from stale cached data.
+    const networkRequest = api.getMonthData(yearMonth, token, messId);
 
     if (!alreadyLoaded && !force) {
       const cached = await loadFromCache(messId, yearMonth);
@@ -282,6 +287,7 @@ const messSlice = createSlice({
         );
         if (state.scopeMessId === action.payload.messId) {
           state.dataLoading = false;
+          state.dataSource = "cache";
         }
       })
       .addCase(loadMonth.pending, (state, action) => {
@@ -295,13 +301,24 @@ const messSlice = createSlice({
       .addCase(loadMonth.fulfilled, (state, action) => {
         const { messId, yearMonth, data } = action.payload;
         delete state.loadingMonths[monthKey(messId, yearMonth)];
-        if (data) applyMonthData(state, messId, yearMonth, data);
+        if (data) {
+          applyMonthData(state, messId, yearMonth, data);
+          if (state.scopeMessId === messId) {
+            state.dataSource = "live";
+            state.lastLiveSyncAt = Date.now();
+            state.lastRefreshError = null;
+          }
+        }
         if (state.scopeMessId === messId) state.dataLoading = false;
       })
       .addCase(loadMonth.rejected, (state, action) => {
         const { messId, yearMonth } = action.meta.arg;
         delete state.loadingMonths[monthKey(messId, yearMonth)];
-        if (state.scopeMessId === messId) state.dataLoading = false;
+        if (state.scopeMessId === messId) {
+          state.dataLoading = false;
+          state.lastRefreshError =
+            action.error.message ?? "Unable to refresh from the server.";
+        }
       })
       .addCase(addConsumer.fulfilled, (state, action) => {
         if (action.payload.consumer) {

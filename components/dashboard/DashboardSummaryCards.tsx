@@ -2,7 +2,11 @@ import Feather from "@expo/vector-icons/Feather";
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, Text, View } from "react-native";
 import type { DashboardAccounting } from "@/types/dashboard";
-import { formatDashboardAmount, formatDashboardRate } from "@/utils/dashboard";
+import {
+  formatDashboardAmount,
+  formatDashboardQuantity,
+  formatDashboardRate,
+} from "@/utils/dashboard";
 
 interface SummaryCardProps {
   icon: React.ComponentProps<typeof Feather>["name"];
@@ -128,7 +132,7 @@ export const DashboardSummaryCards = ({
       <SummaryCard
         icon="coffee"
         label="Total Meals"
-        value={totalMeals.toString()}
+        value={formatDashboardQuantity(totalMeals)}
         iconBackgroundClassName="bg-emerald-50"
         iconColor="#059669"
         waveColor="#D9FAF1"

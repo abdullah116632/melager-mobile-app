@@ -41,14 +41,6 @@ export const DashboardHeader = () => {
             allowFontScaling={false}
           />
         </TouchableOpacity>
-        <View className="h-[38px] w-[38px] items-center justify-center rounded-full border-2 border-white bg-emerald-50 shadow-lg shadow-black/20">
-          <Feather
-            name="coffee"
-            size={18}
-            color="#047857"
-            allowFontScaling={false}
-          />
-        </View>
         <View className="min-w-0 flex-1 justify-center">
           <Text
             className="font-inter-bold text-[18px] tracking-[0.1px] text-white"

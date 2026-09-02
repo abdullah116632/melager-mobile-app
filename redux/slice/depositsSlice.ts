@@ -1,6 +1,10 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { api, type MonthData } from "@/lib/api";
+import {
+  loadDepositEntriesFromCache,
+  saveDepositEntriesToCache,
+} from "@/lib/cache";
 import type { AuthState } from "@/redux/slice/authSlice";
 import {
   loadMonth,
@@ -72,6 +76,12 @@ const createDepositsAsyncThunk = createAsyncThunk.withTypes<{
   state: DepositsRootState;
 }>();
 
+const depositEntriesCacheReceived = createAction<{
+  messId: number;
+  yearMonth: string;
+  entries: DepositEntry[];
+}>("deposits/entriesCacheReceived");
+
 interface SetDepositArgs {
   yearMonth: string;
   consumerId: string;
@@ -105,12 +115,29 @@ export const loadDepositEntries = createDepositsAsyncThunk<
   LoadDepositEntriesArgs
 >(
   "deposits/loadEntries",
-  async ({ messId, yearMonth }, { getState }) => {
+  async ({ messId, yearMonth, force = false }, { dispatch, getState }) => {
     const { token, activeMess } = getState().auth;
     if (!token || !activeMess || activeMess.id !== messId) {
       throw new Error("Please select a mess and sign in again.");
     }
-    const entries = await getDepositEntriesRequest(messId, yearMonth, token);
+    const networkRequest = getDepositEntriesRequest(messId, yearMonth, token);
+    if (!force) {
+      const cachedEntries = await loadDepositEntriesFromCache(
+        messId,
+        yearMonth,
+      );
+      if (cachedEntries) {
+        dispatch(
+          depositEntriesCacheReceived({
+            messId,
+            yearMonth,
+            entries: cachedEntries as DepositEntry[],
+          }),
+        );
+      }
+    }
+    const entries = await networkRequest;
+    void saveDepositEntriesToCache(messId, yearMonth, entries);
     return { messId, yearMonth, entries };
   },
   {
@@ -139,6 +166,12 @@ export const addDepositEntry = createDepositsAsyncThunk<
     throw new Error("Please select a mess and sign in again.");
   }
   const entry = await createDepositEntryRequest(data, token);
+  const existingEntries = getState().deposits.entriesByMonth[yearMonth] ?? [];
+  const nextEntries =
+    getEntryDateParts(entry)?.yearMonth === yearMonth
+      ? [...existingEntries.filter((item) => item.id !== entry.id), entry]
+      : existingEntries;
+  void saveDepositEntriesToCache(activeMess.id, yearMonth, nextEntries);
   return { messId: activeMess.id, yearMonth, entry };
 });
 
@@ -159,6 +192,15 @@ export const updateDepositEntry = createDepositsAsyncThunk<
       throw new Error("Please select a mess and sign in again.");
     }
     const entry = await updateDepositEntryRequest(entryId, data, token);
+    const existingEntries = getState().deposits.entriesByMonth[yearMonth] ?? [];
+    const withoutUpdatedEntry = existingEntries.filter(
+      (item) => item.id !== entry.id,
+    );
+    const nextEntries =
+      getEntryDateParts(entry)?.yearMonth === yearMonth
+        ? [...withoutUpdatedEntry, entry]
+        : withoutUpdatedEntry;
+    void saveDepositEntriesToCache(activeMess.id, yearMonth, nextEntries);
     return { messId: activeMess.id, yearMonth, entry };
   },
 );
@@ -177,6 +219,10 @@ export const deleteDepositEntry = createDepositsAsyncThunk<
     throw new Error("Please select a mess and sign in again.");
   }
   await deleteDepositEntryRequest(entryId, activeMess.id, token);
+  const nextEntries = (
+    getState().deposits.entriesByMonth[yearMonth] ?? []
+  ).filter((entry) => entry.id !== entryId);
+  void saveDepositEntriesToCache(activeMess.id, yearMonth, nextEntries);
   return { messId: activeMess.id, yearMonth, entryId };
 });
 
@@ -236,6 +282,13 @@ const depositsSlice = createSlice({
         const { yearMonth } = action.meta.arg;
         state.loadingEntryMonths[yearMonth] = true;
         delete state.entryErrors[yearMonth];
+      })
+      .addCase(depositEntriesCacheReceived, (state, action) => {
+        const { messId, yearMonth, entries } = action.payload;
+        if (state.scopeMessId !== messId) return;
+        state.entriesByMonth[yearMonth] = entries;
+        state.loadedEntryMonths[yearMonth] = true;
+        rebuildMonthlyDeposits(state, yearMonth);
       })
       .addCase(loadDepositEntries.fulfilled, (state, action) => {
         const { messId, yearMonth, entries } = action.payload;

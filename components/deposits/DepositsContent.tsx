@@ -16,6 +16,7 @@ export const DepositsContent = () => {
     dataLoading,
     depositsScopeMessId,
     entries,
+    entriesLoaded,
     entriesReady,
     entriesLoading,
     entriesError,
@@ -24,6 +25,7 @@ export const DepositsContent = () => {
   const loadError = !isOnline
     ? "You are offline. Reconnect to load deposits."
     : entriesError;
+  const loadErrorMessage = "Unable to load deposits. Pull down to try again.";
 
   useEffect(() => {
     if (!isOnline || depositsScopeMessId === null) return;
@@ -61,10 +63,10 @@ export const DepositsContent = () => {
         variant="dashboard"
         monthDataLoading={dataLoading || entriesLoading}
       />
-      {!entriesLoading && loadError ? (
+      {!entriesLoading && loadError && !entriesLoaded ? (
         <View className="mx-4 my-2 flex-row items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
           <Text className="flex-1 pr-3 font-inter text-xs leading-4 text-red-700">
-            {loadError}
+            {loadErrorMessage}
           </Text>
           <TouchableOpacity
             className="rounded-lg bg-red-100 px-3 py-2"

@@ -8,6 +8,7 @@ import type {
 } from "@/types/dashboard";
 import {
   formatDashboardAmount,
+  formatDashboardQuantity,
   formatDashboardRate,
   formatDashboardShortDate,
 } from "@/utils/dashboard";
@@ -178,7 +179,7 @@ export const DashboardBreakdownTable = ({
                     style={COLUMN_STYLES.meals}
                   >
                     <Text className="text-center font-inter-medium text-[13px] text-slate-900">
-                      {row.meals}
+                      {formatDashboardQuantity(row.meals)}
                     </Text>
                   </View>
                   {[
@@ -224,7 +225,7 @@ export const DashboardBreakdownTable = ({
                 style={COLUMN_STYLES.meals}
               >
                 <Text className="text-center font-inter-bold text-[13px] text-white">
-                  {totalMeals}
+                  {formatDashboardQuantity(totalMeals)}
                 </Text>
               </View>
               {[

@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
+import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
 import { useAuth, useDeposits, useNetwork } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
@@ -45,7 +46,7 @@ export const AddDepositModal = ({
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const keyboardOffset = useKeyboardSheetOffset();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const amountInputRef = useRef<TextInput | null>(null);
@@ -79,23 +80,6 @@ export const AddDepositModal = ({
     }
     setError("");
   }, [consumerId, entry, visible]);
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSubscription = Keyboard.addListener(showEvent, (event) =>
-      setKeyboardHeight(event.endCoordinates.height),
-    );
-    const hideSubscription = Keyboard.addListener(hideEvent, () =>
-      setKeyboardHeight(0),
-    );
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -204,7 +188,7 @@ export const AddDepositModal = ({
             <View
               className="rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10"
               style={{
-                marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
+                marginBottom: keyboardOffset,
               }}
             >
               <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
@@ -239,7 +223,11 @@ export const AddDepositModal = ({
                   placeholder="e.g. 500.125 or -500.125"
                   placeholderTextColor="#64748B"
                   value={amount}
-                  onChangeText={setAmount}
+                  onChangeText={(nextAmount) => {
+                    if (/^-?\d*(?:\.\d{0,3})?$/.test(nextAmount)) {
+                      setAmount(nextAmount);
+                    }
+                  }}
                   keyboardType="default"
                 />
                 <Text className="mt-1 font-inter text-[11px] text-slate-500">

@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
+import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
 import { useExpenses } from "@/redux/hooks";
 import type { ExpenseDraftItem } from "@/types/expense";
 import {
@@ -40,7 +41,7 @@ export const ExpenseEditorModal = ({
   const [drafts, setDrafts] = useState<ExpenseDraftItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const keyboardOffset = useKeyboardSheetOffset();
   const amountInputRefs = useRef<Record<string, TextInput | null>>({});
   const nameInputRefs = useRef<Record<string, TextInput | null>>({});
   const hasFocusedForSession = useRef(false);
@@ -67,23 +68,6 @@ export const ExpenseEditorModal = ({
     setDrafts(nextDrafts.length > 0 ? nextDrafts : [createExpenseDraftItem()]);
     setError("");
   }, [currentYearMonth, day, focusItemId]);
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSubscription = Keyboard.addListener(showEvent, (event) =>
-      setKeyboardHeight(event.endCoordinates.height),
-    );
-    const hideSubscription = Keyboard.addListener(hideEvent, () =>
-      setKeyboardHeight(0),
-    );
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -188,7 +172,7 @@ export const ExpenseEditorModal = ({
           <View
             className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-6 pt-3"
             style={{
-              marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
+              marginBottom: keyboardOffset,
             }}
           >
             <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />

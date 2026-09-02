@@ -79,6 +79,14 @@ export const formatDashboardAmount = (amount: number): string => {
   });
 };
 
+export const formatDashboardQuantity = (value: number): string => {
+  if (value === 0) return "0";
+  return value.toLocaleString("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
+};
+
 export const formatDashboardRate = (rate: number): string => {
   if (rate === 0) return "—";
   return rate.toLocaleString("en-IN", {

@@ -3,7 +3,10 @@ import { Modal, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 import { CopyableContactRow } from "@/components/CopyableContactRow";
 import type { DashboardConsumerRow } from "@/types/dashboard";
-import { formatDashboardAmount } from "@/utils/dashboard";
+import {
+  formatDashboardAmount,
+  formatDashboardQuantity,
+} from "@/utils/dashboard";
 
 interface DashboardConsumerDetailModalProps {
   consumer: DashboardConsumerRow | null;
@@ -106,7 +109,10 @@ export const DashboardConsumerDetailModal = ({
               Accounting summary
             </Text>
             <View className="flex-row flex-wrap gap-2.5">
-              <AmountCard label="Meals" value={`${consumer?.meals ?? 0}`} />
+              <AmountCard
+                label="Meals"
+                value={formatDashboardQuantity(consumer?.meals ?? 0)}
+              />
               <AmountCard
                 label="Cost"
                 value={`\u09F3${formatDashboardAmount(consumer?.cost ?? 0)}`}

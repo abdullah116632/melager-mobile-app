@@ -1,10 +1,49 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const PREFIX = "@mess_cache:";
+const DEPOSIT_ENTRIES_PREFIX = "@mess_deposit_entries:";
 const memoryCache = new Map<string, unknown>();
 
 function cacheKey(messId: number, yearMonth: string): string {
   return `${PREFIX}${messId}:${yearMonth}`;
+}
+
+function depositEntriesCacheKey(messId: number, yearMonth: string): string {
+  return `${DEPOSIT_ENTRIES_PREFIX}${messId}:${yearMonth}`;
+}
+
+export async function saveDepositEntriesToCache(
+  messId: number,
+  yearMonth: string,
+  entries: unknown,
+): Promise<void> {
+  const key = depositEntriesCacheKey(messId, yearMonth);
+  memoryCache.set(key, entries);
+  try {
+    await AsyncStorage.setItem(
+      key,
+      JSON.stringify({ entries, savedAt: Date.now() }),
+    );
+  } catch {}
+}
+
+export async function loadDepositEntriesFromCache(
+  messId: number,
+  yearMonth: string,
+): Promise<unknown[] | null> {
+  const key = depositEntriesCacheKey(messId, yearMonth);
+  const inMemory = memoryCache.get(key);
+  if (Array.isArray(inMemory)) return inMemory;
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { entries?: unknown };
+    if (!Array.isArray(parsed.entries)) return null;
+    memoryCache.set(key, parsed.entries);
+    return parsed.entries;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveToCache(
