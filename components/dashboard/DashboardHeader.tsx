@@ -4,11 +4,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useAuth } from "@/redux/hooks";
+import { useAuth, useMess } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
 
 export const DashboardHeader = () => {
   const { mess } = useAuth();
+  const { dataSource, lastRefreshError } = useMess();
   const { openDrawer } = useDrawer();
   const [keyCopied, setKeyCopied] = useState(false);
 
@@ -18,6 +19,11 @@ export const DashboardHeader = () => {
     setKeyCopied(true);
     setTimeout(() => setKeyCopied(false), 1800);
   }, [mess?.messKey]);
+  const statusText = lastRefreshError
+    ? "Refresh failed. Showing saved data."
+    : dataSource === "cache"
+      ? "Offline/cached data"
+      : null;
 
   return (
     <LinearGradient
@@ -51,6 +57,14 @@ export const DashboardHeader = () => {
           >
             Dashboard
           </Text>
+          {statusText ? (
+            <Text
+              className="mt-0.5 font-inter text-[10px] text-white/70"
+              numberOfLines={1}
+            >
+              {statusText}
+            </Text>
+          ) : null}
         </View>
         <NotificationBell
           badgeBorderColor="#00796F"

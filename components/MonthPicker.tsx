@@ -39,6 +39,7 @@ interface MonthPickerProps {
   onCellUp?: () => void;
   onCellDown?: () => void;
   cellNavEnabled?: boolean;
+  showSyncStatus?: boolean;
 }
 
 export default function MonthPicker({
@@ -51,12 +52,12 @@ export default function MonthPicker({
   onCellUp,
   onCellDown,
   cellNavEnabled = false,
+  showSyncStatus = true,
 }: MonthPickerProps) {
   const {
     currentYearMonth,
     currentMonthLabel,
     dataSource,
-    lastLiveSyncAt,
     lastRefreshError,
     goToMonth,
   } = useMess();
@@ -80,12 +81,6 @@ export default function MonthPicker({
     onCellLeft && onCellRight && onCellUp && onCellDown,
   );
   const navigationIconColor = cellNavEnabled ? "#0369A1" : "#3B82F6";
-  const lastUpdatedLabel = lastLiveSyncAt
-    ? new Date(lastLiveSyncAt).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
   const refreshFailureLabel =
     dataSource === "none"
       ? "Refresh failed. Please check your connection and try again."
@@ -268,25 +263,18 @@ export default function MonthPicker({
         )}
       </View>
 
-      {lastRefreshError ? (
+      {showSyncStatus && lastRefreshError ? (
         <View className="mx-3 mb-2 flex-row items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
           <Feather name="alert-triangle" size={15} color="#B45309" />
           <Text className="flex-1 font-inter-medium text-xs text-amber-800">
             {refreshFailureLabel}
           </Text>
         </View>
-      ) : dataSource === "cache" ? (
+      ) : showSyncStatus && dataSource === "cache" ? (
         <View className="mx-3 mb-2 flex-row items-center gap-2">
           <Feather name="wifi-off" size={13} color="#64748B" />
           <Text className="font-inter text-xs text-slate-500">
             Offline/cached data
-          </Text>
-        </View>
-      ) : lastUpdatedLabel ? (
-        <View className="mx-3 mb-2 flex-row items-center gap-2">
-          <Feather name="check-circle" size={13} color="#0F766E" />
-          <Text className="font-inter text-xs text-slate-500">
-            Last updated {lastUpdatedLabel}
           </Text>
         </View>
       ) : null}

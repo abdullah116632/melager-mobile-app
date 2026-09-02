@@ -3,14 +3,10 @@ import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DashboardContent } from "@/components/dashboard/DashboardContent";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import MonthPicker from "@/components/MonthPicker";
-import { useAuth, useMess } from "@/redux/hooks";
+import { DashboardQuickNavDrawer } from "@/components/dashboard/DashboardQuickNavDrawer";
 
 export const DashboardScreen = () => {
   const insets = useSafeAreaInsets();
-  const { exitMess } = useAuth();
-  const { dataLoading } = useMess();
-
   return (
     <View
       className={`flex-1 bg-[#F4F8FC] ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
@@ -24,12 +20,8 @@ export const DashboardScreen = () => {
         />
       )}
       <DashboardHeader />
-      <MonthPicker
-        variant="dashboard"
-        monthDataLoading={dataLoading}
-        onSwitchMess={exitMess}
-      />
       <DashboardContent />
+      <DashboardQuickNavDrawer />
     </View>
   );
 };

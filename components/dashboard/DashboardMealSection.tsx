@@ -194,33 +194,40 @@ export const DashboardMealSection = forwardRef<
         </View>
       )}
 
-      {isAdmin && (
-        <View className="flex-row items-center border-t border-slate-100 px-3.5 pb-2.5 pt-2.5">
-          {schedule ? (
-            <View className="flex-row items-center gap-2">
-              {DASHBOARD_MEAL_TYPES.map((mealType) => {
-                const enabled = getDashboardMealEnabled(schedule, mealType);
-                return (
-                  <View
-                    key={mealType}
-                    className="flex-row items-center gap-[3px] rounded-full bg-teal-50 px-2 py-1"
-                  >
-                    <Text className="text-[13px]">
-                      {DASHBOARD_MEAL_ICONS[mealType]}
-                    </Text>
-                    <Text
-                      className={`font-inter-bold text-[13px] ${enabled ? "text-emerald-600" : "text-gray-400"}`}
-                    >
-                      {enabled ? schedule.activeByMeal[mealType] : "—"}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ) : null}
+      <View className="flex-row items-center border-t border-slate-100 px-3.5 pb-2.5 pt-2.5">
+        {schedule ? (
+          <View className="flex-1 flex-row flex-wrap items-center gap-2">
+            {DASHBOARD_MEAL_TYPES.map((mealType) => {
+              const enabled = getDashboardMealEnabled(schedule, mealType);
+              const activeCount = enabled ? schedule.activeByMeal[mealType] : 0;
+              const inactiveCount = Math.max(
+                0,
+                schedule.totalConsumers - activeCount,
+              );
+              return (
+                <View
+                  key={mealType}
+                  className="flex-row items-center gap-1 rounded-full bg-teal-50 px-2 py-1"
+                >
+                  <Text className="text-[13px]">
+                    {DASHBOARD_MEAL_ICONS[mealType]}
+                  </Text>
+                  <Text className="font-inter-bold text-[11px] text-emerald-700">
+                    {activeCount} on
+                  </Text>
+                  <Text className="font-inter text-[10px] text-slate-500">
+                    · {inactiveCount} off
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
           <View className="flex-1" />
+        )}
+        {isAdmin ? (
           <TouchableOpacity
-            className="flex-row items-center gap-1 rounded-full border border-teal-100 bg-white px-3 py-2 shadow-sm shadow-slate-300/30"
+            className="ml-2 flex-row items-center gap-1 rounded-full border border-teal-100 bg-white px-3 py-2 shadow-sm shadow-slate-300/30"
             onPress={() => router.push(`/meal-status?date=${selectedDate}`)}
             activeOpacity={0.75}
           >
@@ -229,8 +236,8 @@ export const DashboardMealSection = forwardRef<
               Manage
             </Text>
           </TouchableOpacity>
-        </View>
-      )}
+        ) : null}
+      </View>
 
       <View className="flex-row gap-2.5 px-3.5 pb-4">
         {DASHBOARD_MEAL_TYPES.map((mealType) => (

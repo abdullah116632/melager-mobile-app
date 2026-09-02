@@ -1,22 +1,14 @@
+import { forwardRef, useCallback, useImperativeHandle } from "react";
+import MonthPicker from "@/components/MonthPicker";
 import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useState,
-} from "react";
-import { useFocusEffect } from "expo-router";
-import { Alert } from "react-native";
-import { useAppDispatch, useAuth } from "@/redux/hooks";
-import { useDeposits, useExpenses, useMeals, useMess } from "@/redux/hooks";
-import { refreshConsumers } from "@/redux/slice/messSlice";
-import { getDashboardRangeData } from "@/services/dashboardService";
-import type { DashboardDateRange, MonthData } from "@/types/dashboard";
-import {
-  calculateDashboardAccounting,
-  getDefaultDashboardRange,
-} from "@/utils/dashboard";
-import { DashboardConsumerBreakdown } from "./DashboardConsumerBreakdown";
+  useAuth,
+  useDeposits,
+  useExpenses,
+  useMeals,
+  useMess,
+} from "@/redux/hooks";
+import { calculateDashboardAccounting } from "@/utils/dashboard";
+import { DashboardPersonalSummary } from "./DashboardPersonalSummary";
 import { DashboardSummaryCards } from "./DashboardSummaryCards";
 
 export interface DashboardAccountingSectionHandle {
@@ -27,82 +19,14 @@ export const DashboardAccountingSection = forwardRef<
   DashboardAccountingSectionHandle,
   object
 >((_props, ref) => {
-  const dispatch = useAppDispatch();
-  const { mess, token } = useAuth();
-  const { consumers, currentYearMonth, refreshMonth } = useMess();
+  const { user } = useAuth();
+  const { consumers, currentYearMonth, dataLoading, refreshMonth } = useMess();
   const { getGrandTotal, getConsumerTotal } = useMeals();
   const { getMonthExpenseTotal } = useExpenses();
   const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
-  const defaultRange = getDefaultDashboardRange(currentYearMonth);
-  const [draftStartDate, setDraftStartDate] = useState(defaultRange.startDate);
-  const [draftEndDate, setDraftEndDate] = useState(defaultRange.endDate);
-  const [appliedRange, setAppliedRange] = useState<DashboardDateRange | null>(
-    null,
-  );
-  const [rangeData, setRangeData] = useState<Record<string, MonthData>>({});
-  const [rangeLoading, setRangeLoading] = useState(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!mess) return;
-      void dispatch(refreshConsumers())
-        .unwrap()
-        .catch(() => undefined);
-    }, [dispatch, mess?.id]),
-  );
-
-  useEffect(() => {
-    const nextRange = getDefaultDashboardRange(currentYearMonth);
-    setDraftStartDate(nextRange.startDate);
-    setDraftEndDate(nextRange.endDate);
-    setAppliedRange(null);
-    setRangeData({});
-  }, [currentYearMonth, mess?.id]);
-
-  const fetchRange = useCallback(
-    async (startDate: string, endDate: string) => {
-      if (!token || !mess) return null;
-      return getDashboardRangeData(mess.id, token, startDate, endDate);
-    },
-    [token, mess?.id],
-  );
-
-  const applyDateRange = async () => {
-    if (draftEndDate <= draftStartDate) {
-      Alert.alert(
-        "Invalid Date Range",
-        "End date must be later than start date.",
-      );
-      return;
-    }
-    setRangeLoading(true);
-    try {
-      const data = await fetchRange(draftStartDate, draftEndDate);
-      if (!data) return;
-      setRangeData(data);
-      setAppliedRange({
-        startDate: draftStartDate,
-        endDate: draftEndDate,
-      });
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "Could not load the selected date range.",
-      );
-    } finally {
-      setRangeLoading(false);
-    }
-  };
-
   const refreshAccounting = useCallback(async () => {
     await refreshMonth();
-    const refreshedRange = appliedRange
-      ? await fetchRange(appliedRange.startDate, appliedRange.endDate)
-      : null;
-    if (refreshedRange) setRangeData(refreshedRange);
-  }, [refreshMonth, appliedRange, fetchRange]);
+  }, [refreshMonth]);
 
   useImperativeHandle(ref, () => ({ refresh: refreshAccounting }), [
     refreshAccounting,
@@ -111,28 +35,27 @@ export const DashboardAccountingSection = forwardRef<
   const accounting = calculateDashboardAccounting({
     consumers,
     currentYearMonth,
-    appliedRange,
-    rangeData,
+    appliedRange: null,
+    rangeData: {},
     getGrandTotal,
     getMonthExpenseTotal,
     getGrandDepositTotal,
     getConsumerTotal,
     getConsumerDepositTotal,
   });
+  const personalConsumer =
+    accounting.consumerRows.find((consumer) => consumer.userId === user?.id) ??
+    null;
 
   return (
     <>
-      <DashboardSummaryCards accounting={accounting} />
-      <DashboardConsumerBreakdown
-        accounting={accounting}
-        appliedRange={appliedRange}
-        draftStartDate={draftStartDate}
-        draftEndDate={draftEndDate}
-        rangeLoading={rangeLoading}
-        onStartDateChange={setDraftStartDate}
-        onEndDateChange={setDraftEndDate}
-        onApplyRange={() => void applyDateRange()}
+      <MonthPicker
+        variant="dashboard"
+        monthDataLoading={dataLoading}
+        showSyncStatus={false}
       />
+      <DashboardPersonalSummary consumer={personalConsumer} />
+      <DashboardSummaryCards accounting={accounting} />
     </>
   );
 });

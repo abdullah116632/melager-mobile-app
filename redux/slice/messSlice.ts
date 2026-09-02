@@ -26,6 +26,7 @@ export interface MessState {
   dataSource: "none" | "cache" | "live";
   lastLiveSyncAt: number | null;
   lastRefreshError: string | null;
+  lastManualRefreshAt: number | null;
 }
 
 type MessRootState = {
@@ -52,6 +53,7 @@ const createInitialState = (
   dataSource: "none",
   lastLiveSyncAt: null,
   lastRefreshError: null,
+  lastManualRefreshAt: null,
 });
 
 const initialState = createInitialState();
@@ -319,6 +321,9 @@ const messSlice = createSlice({
           state.lastRefreshError =
             action.error.message ?? "Unable to refresh from the server.";
         }
+      })
+      .addCase(refreshMonth.fulfilled, (state) => {
+        state.lastManualRefreshAt = Date.now();
       })
       .addCase(addConsumer.fulfilled, (state, action) => {
         if (action.payload.consumer) {

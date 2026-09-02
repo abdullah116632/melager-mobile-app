@@ -19,6 +19,7 @@ import { AppDrawer } from "@/components/AppDrawer";
 import { ConnectivityGate } from "@/components/ConnectivityGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NotificationPanel } from "@/components/NotificationPanel";
+import { RefreshSuccessToast } from "@/components/RefreshSuccessToast";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { MessStateController } from "@/redux/controllers/MessStateController";
 import { NetworkStateController } from "@/redux/controllers/NetworkStateController";
@@ -126,6 +127,11 @@ function RootLayoutNav() {
         <Stack.Screen name="mess-setup" options={{ headerShown: false }} />
         <Stack.Screen name="account" options={{ headerShown: false }} />
         <Stack.Screen name="meal-status" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="consumer-breakdown"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="notice-board" options={{ headerShown: false }} />
       </Stack>
     </AuthGate>
   );
@@ -159,6 +165,7 @@ export default function RootLayout() {
                     <KeyboardProvider>
                       <RootLayoutNav />
                     </KeyboardProvider>
+                    <RefreshSuccessToast />
                     <NotificationPanel />
                   </NativeWindGestureHandlerRootView>
                 </NotificationStateController>

@@ -1,73 +1,13 @@
 import Feather from "@expo/vector-icons/Feather";
-import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useState } from "react";
+import { Text, TouchableOpacity, View } from "react-native";
 import type { DashboardAccounting } from "@/types/dashboard";
 import {
   formatDashboardAmount,
   formatDashboardQuantity,
   formatDashboardRate,
 } from "@/utils/dashboard";
-
-interface SummaryCardProps {
-  icon: React.ComponentProps<typeof Feather>["name"];
-  label: string;
-  value: string;
-  iconBackgroundClassName: string;
-  iconColor: string;
-  waveColor: string;
-  sub?: string;
-}
-
-const SummaryCard = ({
-  icon,
-  label,
-  value,
-  iconBackgroundClassName,
-  iconColor,
-  waveColor,
-  sub,
-}: SummaryCardProps) => (
-  <View className="relative min-h-[142px] w-[48%] overflow-hidden rounded-[18px] border border-slate-200 bg-white p-4 shadow-md shadow-slate-300/30">
-    <View
-      className="absolute -bottom-10 -right-7 h-20 w-[120%] rotate-[-8deg] rounded-[100%]"
-      style={{ backgroundColor: waveColor }}
-    />
-    <View
-      className="absolute -bottom-14 -left-5 h-20 w-[110%] rotate-[7deg] rounded-[100%] opacity-60"
-      style={{ backgroundColor: waveColor }}
-    />
-    <View
-      className={`mb-3 h-[42px] w-[42px] items-center justify-center rounded-full ${iconBackgroundClassName}`}
-    >
-      <Feather name={icon} size={21} color={iconColor} />
-    </View>
-    <Text
-      className="font-inter-medium text-[13px] text-slate-600"
-      numberOfLines={1}
-      adjustsFontSizeToFit
-      minimumFontScale={0.78}
-    >
-      {label}
-    </Text>
-    <Text
-      className="mt-1 font-inter-bold text-[25px] tracking-[-0.4px] text-slate-950"
-      numberOfLines={1}
-      adjustsFontSizeToFit
-    >
-      {value}
-    </Text>
-    {sub ? (
-      <Text
-        className="mt-0.5 font-inter text-[11px] text-slate-500"
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-      >
-        {sub}
-      </Text>
-    ) : null}
-  </View>
-);
 
 interface DashboardSummaryCardsProps {
   accounting: DashboardAccounting;
@@ -76,92 +16,139 @@ interface DashboardSummaryCardsProps {
 export const DashboardSummaryCards = ({
   accounting,
 }: DashboardSummaryCardsProps) => {
+  const [expanded, setExpanded] = useState(false);
   const { totalMeals, totalExpenses, totalDeposits, mealRate, netBalance } =
     accounting;
-  const isPositive = netBalance >= 0;
+  const balancePositive = netBalance >= 0;
+  const items = [
+    {
+      label: "Total Meals",
+      value: formatDashboardQuantity(totalMeals),
+      icon: "restaurant" as const,
+      tone: "bg-emerald-50",
+      color: "#059669",
+    },
+    {
+      label: "Total Expenses",
+      value: `৳${formatDashboardAmount(totalExpenses)}`,
+      icon: "cash" as const,
+      tone: "bg-orange-50",
+      color: "#EA580C",
+    },
+    {
+      label: "Total Deposits",
+      value: `৳${formatDashboardAmount(totalDeposits)}`,
+      icon: "card" as const,
+      tone: "bg-blue-50",
+      color: "#2563EB",
+    },
+    {
+      label: "Meal Rate",
+      value: mealRate > 0 ? `৳${formatDashboardRate(mealRate)}` : "—",
+      icon: "pricetag" as const,
+      tone: "bg-violet-50",
+      color: "#7C3AED",
+      sub: mealRate > 0 ? "per meal" : "no meals yet",
+    },
+  ];
 
   return (
-    <View className="mb-5 flex-row flex-wrap justify-between gap-y-3 px-4">
-      <View className="relative min-h-[82px] w-full overflow-hidden rounded-[19px] shadow-lg shadow-teal-800/20">
-        <LinearGradient
-          colors={
-            isPositive
-              ? ["#075F5B", "#008577", "#11A98D"]
-              : ["#8F1D2C", "#C2414F", "#E05A67"]
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
+    <View className="mx-4 mb-5 overflow-hidden rounded-[18px] border border-slate-200 bg-white shadow-md shadow-slate-300/20">
+      <TouchableOpacity
+        className="flex-row items-center bg-slate-50 px-4 py-3"
+        onPress={() => setExpanded((current) => !current)}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Toggle mess summary"
+        accessibilityState={{ expanded }}
+      >
+        <View className="h-9 w-9 items-center justify-center rounded-full bg-teal-100">
+          <Feather name="clipboard" size={17} color="#0F766E" />
+        </View>
+        <View className="ml-2.5 flex-1">
+          <Text className="font-inter-bold text-[15px] text-slate-900">
+            Mess Summary
+          </Text>
+          <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
+            Overall figures for this month
+          </Text>
+        </View>
+        <Feather
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={20}
+          color="#64748B"
         />
-        <View className="absolute -bottom-12 -right-10 h-20 w-[85%] rotate-[-7deg] rounded-[100%] bg-white/10" />
-        <View className="flex-1 flex-row items-center px-4 py-3">
-          <View className="h-[48px] w-[48px] items-center justify-center rounded-full border border-white/20 bg-white/15">
-            <Feather name="credit-card" size={23} color="#FFFFFF" />
-          </View>
-          <View className="ml-4 mr-2.5 flex-1">
+      </TouchableOpacity>
+
+      {expanded ? (
+        <View className="border-t border-slate-100 p-2">
+          <View
+            className={`mb-1.5 flex-row items-center rounded-[14px] px-3 py-3 ${balancePositive ? "bg-teal-50" : "bg-red-50"}`}
+          >
+            <View
+              className={`h-9 w-9 items-center justify-center rounded-[11px] ${balancePositive ? "bg-teal-100" : "bg-red-100"}`}
+            >
+              <Feather
+                name="credit-card"
+                size={17}
+                color={balancePositive ? "#0F766E" : "#DC2626"}
+              />
+            </View>
+            <View className="ml-2.5 flex-1">
+              <Text className="font-inter text-[11px] text-slate-600">
+                Current Balance
+              </Text>
+              <Text className="mt-0.5 font-inter text-[10px] text-slate-500">
+                Deposits minus expenses
+              </Text>
+            </View>
             <Text
-              className="font-inter-bold text-[15px] text-white"
+              className={`ml-3 font-inter-bold text-[17px] ${balancePositive ? "text-teal-800" : "text-red-700"}`}
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.78}
+              minimumFontScale={0.7}
             >
-              Current Balance
-            </Text>
-            <Text
-              className="mt-1 font-inter text-[11px] leading-[15px] text-white/75"
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-            >
-              Total deposits minus total expenses
-            </Text>
-          </View>
-          <View className="max-w-[42%] rounded-full border border-white/25 bg-white/10 px-3.5 py-2">
-            <Text
-              className="text-right font-inter-bold text-[22px] tracking-[-0.4px] text-white"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {isPositive ? "+" : "-"}৳
+              {balancePositive ? "+" : "-"}৳
               {formatDashboardAmount(Math.abs(netBalance))}
             </Text>
           </View>
-        </View>
-      </View>
 
-      <SummaryCard
-        icon="coffee"
-        label="Total Meals"
-        value={formatDashboardQuantity(totalMeals)}
-        iconBackgroundClassName="bg-emerald-50"
-        iconColor="#059669"
-        waveColor="#D9FAF1"
-      />
-      <SummaryCard
-        icon="shopping-bag"
-        label="Total Expenses"
-        value={`৳${formatDashboardAmount(totalExpenses)}`}
-        iconBackgroundClassName="bg-orange-50"
-        iconColor="#EA580C"
-        waveColor="#FFF0DE"
-      />
-      <SummaryCard
-        icon="archive"
-        label="Total Deposits"
-        value={`৳${formatDashboardAmount(totalDeposits)}`}
-        iconBackgroundClassName="bg-blue-50"
-        iconColor="#2563EB"
-        waveColor="#E2EEFF"
-      />
-      <SummaryCard
-        icon="tag"
-        label="Meal Rate"
-        value={mealRate > 0 ? `৳${formatDashboardRate(mealRate)}` : "—"}
-        iconBackgroundClassName="bg-violet-50"
-        iconColor="#7C3AED"
-        waveColor="#F1E4FF"
-        sub={mealRate > 0 ? "per meal" : "no meals yet"}
-      />
+          <View className="flex-row flex-wrap">
+            {items.map((item) => (
+              <View key={item.label} className="w-full p-1.5">
+                <View className="flex-row items-center rounded-[14px] bg-slate-50 px-2.5 py-3">
+                  <View
+                    className={`h-8 w-8 items-center justify-center rounded-[10px] ${item.tone}`}
+                  >
+                    <Ionicons name={item.icon} size={16} color={item.color} />
+                  </View>
+                  <View className="ml-2 min-w-0 flex-1">
+                    <Text
+                      className="font-inter text-[10px] text-slate-500"
+                      numberOfLines={1}
+                    >
+                      {item.label}
+                    </Text>
+                    {item.sub ? (
+                      <Text className="mt-0.5 font-inter text-[9px] text-slate-500">
+                        {item.sub}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text
+                    className="ml-3 font-inter-bold text-[15px] text-slate-950"
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                  >
+                    {item.value}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 };
