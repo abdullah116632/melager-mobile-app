@@ -214,7 +214,11 @@ export const DashboardMealSection = forwardRef<
 
   return (
     <View className="mx-4 mb-4">
-      <View className="mb-3 flex-row items-center">
+      <View
+        className="overflow-hidden rounded-[18px] border border-slate-300 bg-white"
+        style={menuCardShadow}
+      >
+        <View className="flex-row items-center border-b border-teal-100 bg-teal-50 px-4 py-3">
         <View className="min-w-0 flex-1 flex-row items-center gap-2">
           <Text className="font-inter-bold text-[17px] text-slate-900">
             {isToday
@@ -223,7 +227,7 @@ export const DashboardMealSection = forwardRef<
           </Text>
           {isAdmin ? (
             <TouchableOpacity
-              className="h-8 w-8 items-center justify-center rounded-full bg-teal-50"
+              className="h-8 w-8 items-center justify-center rounded-full bg-teal-200"
               onPress={() => router.push(`/meal-status?date=${selectedDate}`)}
               activeOpacity={0.75}
               accessibilityLabel="Manage meal schedule"
@@ -233,7 +237,7 @@ export const DashboardMealSection = forwardRef<
           ) : null}
         </View>
         <TouchableOpacity
-          className="flex-row items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+          className="flex-row items-center gap-1.5 rounded-lg border border-teal-200 bg-white px-2.5 py-1.5"
           onPress={() => {
             setCalendarYearMonth(selectedDate.slice(0, 7));
             setDatePickerVisible(true);
@@ -249,6 +253,7 @@ export const DashboardMealSection = forwardRef<
           >
             {compactDate}
           </Text>
+          <Feather name="chevron-down" size={12} color="#64748B" />
         </TouchableOpacity>
       </View>
 
@@ -269,10 +274,7 @@ export const DashboardMealSection = forwardRef<
         </View>
       )}
 
-      <View
-        className="overflow-hidden rounded-[20px] border border-slate-100 bg-white"
-        style={menuCardShadow}
-      >
+      <View className="overflow-hidden">
         {DASHBOARD_MEAL_TYPES.map((mealType, index) => {
           const enabled = getDashboardMealEnabled(schedule, mealType);
           return (
@@ -291,6 +293,7 @@ export const DashboardMealSection = forwardRef<
             />
           );
         })}
+      </View>
       </View>
       {!isAdmin && !isPast && (
         <Text className="pb-2.5 text-center font-inter text-[11px] text-slate-500">

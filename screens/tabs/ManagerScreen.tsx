@@ -68,22 +68,16 @@ export function ManagerScreen() {
       </View>
 
       <ManagerAction
-        icon="people-outline"
-        title="Member Requests"
-        description="Review and approve new member requests"
-        onPress={() => router.push("/member-requests")}
-      />
-      <ManagerAction
         icon="restaurant-outline"
         title="Meal Status"
         description="View and manage daily meal activity"
         onPress={() => router.push("/meal-status")}
       />
       <ManagerAction
-        icon="shield-outline"
-        title="Security"
-        description="Manage manager verification settings"
-        onPress={() => router.push("/settings/security")}
+        icon="clipboard-outline"
+        title="Manage Notice Board"
+        description="Create and manage mess notices"
+        onPress={() => router.push("/notice-board")}
       />
     </View>
   );

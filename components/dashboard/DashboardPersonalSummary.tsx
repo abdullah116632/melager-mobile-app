@@ -1,7 +1,5 @@
-import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, View } from "react-native";
 import type { DashboardConsumerRow } from "@/types/dashboard";
 import {
   formatDashboardAmount,
@@ -11,7 +9,7 @@ import {
 const cardShadow = {
   shadowColor: "#94A3B8",
   shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.12,
+  shadowOpacity: 0.2,
   shadowRadius: 8,
   elevation: 3,
 };
@@ -23,7 +21,6 @@ interface DashboardPersonalSummaryProps {
 export const DashboardPersonalSummary = ({
   consumer,
 }: DashboardPersonalSummaryProps) => {
-  const [expanded, setExpanded] = useState(false);
   if (!consumer) {
     return (
       <>
@@ -82,28 +79,13 @@ export const DashboardPersonalSummary = ({
 
   return (
     <>
-      <View className="mx-4 mb-3">
-        <Text className="font-inter-bold text-[17px] text-slate-900">
-          Your Summary
-        </Text>
-        <Text className="mt-0.5 font-inter text-[12px] text-slate-500">
-          Your personal figures for this month
-        </Text>
-      </View>
       <View
-        className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-slate-200 bg-white"
+        className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-slate-300 bg-white"
         style={cardShadow}
       >
-        <TouchableOpacity
-          className="flex-row items-center bg-slate-50 px-4 py-3"
-          onPress={() => setExpanded((current) => !current)}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle your summary"
-          accessibilityState={{ expanded }}
-        >
+        <View className="flex-row items-center border-b border-teal-100 bg-teal-50 px-4 py-3">
           <View
-            className={`h-9 w-9 items-center justify-center rounded-full ${balancePositive ? "bg-teal-100" : "bg-red-100"}`}
+            className={`h-9 w-9 items-center justify-center rounded-full ${balancePositive ? "bg-teal-200" : "bg-red-200"}`}
           >
             <Ionicons
               name="card"
@@ -113,58 +95,42 @@ export const DashboardPersonalSummary = ({
           </View>
           <View className="ml-2.5 min-w-0 flex-1">
             <Text className="font-inter-bold text-[15px] text-slate-900">
-              Remaining Balance
+              Your Summary
             </Text>
             <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
-              Deposits minus your cost
+              Your personal figures for this month
             </Text>
           </View>
-          <Text
-            className={`ml-2 font-inter-bold text-[16px] ${balancePositive ? "text-teal-800" : "text-red-700"}`}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {remainingBalance}
-          </Text>
-          <Feather
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#64748B"
-            style={{ marginLeft: 8 }}
-          />
-        </TouchableOpacity>
-        {expanded ? (
-          <View className="flex-row flex-wrap border-t border-slate-100 p-2">
-            {items.map((item) => (
-              <View key={item.label} className="w-full p-1.5">
-                <View className="flex-row items-center rounded-[14px] bg-slate-50 px-2.5 py-3">
-                  <View
-                    className={`h-8 w-8 items-center justify-center rounded-[10px] ${item.tone}`}
-                  >
-                    <Ionicons name={item.icon} size={16} color={item.color} />
-                  </View>
-                  <View className="ml-2 min-w-0 flex-1">
-                    <Text
-                      className="font-inter text-[10px] text-slate-500"
-                      numberOfLines={1}
-                    >
-                      {item.label}
-                    </Text>
-                  </View>
+        </View>
+        <View className="flex-row flex-wrap border-t border-slate-200 p-2">
+          {items.map((item) => (
+            <View key={item.label} className="w-full p-1.5">
+              <View className="flex-row items-center rounded-[14px] bg-slate-100 px-2.5 py-3">
+                <View
+                  className={`h-8 w-8 items-center justify-center rounded-[10px] ${item.tone}`}
+                >
+                  <Ionicons name={item.icon} size={16} color={item.color} />
+                </View>
+                <View className="ml-2 min-w-0 flex-1">
                   <Text
-                    className="ml-3 font-inter-bold text-[15px] text-slate-950"
+                    className="font-inter text-[10px] text-slate-500"
                     numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.7}
                   >
-                    {item.value}
+                    {item.label}
                   </Text>
                 </View>
+                <Text
+                  className="ml-3 font-inter-bold text-[15px] text-slate-950"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {item.value}
+                </Text>
               </View>
-            ))}
-          </View>
-        ) : null}
+            </View>
+          ))}
+        </View>
       </View>
     </>
   );

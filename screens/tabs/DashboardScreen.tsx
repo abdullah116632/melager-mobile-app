@@ -20,8 +20,8 @@ export const DashboardScreen = () => {
         />
       )}
       <DashboardHeader />
-      <DashboardContent />
       <DashboardQuickNavDrawer />
+      <DashboardContent />
     </View>
   );
 };
