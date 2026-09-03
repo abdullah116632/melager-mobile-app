@@ -243,6 +243,21 @@ export interface ApiServerNotification {
   createdAt: string;
 }
 
+export interface ApiMessage {
+  id: number;
+  messId: number;
+  senderUserId: number;
+  senderName: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiMessageCursor {
+  createdAt: string;
+  id: number;
+}
+
 export interface MeAuthResponse {
   user: ApiUser;
   messes: ApiMessWithRole[];
@@ -526,6 +541,31 @@ export const api = {
       "GET",
       `/mess/notifications?messId=${messId}`,
       undefined,
+      token,
+    ),
+
+  getMessages: (
+    token: string,
+    messId: number,
+    options?: { limit?: number; beforeCreatedAt?: string; beforeId?: number },
+  ) => {
+    const params = new URLSearchParams({ messId: String(messId) });
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.beforeCreatedAt) params.set("beforeCreatedAt", options.beforeCreatedAt);
+    if (options?.beforeId) params.set("beforeId", String(options.beforeId));
+    return req<{ messages: ApiMessage[]; nextCursor: ApiMessageCursor | null }>(
+      "GET",
+      `/mess/messages?${params.toString()}`,
+      undefined,
+      token,
+    );
+  },
+
+  sendMessage: (body: string, token: string, messId: number) =>
+    req<{ message: ApiMessage }>(
+      "POST",
+      "/mess/messages",
+      { body, messId },
       token,
     ),
 

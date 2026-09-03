@@ -7,6 +7,7 @@ import {
 import authReducer from "@/redux/slice/authSlice";
 import bazarReducer from "@/redux/slice/bazarSlice";
 import mealMenuReducer from "@/redux/slice/mealMenuSlice";
+import messagesReducer from "@/redux/slice/messagesSlice";
 import depositsReducer from "@/redux/slice/depositsSlice";
 import drawerReducer from "@/redux/slice/drawerSlice";
 import expenseReducer from "@/redux/slice/expenseSlice";
@@ -21,6 +22,7 @@ export const store = configureStore({
     auth: authReducer,
     bazar: bazarReducer,
     mealMenu: mealMenuReducer,
+    messages: messagesReducer,
     deposits: depositsReducer,
     drawer: drawerReducer,
     expenses: expenseReducer,

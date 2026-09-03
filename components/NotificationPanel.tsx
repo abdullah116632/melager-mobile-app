@@ -53,6 +53,14 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
     );
   }
 
+  if (type === "message") {
+    return (
+      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-sky-100">
+        <Feather name="message-circle" size={16} color="#0369A1" />
+      </View>
+    );
+  }
+
   return (
     <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-amber-100">
       <Feather name="coffee" size={16} color="#B45309" />

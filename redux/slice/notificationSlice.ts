@@ -199,6 +199,7 @@ export const refreshNotifications = createAsyncThunk<
         type:
           notification.type === "notice" ||
           notification.type === "bazar_assignment"
+            || notification.type === "message"
             ? notification.type
             : "notice",
         title: notification.title,
@@ -206,7 +207,11 @@ export const refreshNotifications = createAsyncThunk<
         timestamp: new Date(notification.createdAt).getTime(),
         read: notification.readAt !== null,
         route:
-          notification.type === "notice" ? "/notice-board" : "/bazar-list",
+          notification.type === "notice"
+            ? "/notice-board"
+            : notification.type === "message"
+              ? "/messages"
+              : "/bazar-list",
       })) ?? [];
 
     return {
