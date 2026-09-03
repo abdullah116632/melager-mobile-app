@@ -200,6 +200,18 @@ export interface ApiPendingMemberRequest {
   createdAt: string;
 }
 
+export interface ApiNotice {
+  id: number;
+  messId: number;
+  serialNo: number;
+  title: string;
+  body: string;
+  color: string;
+  createdByUserId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MeAuthResponse {
   user: ApiUser;
   messes: ApiMessWithRole[];
@@ -297,6 +309,59 @@ export const api = {
       "POST",
       `/mess/member-requests/${id}/reject`,
       {},
+      token,
+    ),
+
+  getNotices: (token: string, messId: number) =>
+    req<{ notices: ApiNotice[] }>(
+      "GET",
+      `/mess/notices?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  createNotice: (
+    title: string,
+    body: string,
+    color: string,
+    token: string,
+    messId: number,
+  ) =>
+    req<{ notice: ApiNotice }>(
+      "POST",
+      "/mess/notices",
+      { title, body, color, messId },
+      token,
+    ),
+
+  updateNotice: (
+    id: number,
+    title: string,
+    body: string,
+    color: string,
+    token: string,
+    messId: number,
+  ) =>
+    req<{ notice: ApiNotice }>(
+      "PATCH",
+      `/mess/notices/${id}`,
+      { title, body, color, messId },
+      token,
+    ),
+
+  deleteNotice: (id: number, token: string, messId: number) =>
+    req<{ success: boolean }>(
+      "DELETE",
+      `/mess/notices/${id}?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  reorderNotices: (noticeIds: number[], token: string, messId: number) =>
+    req<{ notices: ApiNotice[] }>(
+      "PATCH",
+      "/mess/notices/reorder",
+      { messId, noticeIds },
       token,
     ),
 
