@@ -44,13 +44,14 @@ export const loadNotices = createAsyncThunk<
 });
 
 export const createNotice = createAsyncThunk<
-  { messId: number; notice: ApiNotice },
+  { messId: number; notices: ApiNotice[] },
   { title: string; body: string; color: string },
   { state: NoticesRootState }
 >("notices/create", async (input, { getState }) => {
   const { token, messId } = getAuthContext(getState());
-  const response = await api.createNotice(input.title, input.body, input.color, token, messId);
-  return { messId, notice: response.notice };
+  await api.createNotice(input.title, input.body, input.color, token, messId);
+  const response = await api.getNotices(token, messId);
+  return { messId, notices: response.notices };
 });
 
 export const updateNotice = createAsyncThunk<
@@ -116,7 +117,7 @@ const noticesSlice = createSlice({
       })
       .addCase(createNotice.fulfilled, (state, action) => {
         if (state.scopeMessId !== action.payload.messId) return;
-        state.notices.push(action.payload.notice);
+        state.notices = action.payload.notices;
         state.mutationStatus = "succeeded";
       })
       .addCase(updateNotice.fulfilled, (state, action) => {

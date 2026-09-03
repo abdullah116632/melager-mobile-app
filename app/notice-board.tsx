@@ -38,6 +38,19 @@ const formatNoticeDate = (value: string) =>
 const getNoticeSurfaceColor = (color: string) =>
   color.toUpperCase() === "#FFFFFF" ? "#F0FDFA" : color;
 
+const getNoticeAccent = (color: string) => {
+  const accents: Record<string, { background: string; icon: string }> = {
+    "#FEF3C7": { background: "#FBBF24", icon: "#FFFFFF" },
+    "#DBEAFE": { background: "#60A5FA", icon: "#FFFFFF" },
+    "#DCFCE7": { background: "#65A30D", icon: "#FFFFFF" },
+    "#FCE7F3": { background: "#F472B6", icon: "#FFFFFF" },
+    "#EDE9FE": { background: "#A855F7", icon: "#FFFFFF" },
+    "#FFEDD5": { background: "#FB923C", icon: "#FFFFFF" },
+    "#F0FDFA": { background: "#14B8A6", icon: "#FFFFFF" },
+  };
+  return accents[color.toUpperCase()] ?? accents["#F0FDF"]!;
+};
+
 const NOTICE_COLORS = [
   "#F0FDFA",
   "#FEF3C7",
@@ -63,6 +76,11 @@ export default function NoticeBoardRoute() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [color, setColor] = useState(NOTICE_COLORS[0]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const filteredNotices = notices.filter((notice) => {
+    const query = searchQuery.trim().toLowerCase();
+    return !query || `${notice.title} ${notice.body}`.toLowerCase().includes(query);
+  });
   useEffect(() => {
     if (token && mess) void dispatch(loadNoticesAction());
   }, [dispatch, mess?.id, token]);
@@ -269,27 +287,45 @@ export default function NoticeBoardRoute() {
           </Modal>
         ) : null}
 
+        <View className="mb-4">
+          <View className="h-14 flex-row items-center rounded-2xl border border-slate-100 bg-white px-4 shadow-sm shadow-slate-300/20">
+            <Feather name="search" size={22} color="#64748B" />
+            <TextInput
+              className="ml-3 min-w-0 flex-1 font-inter text-[15px] text-slate-700"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search notices..."
+              placeholderTextColor="#64748B"
+              returnKeyType="search"
+            />
+            {searchQuery ? <TouchableOpacity onPress={() => setSearchQuery("")} accessibilityLabel="Clear notice search"><Feather name="x" size={18} color="#64748B" /></TouchableOpacity> : null}
+          </View>
+        </View>
+
         {loading ? (
           <View className="items-center py-16">
             <ActivityIndicator size="large" color="#0F766E" />
           </View>
-        ) : notices.length === 0 ? (
+        ) : filteredNotices.length === 0 ? (
           <View className="items-center rounded-2xl border border-slate-200 bg-white px-6 py-16">
             <Feather name="clipboard" size={30} color="#B45309" />
             <Text className="mt-3 font-inter-bold text-base text-slate-900">
-              No notices yet
+              {notices.length === 0 ? "No notices yet" : "No matching notices"}
             </Text>
             <Text className="mt-1 text-center font-inter text-sm text-slate-500">
-              {isAdmin
+              {notices.length === 0 && isAdmin
                 ? "Create the first notice for your mess."
-                : "New mess announcements will appear here."}
+                : notices.length === 0
+                  ? "New mess announcements will appear here."
+                  : "Try a different search term."}
             </Text>
           </View>
         ) : (
           <DraggableFlatList
-            data={notices}
+            data={filteredNotices}
             keyExtractor={(notice) => String(notice.id)}
             onDragEnd={({ data }) => {
+              if (searchQuery.trim()) return;
               const previous = notices;
               dispatch(setNoticeOrder(data));
               void persistNoticeOrder(data, previous);
@@ -298,17 +334,23 @@ export default function NoticeBoardRoute() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 32, gap: 12 }}
             renderItem={({ item: notice, drag, isActive }: RenderItemParams<ApiNotice>) => (
-              <View
-                className={`relative overflow-hidden rounded-2xl border bg-white p-4 pr-16 shadow-sm shadow-slate-400/15 ${isActive ? "border-teal-400 opacity-80" : ""}`}
+              <Pressable
+                className={`overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-300/25 ${isActive ? "border-teal-400 opacity-80" : ""}`}
+                onPress={() => {
+                  if (isAdmin) editNotice(notice);
+                }}
+                disabled={!isAdmin}
+                accessibilityLabel={`Edit notice ${notice.title}`}
                 style={{
-                  borderColor: isActive
-                    ? "#2DD4BF"
-                    : "#D1D5DB",
-                  backgroundColor: getNoticeSurfaceColor(notice.color || NOTICE_COLORS[0]),
+                  borderColor: isActive ? "#2DD4BF" : "#E2E8F0",
+                  position: "relative",
                 }}
               >
-                <View className="flex-row items-center">
-                  <View className="mr-3 h-9 w-9 items-center justify-center rounded-xl bg-amber-50">
+                <View className="flex-row items-center pr-28">
+                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: getNoticeAccent(notice.color || NOTICE_COLORS[0]).background }}>
+                    <Feather name="bell" size={20} color={getNoticeAccent(notice.color || NOTICE_COLORS[0]).icon} />
+                  </View>
+                  <View className="mr-3 h-9 min-w-10 items-center justify-center rounded-xl px-2" style={{ backgroundColor: getNoticeSurfaceColor(notice.color || NOTICE_COLORS[0]) }}>
                     <Text className="font-inter-bold text-xs text-amber-700">
                       #{notice.serialNo}
                     </Text>
@@ -317,15 +359,24 @@ export default function NoticeBoardRoute() {
                     <Text className="font-inter-bold text-base text-slate-900">
                       #{notice.serialNo} {notice.title}
                     </Text>
-                    <Text className="mt-1 font-inter text-[11px] text-slate-400">
-                      {formatNoticeDate(notice.createdAt)}
-                    </Text>
+                    <View className="mt-1 flex-row items-center gap-1.5">
+                      <Feather name="calendar" size={12} color="#64748B" />
+                      <Text className="font-inter text-[11px] text-slate-400">
+                        {formatNoticeDate(notice.createdAt)}
+                      </Text>
+                    </View>
                   </View>
                   {isAdmin ? (
-                    <View className="flex-row items-center gap-1">
+                    <View
+                      className="absolute flex-row items-center gap-1"
+                      style={{ right: 16, top: 16 }}
+                    >
                       <TouchableOpacity
                         className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100"
-                        onPress={() => editNotice(notice)}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          editNotice(notice);
+                        }}
                         disabled={reordering}
                         accessibilityLabel="Edit notice"
                       >
@@ -333,31 +384,34 @@ export default function NoticeBoardRoute() {
                       </TouchableOpacity>
                       <TouchableOpacity
                         className="h-8 w-8 items-center justify-center rounded-lg bg-red-50"
-                        onPress={() => removeNotice(notice)}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          removeNotice(notice);
+                        }}
                         disabled={reordering}
                         accessibilityLabel="Delete notice"
                       >
                         <Feather name="trash-2" size={14} color="#DC2626" />
                       </TouchableOpacity>
+                      <TouchableOpacity
+                        className="h-8 w-8 items-center justify-center rounded-lg bg-teal-50"
+                        onLongPress={(event) => {
+                          event.stopPropagation();
+                          drag();
+                        }}
+                        delayLongPress={150}
+                        disabled={reordering}
+                        accessibilityLabel="Drag to reorder notice"
+                      >
+                        <Feather name="move" size={18} color="#475569" />
+                      </TouchableOpacity>
                     </View>
                   ) : null}
                 </View>
-                {isAdmin ? (
-                  <TouchableOpacity
-                    className="absolute right-3 top-1/2 h-12 w-10 items-center justify-center rounded-xl bg-teal-50"
-                    onLongPress={drag}
-                    delayLongPress={150}
-                    disabled={reordering}
-                    accessibilityLabel="Drag to reorder notice"
-                    style={{ transform: [{ translateY: -24 }] }}
-                  >
-                    <Feather name="move" size={20} color="#475569" />
-                  </TouchableOpacity>
-                ) : null}
-                <Text className="mt-3 font-inter text-sm leading-5 text-slate-700">
+                <Text className="mt-3 font-inter text-[15px] leading-6 text-slate-700">
                   {notice.body}
                 </Text>
-              </View>
+              </Pressable>
             )}
           />
         )}

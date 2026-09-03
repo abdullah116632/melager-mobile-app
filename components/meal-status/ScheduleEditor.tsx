@@ -7,11 +7,13 @@ import {
   MEAL_STATUS_AUTOSAVE_DELAY,
   MEAL_TYPES,
 } from "@/constants/mealStatus";
-import { useAuth } from "@/redux/hooks";
+import { useAppDispatch, useAuth } from "@/redux/hooks";
+import { setSchedule } from "@/redux/slice/mealMenuSlice";
 import {
   getMealStatus,
   updateMealSchedule,
 } from "@/services/mealStatusService";
+import { getDashboardSchedule } from "@/services/dashboardService";
 import type {
   ControlScope,
   MealDraft,
@@ -67,6 +69,7 @@ export const ScheduleEditor = ({
   selectedDate,
   loadedDate,
 }: ScheduleEditorProps) => {
+  const dispatch = useAppDispatch();
   const { mess, token } = useAuth();
   const [draft, setDraft] = useState(() => createDraftFromSchedule(schedule));
   const [saving, setSaving] = useState(false);
@@ -152,6 +155,12 @@ export const ScheduleEditor = ({
         },
         token,
       );
+      const updatedDashboardSchedule = await getDashboardSchedule(
+        mess.id,
+        token,
+        selectedDate,
+      );
+      dispatch(setSchedule(updatedDashboardSchedule));
       lastSavedSnapshotRef.current = snapshotBeingSaved;
       setPendingControls((current) => {
         const next = { ...current };
