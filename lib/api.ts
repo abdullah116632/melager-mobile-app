@@ -212,6 +212,37 @@ export interface ApiNotice {
   updatedAt: string;
 }
 
+export interface ApiBazarItem {
+  id: number;
+  messId: number;
+  weekday: number;
+  name: string;
+  price: number;
+  isCompleted: boolean;
+  createdByUserId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiBazarAssignment {
+  id: number;
+  weekday: number;
+  consumerId: number;
+  name: string | null;
+  email: string | null;
+}
+
+export interface ApiServerNotification {
+  id: number;
+  messId: number;
+  noticeId: number | null;
+  type: string;
+  title: string;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export interface MeAuthResponse {
   user: ApiUser;
   messes: ApiMessWithRole[];
@@ -362,6 +393,147 @@ export const api = {
       "PATCH",
       "/mess/notices/reorder",
       { messId, noticeIds },
+      token,
+    ),
+
+  getBazar: (token: string, messId: number) =>
+    req<{ items: ApiBazarItem[]; assignments: ApiBazarAssignment[] }>(
+      "GET",
+      `/mess/bazar?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  createBazarItem: (
+    weekday: number,
+    name: string,
+    price: number,
+    token: string,
+    messId: number,
+  ) =>
+    req<{ item: ApiBazarItem }>(
+      "POST",
+      "/mess/bazar/items",
+      { weekday, name, price, messId },
+      token,
+    ),
+
+  updateBazarItem: (
+    id: number,
+    name: string,
+    price: number,
+    token: string,
+    messId: number,
+  ) =>
+    req<{ item: ApiBazarItem }>(
+      "PATCH",
+      `/mess/bazar/items/${id}`,
+      { name, price, messId },
+      token,
+    ),
+
+  updateBazarItemStatus: (
+    id: number,
+    completed: boolean,
+    token: string,
+    messId: number,
+  ) =>
+    req<{ item: ApiBazarItem }>(
+      "PATCH",
+      `/mess/bazar/items/${id}/status`,
+      { completed, messId },
+      token,
+    ),
+
+  deleteBazarItem: (id: number, token: string, messId: number) =>
+    req<{ success: boolean }>(
+      "DELETE",
+      `/mess/bazar/items/${id}?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  deleteBazarItems: (weekday: number, token: string, messId: number) =>
+    req<{ success: boolean; deletedCount: number }>(
+      "DELETE",
+      `/mess/bazar/items?messId=${messId}&weekday=${weekday}`,
+      undefined,
+      token,
+    ),
+
+  addBazarItemsToExpense: (
+    yearMonth: string,
+    day: number,
+    token: string,
+    messId: number,
+    preview = false,
+  ) =>
+    req<{
+      newItems: Array<{ id: string; name: string; amount: number }>;
+      alreadyAddedAll: boolean;
+      added: boolean;
+    }>(
+      "POST",
+      "/mess/bazar/items/add-to-expense",
+      { yearMonth, day, messId, preview },
+      token,
+    ),
+
+  getMessConsumers: (token: string, messId: number) =>
+    req<{ consumers: ApiConsumer[] }>(
+      "GET",
+      `/mess/consumers?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  assignBazarMember: (
+    weekday: number,
+    consumerId: number,
+    token: string,
+    messId: number,
+  ) =>
+    req<{ assignment: ApiBazarAssignment }>(
+      "POST",
+      "/mess/bazar/assignments",
+      { weekday, consumerId, messId },
+      token,
+    ),
+
+  assignBazarMembers: (
+    weekday: number,
+    consumerIds: number[],
+    token: string,
+    messId: number,
+  ) =>
+    req<{ assignments: ApiBazarAssignment[] }>(
+      "POST",
+      "/mess/bazar/assignments/bulk",
+      { weekday, consumerIds, messId },
+      token,
+    ),
+
+  unassignBazarMember: (id: number, token: string, messId: number) =>
+    req<{ success: boolean }>(
+      "DELETE",
+      `/mess/bazar/assignments/${id}?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  getNotifications: (token: string, messId: number) =>
+    req<{ notifications: ApiServerNotification[] }>(
+      "GET",
+      `/mess/notifications?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  markServerNotificationRead: (id: number, token: string) =>
+    req<{ success: boolean }>(
+      "POST",
+      `/mess/notifications/${id}/read`,
+      {},
       token,
     ),
 

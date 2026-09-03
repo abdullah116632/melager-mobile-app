@@ -18,7 +18,7 @@ export const NotificationStateController = ({
   const token = useAppSelector(selectAuthToken);
   const activeMess = useAppSelector(selectActiveMess);
   const scopeKey =
-    token && activeMess?.role === "admin"
+    token && activeMess
       ? getNotificationScopeKey(token, activeMess.id)
       : null;
 

@@ -78,12 +78,7 @@ export const refreshNotifications = createAsyncThunk<
     const startState = getState();
     const { token, activeMess } = startState.auth;
     const scopeKey = startState.notification.scopeKey;
-    if (
-      !token ||
-      activeMess?.role !== "admin" ||
-      !activeMess ||
-      !scopeKey
-    ) {
+    if (!token || !activeMess || !scopeKey) {
       return { scopeKey: scopeKey ?? "", stale: true, notifications: [] };
     }
 
@@ -94,13 +89,19 @@ export const refreshNotifications = createAsyncThunk<
     const previousOptOuts = new Set(startState.notification.seenOptOuts);
     const newNotifications: AppNotification[] = [];
 
-    const memberRequestsPromise = api
-      .getMemberRequests(token, activeMess.id)
+    const serverNotificationsPromise = api
+      .getNotifications(token, activeMess.id)
       .catch(() => null);
-    const mealOptOutsPromise = api
-      .getMealOptOuts(activeMess.id, undefined, token)
-      .catch(() => null);
-    const [memberResult, mealResult] = await Promise.all([
+    const memberRequestsPromise =
+      activeMess.role === "admin"
+        ? api.getMemberRequests(token, activeMess.id).catch(() => null)
+        : Promise.resolve(null);
+    const mealOptOutsPromise =
+      activeMess.role === "admin"
+        ? api.getMealOptOuts(activeMess.id, undefined, token).catch(() => null)
+        : Promise.resolve(null);
+    const [serverResult, memberResult, mealResult] = await Promise.all([
+      serverNotificationsPromise,
       memberRequestsPromise,
       mealOptOutsPromise,
     ]);
@@ -192,13 +193,29 @@ export const refreshNotifications = createAsyncThunk<
       seenOptOuts = [...currentOptOuts];
     }
 
+    const serverNotifications: AppNotification[] =
+      serverResult?.notifications.map((notification) => ({
+        id: `server_${notification.id}`,
+        type:
+          notification.type === "notice" ||
+          notification.type === "bazar_assignment"
+            ? notification.type
+            : "notice",
+        title: notification.title,
+        body: notification.body,
+        timestamp: new Date(notification.createdAt).getTime(),
+        read: notification.readAt !== null,
+        route:
+          notification.type === "notice" ? "/notice-board" : "/bazar-list",
+      })) ?? [];
+
     return {
       scopeKey,
       stale: false,
       pendingRequestCount,
       seenRequestIds,
       seenOptOuts,
-      notifications: newNotifications,
+      notifications: [...serverNotifications, ...newNotifications],
     };
   },
 );
@@ -250,10 +267,13 @@ const notificationSlice = createSlice({
         if (payload.seenOptOuts) state.seenOptOuts = payload.seenOptOuts;
         state.isFirstPoll = false;
         if (payload.notifications.length > 0) {
-          state.notifications = [
-            ...payload.notifications,
-            ...state.notifications,
-          ].slice(0, 100);
+          const merged = new Map<string, AppNotification>();
+          [...payload.notifications, ...state.notifications].forEach(
+            (notification) => {
+              merged.set(notification.id, notification);
+            },
+          );
+          state.notifications = [...merged.values()].slice(0, 100);
         }
       })
       .addCase(refreshNotifications.rejected, (state, action) => {

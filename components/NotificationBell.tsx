@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 
 import { useNotifications } from "@/redux/hooks";
@@ -22,7 +23,8 @@ export function NotificationBell({
   iconSize = 22,
   buttonPadding = 4,
 }: NotificationBellProps) {
-  const { unreadCount, openPanel } = useNotifications();
+  const router = useRouter();
+  const { unreadCount } = useNotifications();
   const badgeCount = unreadCount > 99 ? "99+" : unreadCount;
   const usesKnownBorderColor = ["#0F766E", "#7C3AED"].includes(
     badgeBorderColor.toUpperCase(),
@@ -32,7 +34,7 @@ export function NotificationBell({
     <TouchableOpacity
       className="relative"
       style={{ padding: buttonPadding }}
-      onPress={openPanel}
+      onPress={() => router.push("/notifications")}
       activeOpacity={0.7}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >

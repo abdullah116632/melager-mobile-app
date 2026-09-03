@@ -138,6 +138,7 @@ function RootLayoutNav() {
         />
         <Stack.Screen name="notice-board" options={{ headerShown: false }} />
         <Stack.Screen name="messages" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false }} />
       </Stack>
       <AuthGate />
       <AppDrawer />

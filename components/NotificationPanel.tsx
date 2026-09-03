@@ -11,7 +11,8 @@ import {
   View,
 } from "react-native";
 
-import { useNotifications } from "@/redux/hooks";
+import { useAuth, useNotifications } from "@/redux/hooks";
+import { api } from "@/lib/api";
 import type { AppNotification } from "@/types/notification";
 
 const timeAgo = (timestamp: number): string => {
@@ -36,6 +37,22 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
     );
   }
 
+  if (type === "bazar_assignment") {
+    return (
+      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-orange-100">
+        <Feather name="shopping-cart" size={16} color="#C2410C" />
+      </View>
+    );
+  }
+
+  if (type === "notice") {
+    return (
+      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-amber-100">
+        <Feather name="clipboard" size={16} color="#B45309" />
+      </View>
+    );
+  }
+
   return (
     <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-amber-100">
       <Feather name="coffee" size={16} color="#B45309" />
@@ -46,12 +63,21 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
 const NotificationItem = ({ item }: { item: AppNotification }) => {
   const router = useRouter();
   const { markRead, closePanel } = useNotifications();
+  const { token } = useAuth();
 
   const handlePress = useCallback(() => {
     markRead(item.id);
+    if (token && item.id.startsWith("server_")) {
+      const notificationId = Number(item.id.slice("server_".length));
+      if (Number.isInteger(notificationId)) {
+        void api.markServerNotificationRead(notificationId, token).catch(
+          () => undefined,
+        );
+      }
+    }
     closePanel();
     router.push(item.route as never);
-  }, [closePanel, item, markRead, router]);
+  }, [closePanel, item, markRead, router, token]);
 
   return (
     <TouchableOpacity

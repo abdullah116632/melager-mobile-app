@@ -8,14 +8,25 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
-import { api, type ApiNotice } from "@/lib/api";
-import { useAuth } from "@/redux/hooks";
+import { type ApiNotice } from "@/lib/api";
+import { useAppDispatch, useAppSelector, useAuth } from "@/redux/hooks";
+import {
+  createNotice as createNoticeAction,
+  deleteNotice as deleteNoticeAction,
+  loadNotices as loadNoticesAction,
+  reorderNotices as reorderNoticesAction,
+  selectNoticesState,
+  setNoticeOrder,
+  updateNotice as updateNoticeAction,
+} from "@/redux/slice/noticesSlice";
 
 const formatNoticeDate = (value: string) =>
   new Date(value).toLocaleDateString("en-US", {
@@ -24,8 +35,11 @@ const formatNoticeDate = (value: string) =>
     year: "numeric",
   });
 
+const getNoticeSurfaceColor = (color: string) =>
+  color.toUpperCase() === "#FFFFFF" ? "#F0FDFA" : color;
+
 const NOTICE_COLORS = [
-  "#FFFFFF",
+  "#F0FDFA",
   "#FEF3C7",
   "#DBEAFE",
   "#DCFCE7",
@@ -36,37 +50,22 @@ const NOTICE_COLORS = [
 
 export default function NoticeBoardRoute() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { mess, role, token } = useAuth();
   const isAdmin = role === "admin";
-  const [notices, setNotices] = useState<ApiNotice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { notices, loadStatus, mutationStatus, reorderStatus } =
+    useAppSelector(selectNoticesState);
+  const loading = loadStatus === "loading";
+  const saving = mutationStatus === "loading";
+  const reordering = reorderStatus === "loading";
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [color, setColor] = useState(NOTICE_COLORS[0]);
-  const [reordering, setReordering] = useState(false);
-
-  const loadNotices = useCallback(async () => {
-    if (!token || !mess) return;
-    setLoading(true);
-    try {
-      const response = await api.getNotices(token, mess.id);
-      setNotices(response.notices);
-    } catch (error) {
-      Alert.alert(
-        "Could not load notices",
-        error instanceof Error ? error.message : "Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [mess?.id, token]);
-
   useEffect(() => {
-    void loadNotices();
-  }, [loadNotices]);
+    if (token && mess) void dispatch(loadNoticesAction());
+  }, [dispatch, mess?.id, token]);
 
   const resetForm = () => {
     setTitle("");
@@ -81,29 +80,24 @@ export default function NoticeBoardRoute() {
       Alert.alert("Incomplete notice", "Please enter a title and notice text.");
       return;
     }
-    setSaving(true);
     try {
       if (editingId) {
-        const { notice } = await api.updateNotice(
-          editingId,
-          title.trim(),
-          body.trim(),
-          color,
-          token,
-          mess.id,
-        );
-        setNotices((current) =>
-          current.map((item) => (item.id === notice.id ? notice : item)),
-        );
+        await dispatch(
+          updateNoticeAction({
+            id: editingId,
+            title: title.trim(),
+            body: body.trim(),
+            color,
+          }),
+        ).unwrap();
       } else {
-        const { notice } = await api.createNotice(
-          title.trim(),
-          body.trim(),
-          color,
-          token,
-          mess.id,
-        );
-        setNotices((current) => [...current, notice]);
+        await dispatch(
+          createNoticeAction({
+            title: title.trim(),
+            body: body.trim(),
+            color,
+          }),
+        ).unwrap();
       }
       resetForm();
     } catch (error) {
@@ -111,8 +105,6 @@ export default function NoticeBoardRoute() {
         "Could not save notice",
         error instanceof Error ? error.message : "Please try again.",
       );
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -133,10 +125,7 @@ export default function NoticeBoardRoute() {
         onPress: async () => {
           if (!token || !mess) return;
           try {
-            await api.deleteNotice(notice.id, token, mess.id);
-            setNotices((current) =>
-              current.filter((item) => item.id !== notice.id),
-            );
+            await dispatch(deleteNoticeAction(notice.id)).unwrap();
           } catch (error) {
             Alert.alert(
               "Could not delete notice",
@@ -150,22 +139,16 @@ export default function NoticeBoardRoute() {
 
   const persistNoticeOrder = async (next: ApiNotice[], previous: ApiNotice[]) => {
     if (!token || !mess) return;
-    setReordering(true);
     try {
-      const response = await api.reorderNotices(
-        next.map((notice) => notice.id),
-        token,
-        mess.id,
-      );
-      setNotices(response.notices);
+      await dispatch(
+        reorderNoticesAction(next.map((notice) => notice.id)),
+      ).unwrap();
     } catch (error) {
-      setNotices(previous);
+      dispatch(setNoticeOrder(previous));
       Alert.alert(
         "Could not reorder notices",
         error instanceof Error ? error.message : "Please try again.",
       );
-    } finally {
-      setReordering(false);
     }
   };
 
@@ -208,10 +191,17 @@ export default function NoticeBoardRoute() {
 
       <View className="flex-1 px-4 pt-4">
         {isAdmin && formOpen ? (
-          <View className="rounded-2xl border border-teal-200 bg-white p-4 shadow-sm shadow-slate-400/15">
-            <Text className="font-inter-bold text-base text-slate-900">
-              {editingId ? "Edit Notice" : "Create Notice"}
-            </Text>
+          <Modal visible={formOpen} transparent animationType="fade" onRequestClose={resetForm}>
+            <Pressable className="flex-1 items-center justify-center bg-slate-900/35 px-6" onPress={resetForm}>
+              <Pressable className="w-full max-w-[380px] rounded-2xl border border-teal-200 bg-white p-4 shadow-sm shadow-slate-400/15" onPress={(event) => event.stopPropagation()}>
+                <View className="mb-1 flex-row items-center justify-between">
+                  <Text className="font-inter-bold text-base text-slate-900">
+                    {editingId ? "Edit Notice" : "Create Notice"}
+                  </Text>
+                  <TouchableOpacity onPress={resetForm} accessibilityLabel="Close notice form">
+                    <Feather name="x" size={20} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
             <TextInput
               className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900"
               value={title}
@@ -274,7 +264,9 @@ export default function NoticeBoardRoute() {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
         ) : null}
 
         {loading ? (
@@ -299,7 +291,7 @@ export default function NoticeBoardRoute() {
             keyExtractor={(notice) => String(notice.id)}
             onDragEnd={({ data }) => {
               const previous = notices;
-              setNotices(data);
+              dispatch(setNoticeOrder(data));
               void persistNoticeOrder(data, previous);
             }}
             activationDistance={8}
@@ -307,12 +299,12 @@ export default function NoticeBoardRoute() {
             contentContainerStyle={{ paddingBottom: 32, gap: 12 }}
             renderItem={({ item: notice, drag, isActive }: RenderItemParams<ApiNotice>) => (
               <View
-                className={`relative rounded-2xl border bg-white p-4 pr-16 shadow-sm shadow-slate-400/15 ${isActive ? "border-teal-400 opacity-80" : ""}`}
+                className={`relative overflow-hidden rounded-2xl border bg-white p-4 pr-16 shadow-sm shadow-slate-400/15 ${isActive ? "border-teal-400 opacity-80" : ""}`}
                 style={{
                   borderColor: isActive
                     ? "#2DD4BF"
-                    : notice.color || NOTICE_COLORS[0],
-                  backgroundColor: notice.color || NOTICE_COLORS[0],
+                    : "#D1D5DB",
+                  backgroundColor: getNoticeSurfaceColor(notice.color || NOTICE_COLORS[0]),
                 }}
               >
                 <View className="flex-row items-center">
@@ -359,14 +351,7 @@ export default function NoticeBoardRoute() {
                     accessibilityLabel="Drag to reorder notice"
                     style={{ transform: [{ translateY: -24 }] }}
                   >
-                    <View className="w-6 flex-row flex-wrap justify-center gap-1">
-                      {Array.from({ length: 9 }, (_, dot) => (
-                        <View
-                          key={dot}
-                          className="h-1.5 w-1.5 rounded-full bg-slate-700"
-                        />
-                      ))}
-                    </View>
+                    <Feather name="move" size={20} color="#475569" />
                   </TouchableOpacity>
                 ) : null}
                 <Text className="mt-3 font-inter text-sm leading-5 text-slate-700">
