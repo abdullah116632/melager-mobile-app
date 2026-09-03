@@ -77,6 +77,8 @@ export default function NoticeBoardRoute() {
   const [body, setBody] = useState("");
   const [color, setColor] = useState(NOTICE_COLORS[0]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshToastVisible, setRefreshToastVisible] = useState(false);
   const filteredNotices = notices.filter((notice) => {
     const query = searchQuery.trim().toLowerCase();
     return !query || `${notice.title} ${notice.body}`.toLowerCase().includes(query);
@@ -84,6 +86,23 @@ export default function NoticeBoardRoute() {
   useEffect(() => {
     if (token && mess) void dispatch(loadNoticesAction());
   }, [dispatch, mess?.id, token]);
+
+  const refreshNotices = async () => {
+    if (!token || !mess) return;
+    setRefreshing(true);
+    try {
+      await dispatch(loadNoticesAction()).unwrap();
+      setRefreshToastVisible(true);
+      setTimeout(() => setRefreshToastVisible(false), 2200);
+    } catch (error) {
+      Alert.alert(
+        "Could not refresh notices",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const resetForm = () => {
     setTitle("");
@@ -333,6 +352,8 @@ export default function NoticeBoardRoute() {
             activationDistance={8}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 32, gap: 12 }}
+            refreshing={refreshing}
+            onRefresh={() => void refreshNotices()}
             renderItem={({ item: notice, drag, isActive }: RenderItemParams<ApiNotice>) => (
               <Pressable
                 className={`overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-300/25 ${isActive ? "border-teal-400 opacity-80" : ""}`}
@@ -346,7 +367,7 @@ export default function NoticeBoardRoute() {
                   position: "relative",
                 }}
               >
-                <View className="flex-row items-center pr-28">
+                <View className="flex-row items-center">
                   <View className="mr-3 h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: getNoticeAccent(notice.color || NOTICE_COLORS[0]).background }}>
                     <Feather name="bell" size={20} color={getNoticeAccent(notice.color || NOTICE_COLORS[0]).icon} />
                   </View>
@@ -366,48 +387,48 @@ export default function NoticeBoardRoute() {
                       </Text>
                     </View>
                   </View>
-                  {isAdmin ? (
-                    <View
-                      className="absolute flex-row items-center gap-1"
-                      style={{ right: 16, top: 16 }}
-                    >
-                      <TouchableOpacity
-                        className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100"
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          editNotice(notice);
-                        }}
-                        disabled={reordering}
-                        accessibilityLabel="Edit notice"
-                      >
-                        <Feather name="edit-2" size={14} color="#475569" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        className="h-8 w-8 items-center justify-center rounded-lg bg-red-50"
-                        onPress={(event) => {
-                          event.stopPropagation();
-                          removeNotice(notice);
-                        }}
-                        disabled={reordering}
-                        accessibilityLabel="Delete notice"
-                      >
-                        <Feather name="trash-2" size={14} color="#DC2626" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        className="h-8 w-8 items-center justify-center rounded-lg bg-teal-50"
-                        onLongPress={(event) => {
-                          event.stopPropagation();
-                          drag();
-                        }}
-                        delayLongPress={150}
-                        disabled={reordering}
-                        accessibilityLabel="Drag to reorder notice"
-                      >
-                        <Feather name="move" size={18} color="#475569" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
                 </View>
+                {isAdmin ? (
+                  <View
+                    className="absolute right-2 top-2 flex-row items-center gap-1"
+                    pointerEvents="box-none"
+                  >
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100"
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        editNotice(notice);
+                      }}
+                      disabled={reordering}
+                      accessibilityLabel="Edit notice"
+                    >
+                      <Feather name="edit-2" size={14} color="#475569" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-lg bg-red-50"
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        removeNotice(notice);
+                      }}
+                      disabled={reordering}
+                      accessibilityLabel="Delete notice"
+                    >
+                      <Feather name="trash-2" size={14} color="#DC2626" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-lg bg-teal-50"
+                      onLongPress={(event) => {
+                        event.stopPropagation();
+                        drag();
+                      }}
+                      delayLongPress={150}
+                      disabled={reordering}
+                      accessibilityLabel="Drag to reorder notice"
+                    >
+                      <Feather name="move" size={18} color="#475569" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
                 <Text className="mt-3 font-inter text-[15px] leading-6 text-slate-700">
                   {notice.body}
                 </Text>
@@ -416,6 +437,16 @@ export default function NoticeBoardRoute() {
           />
         )}
       </View>
+      {refreshToastVisible ? (
+        <View pointerEvents="none" className="absolute bottom-8 left-0 right-0 z-50 items-center">
+          <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 shadow-md shadow-emerald-900/15">
+            <Feather name="check-circle" size={15} color="#059669" />
+            <Text className="font-inter-semibold text-xs text-emerald-700">
+              Notices refreshed successfully
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }

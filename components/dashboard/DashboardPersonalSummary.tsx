@@ -26,7 +26,7 @@ export const DashboardPersonalSummary = ({
       <>
         <View className="mx-4 mb-3">
           <Text className="font-inter-bold text-[17px] text-slate-900">
-            Your Summary
+            My monthly summary
           </Text>
         </View>
         <View
@@ -51,28 +51,24 @@ export const DashboardPersonalSummary = ({
       label: "Meals You Takes",
       value: formatDashboardQuantity(consumer.meals),
       icon: "restaurant" as const,
-      tone: "bg-emerald-50",
       color: "#059669",
     },
     {
       label: "Your Total Deposits",
       value: `৳${formatDashboardAmount(consumer.deposits)}`,
       icon: "card" as const,
-      tone: "bg-blue-50",
       color: "#2563EB",
     },
     {
       label: "Your Total Cost",
       value: `৳${formatDashboardAmount(consumer.cost)}`,
       icon: "cash" as const,
-      tone: "bg-orange-50",
       color: "#EA580C",
     },
     {
       label: "Remaining Balance",
       value: remainingBalance,
       icon: "card" as const,
-      tone: balancePositive ? "bg-teal-50" : "bg-red-50",
       color: balancePositive ? "#0F766E" : "#DC2626",
     },
   ];
@@ -95,7 +91,7 @@ export const DashboardPersonalSummary = ({
           </View>
           <View className="ml-2.5 min-w-0 flex-1">
             <Text className="font-inter-bold text-[15px] text-slate-900">
-              Your Summary
+              My monthly summary
             </Text>
             <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
               Your personal figures for this month
@@ -103,24 +99,24 @@ export const DashboardPersonalSummary = ({
           </View>
         </View>
         <View className="flex-row flex-wrap border-t border-slate-200 p-2">
-          {items.map((item) => (
-            <View key={item.label} className="w-full p-1.5">
-              <View className="flex-row items-center rounded-[14px] bg-slate-100 px-2.5 py-3">
+          {items.map((item, index) => (
+            <View key={item.label} className={`w-full px-2.5 ${index < items.length - 1 ? "border-b border-slate-200" : ""}`}>
+              <View className="flex-row items-center px-2.5 py-3">
                 <View
-                  className={`h-8 w-8 items-center justify-center rounded-[10px] ${item.tone}`}
+                  className="h-8 w-8 items-center justify-center"
                 >
                   <Ionicons name={item.icon} size={16} color={item.color} />
                 </View>
                 <View className="ml-2 min-w-0 flex-1">
                   <Text
-                    className="font-inter text-[10px] text-slate-500"
+                    className="font-inter text-[11px] text-slate-500"
                     numberOfLines={1}
                   >
                     {item.label}
                   </Text>
                 </View>
                 <Text
-                  className="ml-3 font-inter-bold text-[15px] text-slate-950"
+                  className={`ml-3 font-inter-bold text-[16px] ${item.label === "Remaining Balance" ? (balancePositive ? "text-teal-800" : "text-red-700") : "text-slate-950"}`}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
