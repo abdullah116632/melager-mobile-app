@@ -8,7 +8,11 @@ export const DashboardQuickNavDrawer = () => {
   const { exitMess } = useAuth();
 
   const navigate = (
-    route: "/consumer-breakdown" | "/notice-board" | "/bazar-list",
+    route:
+      | "/consumer-breakdown"
+      | "/notice-board"
+      | "/bazar-list"
+      | "/messages",
   ) => {
     router.push(route);
   };
@@ -70,6 +74,20 @@ export const DashboardQuickNavDrawer = () => {
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
             Bazar List
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="items-center"
+          onPress={() => navigate("/messages")}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel="Mess messages"
+        >
+          <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-sky-50">
+            <Feather name="message-circle" size={18} color="#0369A1" />
+          </View>
+          <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
+            Messages
           </Text>
         </TouchableOpacity>
       </View>
