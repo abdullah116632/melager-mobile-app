@@ -1,8 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, Text, TouchableOpacity, View } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth, useMess } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
@@ -12,13 +12,49 @@ export const DashboardHeader = () => {
   const { dataSource, lastRefreshError } = useMess();
   const { openDrawer } = useDrawer();
   const [keyCopied, setKeyCopied] = useState(false);
+  const [showingKey, setShowingKey] = useState(false);
+  const flipValue = useRef(new Animated.Value(0)).current;
+  const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flipTo = useCallback(
+    (showKey: boolean) => {
+      Animated.timing(flipValue, {
+        toValue: 1,
+        duration: 130,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        setShowingKey(showKey);
+        flipValue.setValue(-1);
+        Animated.timing(flipValue, {
+          toValue: 0,
+          duration: 130,
+          useNativeDriver: true,
+        }).start();
+      });
+    },
+    [flipValue],
+  );
 
   const copyMessKey = useCallback(async () => {
     if (!mess?.messKey) return;
     await Clipboard.setStringAsync(mess.messKey);
     setKeyCopied(true);
-    setTimeout(() => setKeyCopied(false), 1800);
-  }, [mess?.messKey]);
+    flipTo(true);
+    if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+    restoreTimerRef.current = setTimeout(() => {
+      setKeyCopied(false);
+      flipTo(false);
+    }, 2400);
+  }, [flipTo, mess?.messKey]);
+
+  useEffect(
+    () => () => {
+      if (restoreTimerRef.current) clearTimeout(restoreTimerRef.current);
+      flipValue.stopAnimation();
+    },
+    [flipValue],
+  );
   const statusText = lastRefreshError
     ? "Refresh failed. Showing saved data."
     : dataSource === "cache"
@@ -66,27 +102,36 @@ export const DashboardHeader = () => {
             </Text>
           ) : null}
         </View>
-        <NotificationBell
-          badgeBorderColor="#00796F"
-          iconSize={20}
-          buttonPadding={2}
-        />
         <TouchableOpacity
-          className="max-w-[96px] shrink flex-row items-center gap-1 rounded-full border border-white/15 bg-white/15 px-2 py-2"
+          className="max-w-[132px] shrink flex-row items-center gap-1.5 rounded-full border border-white/15 bg-white/15 px-2.5 py-2"
           onPress={() => void copyMessKey()}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Copy mess key"
         >
-          <Text
-            className="font-inter-bold text-[11px] tracking-[1.4px] text-white"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-            maxFontSizeMultiplier={1}
+          <Animated.View
+            className="min-w-0 shrink"
+            style={{
+              transform: [
+                {
+                  rotateY: flipValue.interpolate({
+                    inputRange: [-1, 0, 1],
+                    outputRange: ["-90deg", "0deg", "90deg"],
+                  }),
+                },
+              ],
+            }}
           >
-            {mess?.messKey ?? "——"}
-          </Text>
+            <Text
+              className={`font-inter-bold text-[11px] text-white ${showingKey ? "tracking-[1.4px]" : "tracking-[0.1px]"}`}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              maxFontSizeMultiplier={1}
+            >
+              {showingKey ? (mess?.messKey ?? "——") : (mess?.name ?? "Mess")}
+            </Text>
+          </Animated.View>
           <Feather
             name={keyCopied ? "check" : "copy"}
             size={12}
@@ -94,6 +139,11 @@ export const DashboardHeader = () => {
             allowFontScaling={false}
           />
         </TouchableOpacity>
+        <NotificationBell
+          badgeBorderColor="#00796F"
+          iconSize={20}
+          buttonPadding={2}
+        />
       </View>
     </LinearGradient>
   );

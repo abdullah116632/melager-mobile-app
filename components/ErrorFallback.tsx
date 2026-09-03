@@ -8,7 +8,7 @@ export type ErrorFallbackProps = {
   resetError: () => void;
 };
 
-export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
+export function ErrorFallback({ error }: ErrorFallbackProps) {
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleRestart = async () => {
@@ -16,7 +16,6 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
       await reloadAppAsync();
     } catch (restartError) {
       console.error("Failed to restart app:", restartError);
-      resetError();
     }
   };
 

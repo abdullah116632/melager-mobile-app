@@ -29,6 +29,16 @@ export interface TodaySchedule {
   totalActive: number;
 }
 
+export interface MealStatusCalendarDay {
+  date: string;
+  meals: Array<"breakfast" | "lunch" | "dinner">;
+}
+
+export interface MealStatusCalendar {
+  yearMonth: string;
+  days: MealStatusCalendarDay[];
+}
+
 export interface ConsumerMealStatus {
   consumerId: number;
   consumerName: string;
@@ -486,6 +496,22 @@ export const api = {
       token,
     ),
 
+  getMealStatusDayV2: (messId: number, token: string, date: string) =>
+    req<TodaySchedule>(
+      "GET",
+      `/v2/mess/meal-status/day?messId=${messId}&date=${date}`,
+      undefined,
+      token,
+    ),
+
+  getMealStatusCalendarV2: (messId: number, token: string, yearMonth: string) =>
+    req<MealStatusCalendar>(
+      "GET",
+      `/v2/mess/meal-status/calendar?messId=${messId}&yearMonth=${yearMonth}`,
+      undefined,
+      token,
+    ),
+
   setMealSchedule: (
     data: {
       messId: number;
@@ -515,12 +541,28 @@ export const api = {
     messId: number,
     date: string,
     mealType: string,
+    scope: "day" | "ongoing",
     token: string,
   ) =>
-    req<{ isOptedOut: boolean }>(
+    req<{
+      isOptedOut: boolean;
+      scope: "day" | "ongoing" | null;
+    }>("POST", "/mess/meal-opt-out", { messId, date, mealType, scope }, token),
+
+  toggleMealOptOutV2: (
+    messId: number,
+    date: string,
+    mealType: string,
+    scope: "day" | "ongoing",
+    token: string,
+  ) =>
+    req<{
+      isOptedOut: boolean;
+      scope: "day" | "ongoing" | null;
+    }>(
       "POST",
-      "/mess/meal-opt-out",
-      { messId, date, mealType },
+      "/v2/mess/meal-status/opt-out",
+      { messId, date, mealType, scope },
       token,
     ),
 

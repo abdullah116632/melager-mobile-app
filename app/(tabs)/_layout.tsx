@@ -8,6 +8,7 @@ import { Platform, Text, View, useColorScheme } from "react-native";
 import { cssInterop } from "nativewind";
 
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/redux/hooks";
 
 const NativeWindBlurView = cssInterop(BlurView, { className: "style" });
 
@@ -43,8 +44,16 @@ function ClassicTabIcon({
 }
 
 function NativeTabLayout() {
+  const { role } = useAuth();
+
   return (
     <NativeTabs>
+      {role === "admin" ? (
+        <NativeTabs.Trigger name="manager">
+          <Icon sf={{ default: "shield", selected: "shield.fill" }} />
+          <Label>Manager</Label>
+        </NativeTabs.Trigger>
+      ) : null}
       <NativeTabs.Trigger name="dashboard">
         <Icon
           sf={{ default: "square.grid.2x2", selected: "square.grid.2x2.fill" }}
@@ -75,6 +84,8 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -83,10 +94,11 @@ function ClassicTabLayout() {
 
   return (
     <Tabs
+      initialRouteName="dashboard"
       detachInactiveScreens={false}
       screenOptions={{
         lazy: true,
-        freezeOnBlur: true,
+        freezeOnBlur: false,
         animation: "none",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
@@ -131,6 +143,26 @@ function ClassicTabLayout() {
           ) : null,
       }}
     >
+      <Tabs.Screen
+        name="manager"
+        options={{
+          title: "Manager",
+          // Keep the navigator's route/button structure static while auth is
+          // restored. Changing tabBarButton at runtime can remount the nested
+          // tab navigator and lose its parent navigation context on Android.
+          tabBarItemStyle: isAdmin
+            ? undefined
+            : { display: "none", width: 0, marginHorizontal: 0 },
+          tabBarIcon: ({ color, focused }) => (
+            <ClassicTabIcon
+              name="shield-outline"
+              activeName="shield"
+              color={color}
+              focused={focused}
+            />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="dashboard"
         options={{

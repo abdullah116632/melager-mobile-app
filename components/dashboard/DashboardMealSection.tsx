@@ -5,29 +5,36 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
 } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import {
-  DASHBOARD_MAX_FUTURE_DAYS,
-  DASHBOARD_MEAL_ICONS,
   DASHBOARD_MEAL_LABELS,
   DASHBOARD_MEAL_TYPES,
 } from "@/constants/dashboard";
 import { useAuth } from "@/redux/hooks";
 import {
+  getDashboardMealCalendar,
   getDashboardSchedule,
   toggleDashboardMeal,
 } from "@/services/dashboardService";
 import type { DashboardMealType, TodaySchedule } from "@/types/dashboard";
 import {
-  addDashboardDays,
   formatDashboardDateLabel,
-  formatDashboardFullDate,
   getCurrentDate,
   getDashboardMealEnabled,
 } from "@/utils/dashboard";
-import { DashboardMealCard } from "./DashboardMealCard";
+import { DashboardMealCard } from "@/components/dashboard/DashboardMealCard";
+import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
+
+const menuCardShadow = {
+  shadowColor: "#94A3B8",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.16,
+  shadowRadius: 10,
+  elevation: 4,
+};
 
 export interface DashboardMealSectionHandle {
   refresh: () => Promise<void>;
@@ -40,8 +47,15 @@ export const DashboardMealSection = forwardRef<
   const router = useRouter();
   const { mess, role, token } = useAuth();
   const today = getCurrentDate();
-  const maxFutureDate = addDashboardDays(today, DASHBOARD_MAX_FUTURE_DAYS);
   const [selectedDate, setSelectedDate] = useState(today);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [calendarYearMonth, setCalendarYearMonth] = useState(today.slice(0, 7));
+  const [calendarMarkers, setCalendarMarkers] = useState<
+    Record<string, string[]>
+  >({});
+  const [calendarMarkersLoading, setCalendarMarkersLoading] = useState(false);
+  const calendarRequestId = useRef(0);
+  const mountedRef = useRef(true);
   const [schedule, setSchedule] = useState<TodaySchedule | null>(null);
   const [optOuts, setOptOuts] = useState<Set<string>>(new Set());
   const [pendingOptOuts, setPendingOptOuts] = useState<Set<string>>(new Set());
@@ -49,13 +63,22 @@ export const DashboardMealSection = forwardRef<
   const isPast = selectedDate < today;
   const isToday = selectedDate === today;
   const isFuture = selectedDate > today;
-  const isAtFutureLimit = selectedDate >= maxFutureDate;
+  const compactDate = new Date(`${selectedDate}T00:00:00`).toLocaleDateString(
+    "en-GB",
+    {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    },
+  );
 
   const fetchSchedule = useCallback(
     async (date: string) => {
       if (!token || !mess) return;
       try {
         const data = await getDashboardSchedule(mess.id, token, date);
+        if (!mountedRef.current) return;
         setSchedule(data);
         setOptOuts(new Set(data.myOptOuts));
       } catch {
@@ -65,10 +88,51 @@ export const DashboardMealSection = forwardRef<
     [token, mess?.id],
   );
 
+  const fetchCalendarMarkers = useCallback(
+    async (yearMonth: string) => {
+      if (!token || !mess) return;
+      const requestId = ++calendarRequestId.current;
+      setCalendarMarkersLoading(true);
+      try {
+        const data = await getDashboardMealCalendar(mess.id, token, yearMonth);
+        if (!mountedRef.current || calendarRequestId.current !== requestId)
+          return;
+        const markers: Record<string, string[]> = {};
+        for (const day of data.days) {
+          markers[day.date] = day.meals.map((mealType) =>
+            mealType === "breakfast" ? "B" : mealType === "lunch" ? "L" : "D",
+          );
+        }
+        setCalendarMarkers(markers);
+      } catch {
+        if (mountedRef.current && calendarRequestId.current === requestId) {
+          setCalendarMarkers({});
+        }
+      } finally {
+        if (mountedRef.current && calendarRequestId.current === requestId) {
+          setCalendarMarkersLoading(false);
+        }
+      }
+    },
+    [mess?.id, token],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      calendarRequestId.current += 1;
+    };
+  }, []);
+
   useEffect(() => {
     setSchedule(null);
     void fetchSchedule(selectedDate);
   }, [fetchSchedule, selectedDate]);
+
+  useEffect(() => {
+    if (datePickerVisible) void fetchCalendarMarkers(calendarYearMonth);
+  }, [calendarYearMonth, datePickerVisible, fetchCalendarMarkers]);
 
   useImperativeHandle(
     ref,
@@ -76,7 +140,10 @@ export const DashboardMealSection = forwardRef<
     [fetchSchedule, selectedDate],
   );
 
-  const performMealToggle = async (mealType: DashboardMealType) => {
+  const performMealToggle = async (
+    mealType: DashboardMealType,
+    scope: "day" | "ongoing" = "day",
+  ) => {
     if (!token || !mess) return;
     const wasOptedOut = optOuts.has(mealType);
     setPendingOptOuts((current) => new Set([...current, mealType]));
@@ -86,9 +153,10 @@ export const DashboardMealSection = forwardRef<
       return next;
     });
     try {
-      await toggleDashboardMeal(mess.id, selectedDate, mealType, token);
+      await toggleDashboardMeal(mess.id, selectedDate, mealType, scope, token);
       await fetchSchedule(selectedDate);
     } catch (error) {
+      if (!mountedRef.current) return;
       setOptOuts((current) => {
         const next = new Set(current);
         wasOptedOut ? next.add(mealType) : next.delete(mealType);
@@ -101,79 +169,86 @@ export const DashboardMealSection = forwardRef<
           : "Could not update meal preference",
       );
     } finally {
-      setPendingOptOuts((current) => {
-        const next = new Set(current);
-        next.delete(mealType);
-        return next;
-      });
+      if (mountedRef.current) {
+        setPendingOptOuts((current) => {
+          const next = new Set(current);
+          next.delete(mealType);
+          return next;
+        });
+      }
     }
   };
 
   const toggleMeal = (mealType: DashboardMealType) => {
-    if (!token || !mess || !schedule) return;
-    if (isPast) {
-      Alert.alert("Past Date", "You cannot change meal on/off for past dates.");
+    if (!token || !mess) return;
+    if (isPast) return;
+    if (!schedule) {
+      Alert.alert(
+        "Schedule unavailable",
+        "Meal status could not be loaded. Please refresh and try again.",
+      );
       return;
     }
-    const action = optOuts.has(mealType) ? "turn on" : "turn off";
+    if (!getDashboardMealEnabled(schedule, mealType)) return;
+    if (optOuts.has(mealType)) {
+      void performMealToggle(mealType);
+      return;
+    }
+
     Alert.alert(
-      "Are you sure?",
-      `Do you want to ${action} ${DASHBOARD_MEAL_LABELS[mealType]}?`,
+      `Turn off ${DASHBOARD_MEAL_LABELS[mealType]}`,
+      "How long do you want to keep this meal off?",
       [
-        { text: "No", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "Yes",
-          onPress: () => void performMealToggle(mealType),
+          text: "Only for today",
+          onPress: () => void performMealToggle(mealType, "day"),
+        },
+        {
+          text: "Until I turn on",
+          onPress: () => void performMealToggle(mealType, "ongoing"),
         },
       ],
     );
   };
 
   return (
-    <View className="mx-4 mb-4 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-lg shadow-slate-300/30">
-      <View className="flex-row items-center px-3 pb-2 pt-3">
-        <TouchableOpacity
-          className="h-9 w-9 items-center justify-center rounded-full border border-slate-100 bg-white shadow-md shadow-slate-300/40"
-          onPress={() => setSelectedDate((date) => addDashboardDays(date, -1))}
-          activeOpacity={0.7}
-        >
-          <Feather name="chevron-left" size={20} color="#0F172A" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          className="flex-1 items-center px-2"
-          onPress={isToday ? undefined : () => setSelectedDate(today)}
-          activeOpacity={isToday ? 1 : 0.7}
-        >
-          <Text
-            className="text-center font-inter-bold text-base text-slate-900"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.78}
-          >
-            {formatDashboardDateLabel(selectedDate, today)}
+    <View className="mx-4 mb-4">
+      <View className="mb-3 flex-row items-center">
+        <View className="min-w-0 flex-1 flex-row items-center gap-2">
+          <Text className="font-inter-bold text-[17px] text-slate-900">
+            {isToday
+              ? "Today’s Menu"
+              : `${formatDashboardDateLabel(selectedDate, today)} Menu`}
           </Text>
-          {!isToday && (
-            <Text
-              className="mt-0.5 text-center font-inter text-[10px] text-teal-700"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.7}
+          {isAdmin ? (
+            <TouchableOpacity
+              className="h-8 w-8 items-center justify-center rounded-full bg-teal-50"
+              onPress={() => router.push(`/meal-status?date=${selectedDate}`)}
+              activeOpacity={0.75}
+              accessibilityLabel="Manage meal schedule"
             >
-              {formatDashboardFullDate(selectedDate)} · Tap for Today
-            </Text>
-          )}
-        </TouchableOpacity>
+              <Feather name="settings" size={14} color="#0F766E" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <TouchableOpacity
-          className={`h-9 w-9 items-center justify-center rounded-full border border-slate-100 bg-white shadow-md shadow-slate-300/40 ${isAtFutureLimit ? "opacity-35" : "opacity-100"}`}
-          onPress={() =>
-            setSelectedDate((date) =>
-              date >= maxFutureDate ? date : addDashboardDays(date, 1),
-            )
-          }
+          className="flex-row items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+          onPress={() => {
+            setCalendarYearMonth(selectedDate.slice(0, 7));
+            setDatePickerVisible(true);
+          }}
           activeOpacity={0.7}
-          disabled={isAtFutureLimit}
+          accessibilityRole="button"
+          accessibilityLabel="Open meal date calendar"
         >
-          <Feather name="chevron-right" size={20} color="#0F172A" />
+          <Feather name="calendar" size={14} color="#64748B" />
+          <Text
+            className="font-inter-medium text-[11px] text-slate-500"
+            numberOfLines={1}
+          >
+            {compactDate}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -194,69 +269,48 @@ export const DashboardMealSection = forwardRef<
         </View>
       )}
 
-      <View className="flex-row items-center border-t border-slate-100 px-3.5 pb-2.5 pt-2.5">
-        {schedule ? (
-          <View className="flex-1 flex-row flex-wrap items-center gap-2">
-            {DASHBOARD_MEAL_TYPES.map((mealType) => {
-              const enabled = getDashboardMealEnabled(schedule, mealType);
-              const activeCount = enabled ? schedule.activeByMeal[mealType] : 0;
-              const inactiveCount = Math.max(
-                0,
-                schedule.totalConsumers - activeCount,
-              );
-              return (
-                <View
-                  key={mealType}
-                  className="flex-row items-center gap-1 rounded-full bg-teal-50 px-2 py-1"
-                >
-                  <Text className="text-[13px]">
-                    {DASHBOARD_MEAL_ICONS[mealType]}
-                  </Text>
-                  <Text className="font-inter-bold text-[11px] text-emerald-700">
-                    {activeCount} on
-                  </Text>
-                  <Text className="font-inter text-[10px] text-slate-500">
-                    · {inactiveCount} off
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <View className="flex-1" />
-        )}
-        {isAdmin ? (
-          <TouchableOpacity
-            className="ml-2 flex-row items-center gap-1 rounded-full border border-teal-100 bg-white px-3 py-2 shadow-sm shadow-slate-300/30"
-            onPress={() => router.push(`/meal-status?date=${selectedDate}`)}
-            activeOpacity={0.75}
-          >
-            <Feather name="settings" size={13} color="#0F766E" />
-            <Text className="font-inter-semibold text-xs text-teal-700">
-              Manage
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      <View className="flex-row gap-2.5 px-3.5 pb-4">
-        {DASHBOARD_MEAL_TYPES.map((mealType) => (
-          <DashboardMealCard
-            key={mealType}
-            mealType={mealType}
-            schedule={schedule}
-            optedOut={optOuts.has(mealType)}
-            pending={pendingOptOuts.has(mealType)}
-            canInteract={!isPast}
-            onPress={toggleMeal}
-          />
-        ))}
+      <View
+        className="overflow-hidden rounded-[20px] border border-slate-100 bg-white"
+        style={menuCardShadow}
+      >
+        {DASHBOARD_MEAL_TYPES.map((mealType, index) => {
+          const enabled = getDashboardMealEnabled(schedule, mealType);
+          return (
+            <DashboardMealCard
+              key={mealType}
+              mealType={mealType}
+              schedule={schedule}
+              activeCount={
+                enabled ? (schedule?.activeByMeal[mealType] ?? 0) : 0
+              }
+              optedOut={optOuts.has(mealType)}
+              pending={pendingOptOuts.has(mealType)}
+              canInteract={!isPast && enabled}
+              isLast={index === DASHBOARD_MEAL_TYPES.length - 1}
+              onPress={toggleMeal}
+            />
+          );
+        })}
       </View>
       {!isAdmin && !isPast && (
         <Text className="pb-2.5 text-center font-inter text-[11px] text-slate-500">
           Tap a meal to turn it on or off
         </Text>
       )}
+
+      <DashboardDatePicker
+        visible={datePickerVisible}
+        value={selectedDate}
+        title="Select meal date"
+        dayMarkers={calendarMarkers}
+        markersLoading={calendarMarkersLoading}
+        onVisibleMonthChange={setCalendarYearMonth}
+        onClose={() => setDatePickerVisible(false)}
+        onSelect={(date) => {
+          setSelectedDate(date);
+          setDatePickerVisible(false);
+        }}
+      />
     </View>
   );
 });

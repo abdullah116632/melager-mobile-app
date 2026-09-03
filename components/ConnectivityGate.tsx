@@ -14,7 +14,7 @@ const ConnectionBackground = ({ children }: { children: ReactNode }) => {
       colors={["#064E4A", "#08766E", "#12A58C"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      className="relative flex-1 overflow-hidden px-5"
+      className="absolute inset-0 z-[1000] overflow-hidden px-5"
       style={{ paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }}
     >
       <StatusBar style="light" backgroundColor="#064E4A" />
@@ -41,7 +41,7 @@ const ConnectionBackground = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export function ConnectivityGate({ children }: { children: ReactNode }) {
+export function ConnectivityGate() {
   const { isOnline, isCheckingNetwork } = useNetwork();
 
   if (isCheckingNetwork) {
@@ -130,5 +130,5 @@ export function ConnectivityGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return null;
 }

@@ -1,11 +1,22 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useEffect, useState } from "react";
-import { Modal, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface DashboardDatePickerProps {
   visible: boolean;
   value: string;
   title: string;
+  fixedYearMonth?: string;
+  maximumDate?: string;
+  dayMarkers?: Record<string, string[]>;
+  markersLoading?: boolean;
+  onVisibleMonthChange?: (yearMonth: string) => void;
   onClose: () => void;
   onSelect: (date: string) => void;
 }
@@ -14,14 +25,24 @@ export const DashboardDatePicker = ({
   visible,
   value,
   title,
+  fixedYearMonth,
+  maximumDate,
+  dayMarkers,
+  markersLoading = false,
+  onVisibleMonthChange,
   onClose,
   onSelect,
 }: DashboardDatePickerProps) => {
-  const [viewYearMonth, setViewYearMonth] = useState(value.slice(0, 7));
+  const [viewYearMonth, setViewYearMonth] = useState(
+    fixedYearMonth ?? value.slice(0, 7),
+  );
 
   useEffect(() => {
-    if (visible) setViewYearMonth(value.slice(0, 7));
-  }, [visible, value]);
+    if (!visible) return;
+    const nextYearMonth = fixedYearMonth ?? value.slice(0, 7);
+    setViewYearMonth(nextYearMonth);
+    onVisibleMonthChange?.(nextYearMonth);
+  }, [fixedYearMonth, onVisibleMonthChange, visible, value]);
 
   const [year, month] = viewYearMonth.split("-").map(Number);
   const daysInMonth = new Date(year!, month!, 0).getDate();
@@ -37,9 +58,9 @@ export const DashboardDatePicker = ({
 
   const changeMonth = (offset: number) => {
     const next = new Date(year!, month! - 1 + offset, 1);
-    setViewYearMonth(
-      `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`,
-    );
+    const nextYearMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    setViewYearMonth(nextYearMonth);
+    onVisibleMonthChange?.(nextYearMonth);
   };
   const monthLabel = new Date(year!, month! - 1, 1).toLocaleDateString(
     "en-US",
@@ -64,6 +85,13 @@ export const DashboardDatePicker = ({
             <Text className="flex-1 font-inter-bold text-base text-slate-900">
               {title}
             </Text>
+            {markersLoading ? (
+              <ActivityIndicator
+                size="small"
+                color="#0F766E"
+                style={{ marginRight: 6 }}
+              />
+            ) : null}
             <TouchableOpacity
               className="h-[34px] w-[34px] items-center justify-center"
               onPress={onClose}
@@ -72,21 +100,29 @@ export const DashboardDatePicker = ({
             </TouchableOpacity>
           </View>
           <View className="mb-2.5 flex-row items-center">
-            <TouchableOpacity
-              className="h-[38px] w-[38px] items-center justify-center"
-              onPress={() => changeMonth(-1)}
-            >
-              <Feather name="chevron-left" size={21} color="#0F172A" />
-            </TouchableOpacity>
+            {fixedYearMonth ? (
+              <View className="h-[38px] w-[38px]" />
+            ) : (
+              <TouchableOpacity
+                className="h-[38px] w-[38px] items-center justify-center"
+                onPress={() => changeMonth(-1)}
+              >
+                <Feather name="chevron-left" size={21} color="#0F172A" />
+              </TouchableOpacity>
+            )}
             <Text className="flex-1 text-center font-inter-semibold text-[15px] text-slate-900">
               {monthLabel}
             </Text>
-            <TouchableOpacity
-              className="h-[38px] w-[38px] items-center justify-center"
-              onPress={() => changeMonth(1)}
-            >
-              <Feather name="chevron-right" size={21} color="#0F172A" />
-            </TouchableOpacity>
+            {fixedYearMonth ? (
+              <View className="h-[38px] w-[38px]" />
+            ) : (
+              <TouchableOpacity
+                className="h-[38px] w-[38px] items-center justify-center"
+                onPress={() => changeMonth(1)}
+              >
+                <Feather name="chevron-right" size={21} color="#0F172A" />
+              </TouchableOpacity>
+            )}
           </View>
           <View className="flex-row">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
@@ -112,21 +148,56 @@ export const DashboardDatePicker = ({
                   }
                   const date = `${viewYearMonth}-${String(day).padStart(2, "0")}`;
                   const selected = date === value;
+                  const disabled = Boolean(maximumDate && date > maximumDate);
+                  const markers = dayMarkers?.[date] ?? [];
+                  const marked = markers.length > 0;
                   return (
                     <TouchableOpacity
                       key={date}
-                      className="h-[42px] flex-1 items-center justify-center"
+                      className="h-[50px] flex-1 items-center justify-center"
                       onPress={() => onSelect(date)}
                       activeOpacity={0.7}
+                      disabled={disabled}
+                      style={{ opacity: disabled ? 0.3 : 1 }}
                     >
                       <View
-                        className={`h-9 w-9 items-center justify-center rounded-full ${selected ? "bg-teal-700" : "bg-transparent"}`}
+                        className="h-[44px] w-[40px] items-center justify-center rounded-xl"
+                        style={
+                          marked
+                            ? {
+                                backgroundColor: "#FEF2F2",
+                                borderColor: selected ? "#0F766E" : "#FCA5A5",
+                                borderWidth: selected ? 2 : 1,
+                              }
+                            : selected
+                              ? { backgroundColor: "#0F766E" }
+                              : undefined
+                        }
                       >
                         <Text
-                          className={`text-center font-inter-medium text-[13px] leading-[18px] [include-font-padding:false] ${selected ? "text-white" : "text-slate-900"}`}
+                          className="text-center font-inter-medium text-[13px] leading-[17px] [include-font-padding:false]"
+                          style={{
+                            color: marked
+                              ? "#B91C1C"
+                              : selected
+                                ? "#FFFFFF"
+                                : "#0F172A",
+                          }}
                         >
                           {day}
                         </Text>
+                        {marked ? (
+                          <View className="h-3 flex-row items-center justify-center gap-[2px]">
+                            {markers.map((marker) => (
+                              <Text
+                                key={`${date}-${marker}`}
+                                className="font-inter-bold text-[8px] leading-[10px] text-red-700"
+                              >
+                                {marker}
+                              </Text>
+                            ))}
+                          </View>
+                        ) : null}
                       </View>
                     </TouchableOpacity>
                   );

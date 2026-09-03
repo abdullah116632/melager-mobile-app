@@ -42,7 +42,7 @@ const NativeWindGestureHandlerRootView = cssInterop(GestureHandlerRootView, {
   className: "style",
 });
 
-function AuthGate({ children }: { children: React.ReactNode }) {
+function AuthGate() {
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectAuthUser);
   const activeMess = useAppSelector(selectActiveMess);
@@ -57,6 +57,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const inAccount = first === "account";
   const inAccountSecurity = first === "settings" && second === "security";
   const inAdminOtp = first === "settings" && second === "admin-otp";
+  const inManagerTab =
+    (first === "(tabs)" && second === "manager") || first === "manager";
   const redirectingToMessHub = Boolean(
     user &&
     !activeMess &&
@@ -83,6 +85,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
           router.replace("/");
         }
       } else {
+        if (inManagerTab && activeMess.role !== "admin") {
+          router.replace("/(tabs)/dashboard");
+          return;
+        }
         const pendingAdminOtp = await getPendingAdminOtp();
         if (cancelled) return;
         if (pendingAdminOtp?.userId === user.id) {
@@ -107,19 +113,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // launching or reconnecting while signed out.
   if (authLoading || (!user && !inAuth) || redirectingToMessHub) {
     return (
-      <View className="flex-1 items-center justify-center bg-teal-700">
+      <View className="absolute inset-0 z-[999] items-center justify-center bg-teal-700">
         <ActivityIndicator size="large" color="#fff" />
       </View>
     );
   }
 
-  return <>{children}</>;
+  return null;
 }
 
 function RootLayoutNav() {
   return (
-    <AuthGate>
-      <AppDrawer />
+    <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
@@ -133,7 +138,9 @@ function RootLayoutNav() {
         />
         <Stack.Screen name="notice-board" options={{ headerShown: false }} />
       </Stack>
-    </AuthGate>
+      <AuthGate />
+      <AppDrawer />
+    </>
   );
 }
 
@@ -157,21 +164,20 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <Provider store={store}>
         <NetworkStateController>
-          <ConnectivityGate>
-            <ErrorBoundary>
-              <MessStateController>
-                <NotificationStateController>
-                  <NativeWindGestureHandlerRootView className="flex-1">
-                    <KeyboardProvider>
-                      <RootLayoutNav />
-                    </KeyboardProvider>
-                    <RefreshSuccessToast />
-                    <NotificationPanel />
-                  </NativeWindGestureHandlerRootView>
-                </NotificationStateController>
-              </MessStateController>
-            </ErrorBoundary>
-          </ConnectivityGate>
+          <ErrorBoundary>
+            <MessStateController>
+              <NotificationStateController>
+                <NativeWindGestureHandlerRootView className="flex-1">
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                  <RefreshSuccessToast />
+                  <NotificationPanel />
+                  <ConnectivityGate />
+                </NativeWindGestureHandlerRootView>
+              </NotificationStateController>
+            </MessStateController>
+          </ErrorBoundary>
         </NetworkStateController>
       </Provider>
     </SafeAreaProvider>
