@@ -23,7 +23,8 @@ const MenuMarquee = ({ text }: { text: string }) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(0);
   const [textWidth, setTextWidth] = useState(0);
-  const shouldScroll = containerWidth > 0 && textWidth > containerWidth + 2;
+  const shouldWrap = text.length > 42;
+  const shouldScroll = !shouldWrap && containerWidth > 0 && textWidth > containerWidth + 2;
 
   useEffect(() => {
     translateX.stopAnimation();
@@ -50,7 +51,7 @@ const MenuMarquee = ({ text }: { text: string }) => {
 
   return (
     <View
-      className="h-[17px] w-full justify-center overflow-hidden"
+      className={`${shouldWrap ? "min-h-[32px]" : "h-[17px]"} w-full justify-center overflow-hidden`}
       onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
     >
       <Text
@@ -63,7 +64,14 @@ const MenuMarquee = ({ text }: { text: string }) => {
       >
         {text}
       </Text>
-      {shouldScroll ? (
+      {shouldWrap ? (
+        <Text
+          className="font-inter text-[12px] leading-4 text-slate-500"
+          numberOfLines={2}
+        >
+          {text}
+        </Text>
+      ) : shouldScroll ? (
         <Animated.View
           className="flex-row items-center"
           style={{ transform: [{ translateX }] }}
@@ -71,7 +79,7 @@ const MenuMarquee = ({ text }: { text: string }) => {
           {[0, 1].map((copy) => (
             <Text
               key={copy}
-              className="shrink-0 text-center font-inter text-[12px] text-slate-500"
+              className="shrink-0 font-inter text-[12px] text-slate-500"
               numberOfLines={1}
               style={{ marginLeft: copy === 1 ? MARQUEE_GAP : 0 }}
             >
@@ -81,7 +89,7 @@ const MenuMarquee = ({ text }: { text: string }) => {
         </Animated.View>
       ) : (
         <Text
-          className="text-center font-inter text-[12px] text-slate-500"
+          className="font-inter text-[12px] text-slate-500"
           numberOfLines={1}
         >
           {text}
@@ -149,18 +157,16 @@ export const DashboardMealCard = ({
       </View>
 
       <View
-        className="ml-3 min-w-0 flex-1 flex-row items-center pr-2"
+        className="ml-3 min-w-0 flex-1 pr-2"
         style={{ opacity: enabled ? 1 : 0.42 }}
       >
         <Text
-          className="shrink-0 font-inter-bold text-[15px] text-slate-900"
+          className="font-inter-bold text-[15px] text-slate-900"
           numberOfLines={1}
         >
           {DASHBOARD_MEAL_LABELS[mealType]}
         </Text>
-        <View className="ml-2 min-w-0 flex-1 items-center justify-center">
-          <MenuMarquee text={menu || "No menu set"} />
-        </View>
+        <MenuMarquee text={menu || "No menu set"} />
       </View>
 
       <View className="ml-1 w-[74px] items-center">

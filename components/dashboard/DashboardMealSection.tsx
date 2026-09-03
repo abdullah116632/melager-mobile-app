@@ -6,14 +6,24 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
-  useState,
 } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import {
   DASHBOARD_MEAL_LABELS,
   DASHBOARD_MEAL_TYPES,
 } from "@/constants/dashboard";
-import { useAuth } from "@/redux/hooks";
+import { useAppDispatch, useAppSelector, useAuth } from "@/redux/hooks";
+import {
+  selectMealMenuState,
+  setCalendarMarkers,
+  setCalendarMarkersLoading,
+  setCalendarYearMonth,
+  setDatePickerVisible,
+  setOptOuts,
+  setPendingOptOut,
+  setSchedule,
+  setSelectedDate,
+} from "@/redux/slice/mealMenuSlice";
 import {
   getDashboardMealCalendar,
   getDashboardSchedule,
@@ -45,20 +55,23 @@ export const DashboardMealSection = forwardRef<
   object
 >((_props, ref) => {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { mess, role, token } = useAuth();
   const today = getCurrentDate();
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [calendarYearMonth, setCalendarYearMonth] = useState(today.slice(0, 7));
-  const [calendarMarkers, setCalendarMarkers] = useState<
-    Record<string, string[]>
-  >({});
-  const [calendarMarkersLoading, setCalendarMarkersLoading] = useState(false);
+  const {
+    selectedDate,
+    datePickerVisible,
+    calendarYearMonth,
+    calendarMarkers,
+    calendarMarkersLoading,
+    schedule,
+    optOuts: storedOptOuts,
+    pendingOptOuts: storedPendingOptOuts,
+  } = useAppSelector(selectMealMenuState);
+  const optOuts = new Set(storedOptOuts);
+  const pendingOptOuts = new Set(storedPendingOptOuts);
   const calendarRequestId = useRef(0);
   const mountedRef = useRef(true);
-  const [schedule, setSchedule] = useState<TodaySchedule | null>(null);
-  const [optOuts, setOptOuts] = useState<Set<string>>(new Set());
-  const [pendingOptOuts, setPendingOptOuts] = useState<Set<string>>(new Set());
   const isAdmin = role === "admin";
   const isPast = selectedDate < today;
   const isToday = selectedDate === today;
@@ -79,8 +92,7 @@ export const DashboardMealSection = forwardRef<
       try {
         const data = await getDashboardSchedule(mess.id, token, date);
         if (!mountedRef.current) return;
-        setSchedule(data);
-        setOptOuts(new Set(data.myOptOuts));
+        dispatch(setSchedule(data));
       } catch {
         // Preserve the last successfully loaded schedule.
       }
@@ -92,7 +104,7 @@ export const DashboardMealSection = forwardRef<
     async (yearMonth: string) => {
       if (!token || !mess) return;
       const requestId = ++calendarRequestId.current;
-      setCalendarMarkersLoading(true);
+      dispatch(setCalendarMarkersLoading(true));
       try {
         const data = await getDashboardMealCalendar(mess.id, token, yearMonth);
         if (!mountedRef.current || calendarRequestId.current !== requestId)
@@ -103,14 +115,14 @@ export const DashboardMealSection = forwardRef<
             mealType === "breakfast" ? "B" : mealType === "lunch" ? "L" : "D",
           );
         }
-        setCalendarMarkers(markers);
+        dispatch(setCalendarMarkers(markers));
       } catch {
         if (mountedRef.current && calendarRequestId.current === requestId) {
-          setCalendarMarkers({});
+          dispatch(setCalendarMarkers({}));
         }
       } finally {
         if (mountedRef.current && calendarRequestId.current === requestId) {
-          setCalendarMarkersLoading(false);
+          dispatch(setCalendarMarkersLoading(false));
         }
       }
     },
@@ -126,7 +138,7 @@ export const DashboardMealSection = forwardRef<
   }, []);
 
   useEffect(() => {
-    setSchedule(null);
+    dispatch(setSchedule(null));
     void fetchSchedule(selectedDate);
   }, [fetchSchedule, selectedDate]);
 
@@ -146,22 +158,22 @@ export const DashboardMealSection = forwardRef<
   ) => {
     if (!token || !mess) return;
     const wasOptedOut = optOuts.has(mealType);
-    setPendingOptOuts((current) => new Set([...current, mealType]));
-    setOptOuts((current) => {
-      const next = new Set(current);
-      wasOptedOut ? next.delete(mealType) : next.add(mealType);
-      return next;
-    });
+    dispatch(setPendingOptOut({ mealType, pending: true }));
+    dispatch(setOptOuts(
+      wasOptedOut
+        ? storedOptOuts.filter((item) => item !== mealType)
+        : [...storedOptOuts, mealType],
+    ));
     try {
       await toggleDashboardMeal(mess.id, selectedDate, mealType, scope, token);
       await fetchSchedule(selectedDate);
     } catch (error) {
       if (!mountedRef.current) return;
-      setOptOuts((current) => {
-        const next = new Set(current);
-        wasOptedOut ? next.add(mealType) : next.delete(mealType);
-        return next;
-      });
+      dispatch(setOptOuts(
+        wasOptedOut
+          ? [...storedOptOuts, mealType]
+          : storedOptOuts.filter((item) => item !== mealType),
+      ));
       Alert.alert(
         "Error",
         error instanceof Error
@@ -170,11 +182,7 @@ export const DashboardMealSection = forwardRef<
       );
     } finally {
       if (mountedRef.current) {
-        setPendingOptOuts((current) => {
-          const next = new Set(current);
-          next.delete(mealType);
-          return next;
-        });
+        dispatch(setPendingOptOut({ mealType, pending: false }));
       }
     }
   };
@@ -239,8 +247,8 @@ export const DashboardMealSection = forwardRef<
         <TouchableOpacity
           className="flex-row items-center gap-1.5 rounded-lg border border-teal-200 bg-white px-2.5 py-1.5"
           onPress={() => {
-            setCalendarYearMonth(selectedDate.slice(0, 7));
-            setDatePickerVisible(true);
+            dispatch(setCalendarYearMonth(selectedDate.slice(0, 7)));
+            dispatch(setDatePickerVisible(true));
           }}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -307,11 +315,11 @@ export const DashboardMealSection = forwardRef<
         title="Select meal date"
         dayMarkers={calendarMarkers}
         markersLoading={calendarMarkersLoading}
-        onVisibleMonthChange={setCalendarYearMonth}
-        onClose={() => setDatePickerVisible(false)}
+        onVisibleMonthChange={(yearMonth) => dispatch(setCalendarYearMonth(yearMonth))}
+        onClose={() => dispatch(setDatePickerVisible(false))}
         onSelect={(date) => {
-          setSelectedDate(date);
-          setDatePickerVisible(false);
+          dispatch(setSelectedDate(date));
+          dispatch(setDatePickerVisible(false));
         }}
       />
     </View>
