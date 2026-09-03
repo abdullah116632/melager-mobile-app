@@ -1,12 +1,15 @@
 import { AppState, type AppStateStatus } from "react-native";
 import { useEffect, type ReactNode } from "react";
 
+import { clearApiCache } from "@/lib/api";
 import { connectRealtime, disconnectRealtime } from "@/lib/realtime";
-import { useAppSelector } from "@/redux/hooks";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { selectActiveMess, selectAuthToken } from "@/redux/slice/authSlice";
+import { refreshNotifications } from "@/redux/slice/notificationSlice";
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
 export const RealtimeStateController = ({ children }: { children: ReactNode }) => {
+  const dispatch = useAppDispatch();
   const token = useAppSelector(selectAuthToken);
   const activeMess = useAppSelector(selectActiveMess);
   const messId = activeMess?.id ?? null;
@@ -18,12 +21,19 @@ export const RealtimeStateController = ({ children }: { children: ReactNode }) =
     }
 
     let isActive = AppState.currentState === "active";
-    if (isActive) connectRealtime(token, messId);
+    const connect = () => {
+      const socket = connectRealtime(token, messId);
+      socket.on("notification:created", () => {
+        clearApiCache();
+        void dispatch(refreshNotifications());
+      });
+    };
+    if (isActive) connect();
 
     const subscription = AppState.addEventListener(
       "change",
       (state: AppStateStatus) => {
-        if (state === "active" && !isActive) connectRealtime(token, messId);
+        if (state === "active" && !isActive) connect();
         if (state !== "active") disconnectRealtime();
         isActive = state === "active";
       },
@@ -33,7 +43,7 @@ export const RealtimeStateController = ({ children }: { children: ReactNode }) =
       subscription.remove();
       disconnectRealtime();
     };
-  }, [token, messId]);
+  }, [dispatch, token, messId]);
 
   return <>{children}</>;
 };

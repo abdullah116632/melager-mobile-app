@@ -25,6 +25,7 @@ import { MessStateController } from "@/redux/controllers/MessStateController";
 import { NetworkStateController } from "@/redux/controllers/NetworkStateController";
 import { NotificationStateController } from "@/redux/controllers/NotificationStateController";
 import { RealtimeStateController } from "@/redux/controllers/RealtimeStateController";
+import { PushNotificationStateController } from "@/redux/controllers/PushNotificationStateController";
 import {
   initializeAuth,
   selectActiveMess,
@@ -169,18 +170,20 @@ export default function RootLayout() {
         <NetworkStateController>
           <ErrorBoundary>
             <MessStateController>
-              <RealtimeStateController>
-                <NotificationStateController>
-                  <NativeWindGestureHandlerRootView className="flex-1">
-                    <KeyboardProvider>
-                      <RootLayoutNav />
-                    </KeyboardProvider>
-                    <RefreshSuccessToast />
-                    <NotificationPanel />
-                    <ConnectivityGate />
-                  </NativeWindGestureHandlerRootView>
-                </NotificationStateController>
-              </RealtimeStateController>
+              <PushNotificationStateController>
+                <RealtimeStateController>
+                  <NotificationStateController>
+                    <NativeWindGestureHandlerRootView className="flex-1">
+                      <KeyboardProvider>
+                        <RootLayoutNav />
+                      </KeyboardProvider>
+                      <RefreshSuccessToast />
+                      <NotificationPanel />
+                      <ConnectivityGate />
+                    </NativeWindGestureHandlerRootView>
+                  </NotificationStateController>
+                </RealtimeStateController>
+              </PushNotificationStateController>
             </MessStateController>
           </ErrorBoundary>
         </NetworkStateController>

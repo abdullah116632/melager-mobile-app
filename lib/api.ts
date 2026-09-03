@@ -323,6 +323,12 @@ export const api = {
   me: (token: string) =>
     req<MeAuthResponse>("GET", "/auth/me", undefined, token),
 
+  registerPushToken: (pushToken: string, platform: string, token: string) =>
+    req<void>("POST", "/devices/push-token", {
+      token: pushToken,
+      platform,
+    }, token),
+
   createMess: (name: string, token: string) =>
     req<{ mess: ApiMess }>("POST", "/mess/create", { name }, token),
 
