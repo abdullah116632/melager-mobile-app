@@ -22,6 +22,7 @@ import {
 } from "@/redux/slice/messagesSlice";
 import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
 import { loadUnreadBazarAssignmentCount } from "@/redux/slice/bazarNotificationsSlice";
+import { loadUnreadConsumerBreakdownCount } from "@/redux/slice/consumerBreakdownNotificationsSlice";
 import { refreshNotifications } from "@/redux/slice/notificationSlice";
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
@@ -64,9 +65,14 @@ export const RealtimeStateController = ({
       void dispatch(loadUnreadMessageCount());
       void dispatch(loadUnreadNoticesCount());
       void dispatch(loadUnreadBazarAssignmentCount());
+      void dispatch(loadUnreadConsumerBreakdownCount());
       socket.on("bazar-assignment:created", () => {
         clearApiCache();
         void dispatch(loadUnreadBazarAssignmentCount());
+      });
+      socket.on("consumer-breakdown:created", () => {
+        clearApiCache();
+        void dispatch(loadUnreadConsumerBreakdownCount());
       });
       socket.on("notification:created", () => {
         clearApiCache();

@@ -9,6 +9,9 @@ import {
 } from "react-native";
 import { useAuth } from "@/redux/hooks";
 import { useMess } from "@/redux/hooks";
+import { useAppDispatch, useNetwork } from "@/redux/hooks";
+import { api } from "@/lib/api";
+import { apiActionFailed, offlineActionFailed } from "@/redux/slice/networkSlice";
 import { exportDashboardBreakdownPdf } from "@/services/dashboardPdfService";
 import type {
   DashboardAccounting,
@@ -43,9 +46,12 @@ export const DashboardConsumerBreakdown = ({
   onEndDateChange,
   onApplyRange,
 }: DashboardConsumerBreakdownProps) => {
-  const { mess } = useAuth();
+  const { mess, role, token } = useAuth();
+  const dispatch = useAppDispatch();
+  const { isOnline } = useNetwork();
   const { currentYearMonth } = useMess();
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [notifyingMembers, setNotifyingMembers] = useState(false);
   const [datePickerTarget, setDatePickerTarget] =
     useState<DashboardDatePickerTarget | null>(null);
   const consumerCount = accounting.consumerRows.length;
@@ -73,6 +79,26 @@ export const DashboardConsumerBreakdown = ({
       );
     } finally {
       setPdfGenerating(false);
+    }
+  };
+
+  const notifyMembers = async () => {
+    if (!mess || !token || notifyingMembers) return;
+    if (!isOnline) {
+      dispatch(offlineActionFailed("update"));
+      return;
+    }
+    setNotifyingMembers(true);
+    try {
+      const result = await api.sendConsumerBreakdownNotification(token, mess.id);
+      Alert.alert(
+        "Notifications sent",
+        `${result.notifiedCount} member${result.notifiedCount === 1 ? " has" : "s have"} been notified.`,
+      );
+    } catch (error) {
+      dispatch(apiActionFailed(error instanceof Error ? error.message : "Could not notify members."));
+    } finally {
+      setNotifyingMembers(false);
     }
   };
 
@@ -236,6 +262,21 @@ export const DashboardConsumerBreakdown = ({
           accounting={accounting}
           appliedRange={appliedRange}
         />
+        {role === "admin" ? (
+          <TouchableOpacity
+            className={`mx-3.5 mb-3.5 mt-3 flex-row items-center justify-center gap-2 rounded-[11px] bg-violet-700 py-3 ${notifyingMembers ? "opacity-60" : "opacity-100"}`}
+            onPress={() => void notifyMembers()}
+            disabled={notifyingMembers}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Notify members to check consumer breakdown"
+          >
+            {notifyingMembers ? <ActivityIndicator size={15} color="#FFFFFF" /> : <Feather name="bell" size={16} color="#FFFFFF" />}
+            <Text className="font-inter-semibold text-[13px] text-white">
+              {notifyingMembers ? "Sending…" : "Notify members to check breakdown"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <DashboardDatePicker

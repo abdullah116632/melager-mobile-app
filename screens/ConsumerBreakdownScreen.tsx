@@ -28,6 +28,7 @@ import {
   useNetwork,
 } from "@/redux/hooks";
 import { loadMonth, refreshConsumers } from "@/redux/slice/messSlice";
+import { markConsumerBreakdownNotificationsRead } from "@/redux/slice/consumerBreakdownNotificationsSlice";
 import {
   apiActionFailed,
   offlineActionFailed,
@@ -81,6 +82,7 @@ export const ConsumerBreakdownScreen = () => {
   useFocusEffect(
     useCallback(() => {
       if (!mess || !token) return;
+      void dispatch(markConsumerBreakdownNotificationsRead());
       let cancelled = false;
 
       const hydrateThenRefresh = async () => {

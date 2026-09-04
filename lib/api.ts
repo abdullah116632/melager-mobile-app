@@ -571,6 +571,30 @@ export const api = {
       token,
     ),
 
+  sendConsumerBreakdownNotification: (token: string, messId: number) =>
+    req<{ notifiedCount: number }>(
+      "POST",
+      "/mess/consumer-breakdown/notify",
+      { messId },
+      token,
+    ),
+
+  getUnreadConsumerBreakdownCount: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "GET",
+      `/mess/consumer-breakdown/unread-count?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  markConsumerBreakdownNotificationsRead: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "POST",
+      "/mess/consumer-breakdown/read",
+      { messId },
+      token,
+    ),
+
   markBazarAssignmentNotificationsRead: (token: string, messId: number) =>
     req<{ unreadCount: number }>(
       "POST",

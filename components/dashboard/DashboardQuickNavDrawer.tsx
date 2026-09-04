@@ -5,6 +5,7 @@ import { useAppSelector, useAuth } from "@/redux/hooks";
 import { selectMessagesState } from "@/redux/slice/messagesSlice";
 import { selectNoticesState } from "@/redux/slice/noticesSlice";
 import { selectBazarNotificationsState } from "@/redux/slice/bazarNotificationsSlice";
+import { selectConsumerBreakdownNotificationsState } from "@/redux/slice/consumerBreakdownNotificationsSlice";
 
 export const DashboardQuickNavDrawer = () => {
   const router = useRouter();
@@ -12,6 +13,7 @@ export const DashboardQuickNavDrawer = () => {
   const { unreadCount } = useAppSelector(selectMessagesState);
   const { unreadCount: unreadNoticeCount } = useAppSelector(selectNoticesState);
   const { unreadCount: unreadBazarCount } = useAppSelector(selectBazarNotificationsState);
+  const { unreadCount: unreadBreakdownCount } = useAppSelector(selectConsumerBreakdownNotificationsState);
 
   const navigate = (
     route:
@@ -46,6 +48,13 @@ export const DashboardQuickNavDrawer = () => {
         >
           <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-violet-50">
             <Feather name="users" size={18} color="#6D28D9" />
+            {unreadBreakdownCount > 0 ? (
+              <View className="absolute -right-2 -top-2 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 py-0.5">
+                <Text className="font-inter-bold text-[9px] leading-3 text-white">
+                  {unreadBreakdownCount > 99 ? "99+" : unreadBreakdownCount}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
             Breakdown
