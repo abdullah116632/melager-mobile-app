@@ -1,4 +1,9 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import {
+  createAction,
+  createAsyncThunk,
+  createSlice,
+  type PayloadAction,
+} from "@reduxjs/toolkit";
 
 import {
   api,
@@ -7,7 +12,13 @@ import {
   type ApiConsumer,
 } from "@/lib/api";
 import { loadBazarFromCache, saveBazarToCache } from "@/lib/cache";
-import { enqueue } from "@/lib/offlineQueue";
+import {
+  getOfflineDatabase,
+  isOfflineDatabaseSupported,
+} from "@/offline/database/connection";
+import { BazarRepository } from "@/offline/features/bazar/BazarRepository";
+import { getLocalConsumers } from "@/offline/features/reference/storage";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
 import { syncMessScope } from "@/redux/slice/messSlice";
 import type { NetworkState } from "@/redux/slice/networkSlice";
@@ -19,11 +30,33 @@ export interface BazarState {
   scopeMessId: number | null;
   loadStatus: "idle" | "loading" | "succeeded" | "failed";
   mutationStatus: "idle" | "loading" | "succeeded" | "failed";
+  dataSource: "none" | "local" | "live";
+  pendingCount: number;
+  lastSyncedAt: number | null;
   error: string | null;
 }
 
-type BazarRootState = { auth: AuthState; bazar: BazarState; network: NetworkState };
-const offlineKey = (kind: string) => `bazar:${kind}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+type BazarRootState = {
+  auth: AuthState;
+  bazar: BazarState;
+  network: NetworkState;
+};
+
+interface BazarPayload {
+  messId: number;
+  items: ApiBazarItem[];
+  assignments: ApiBazarAssignment[];
+  consumers: ApiConsumer[];
+  dataSource: BazarState["dataSource"];
+  pendingCount: number;
+  lastSyncedAt: number | null;
+  syncError?: string | null;
+}
+
+interface MutationResult {
+  messId: number;
+  queued: boolean;
+}
 
 const createInitialState = (scopeMessId: number | null = null): BazarState => ({
   items: [],
@@ -32,125 +65,359 @@ const createInitialState = (scopeMessId: number | null = null): BazarState => ({
   scopeMessId,
   loadStatus: "idle",
   mutationStatus: "idle",
+  dataSource: "none",
+  pendingCount: 0,
+  lastSyncedAt: null,
   error: null,
 });
 
 const getAuthContext = (state: BazarRootState) => {
-  const { token, activeMess } = state.auth;
-  if (!token || !activeMess) throw new Error("Please select a mess and sign in again.");
-  return { token, messId: activeMess.id };
+  const { token, activeMess, user } = state.auth;
+  if (!token || !activeMess || !user) {
+    throw new Error("Please select a mess and sign in again.");
+  }
+  return {
+    token,
+    userId: user.id,
+    messId: activeMess.id,
+    isAdmin: activeMess.role === "admin",
+  };
+};
+
+const bazarSnapshotReceived = createAction<BazarPayload>(
+  "bazar/snapshotReceived",
+);
+
+const readNativePayload = async (
+  userId: number,
+  messId: number,
+  includeConsumers: boolean,
+  dataSource: BazarState["dataSource"],
+  syncError: string | null = null,
+): Promise<BazarPayload> => {
+  const database = await getOfflineDatabase();
+  const [snapshot, consumerSnapshot] = await Promise.all([
+    new BazarRepository(database).getSnapshot(userId, messId),
+    includeConsumers
+      ? getLocalConsumers(userId, messId)
+      : Promise.resolve(null),
+  ]);
+  return {
+    messId,
+    items: snapshot?.items ?? [],
+    assignments: snapshot?.assignments ?? [],
+    consumers: consumerSnapshot?.consumers ?? [],
+    dataSource: snapshot ? dataSource : "none",
+    pendingCount: snapshot?.pendingCount ?? 0,
+    lastSyncedAt: snapshot?.savedAt || null,
+    syncError,
+  };
+};
+
+const syncNativeBazar = async (
+  userId: number,
+  messId: number,
+  token: string,
+) => {
+  const database = await getOfflineDatabase();
+  return getOfflineRuntime(database).engine.sync({ userId, messId, token });
+};
+
+const applySnapshot = (state: BazarState, payload: BazarPayload) => {
+  if (state.scopeMessId !== null && state.scopeMessId !== payload.messId)
+    return;
+  state.scopeMessId = payload.messId;
+  state.items = payload.items;
+  state.assignments = payload.assignments;
+  state.consumers = payload.consumers;
+  state.dataSource = payload.dataSource;
+  state.pendingCount = payload.pendingCount;
+  state.lastSyncedAt = payload.lastSyncedAt;
+  state.error = payload.syncError ?? null;
+};
+
+const publishNativeSnapshot = async (
+  dispatch: (action: ReturnType<typeof bazarSnapshotReceived>) => unknown,
+  context: ReturnType<typeof getAuthContext>,
+  source: BazarState["dataSource"],
+  syncError: string | null = null,
+) => {
+  const payload = await readNativePayload(
+    context.userId,
+    context.messId,
+    context.isAdmin,
+    source,
+    syncError,
+  );
+  dispatch(bazarSnapshotReceived(payload));
+  return payload;
+};
+
+const finishNativeMutation = async (
+  dispatch: (action: ReturnType<typeof bazarSnapshotReceived>) => unknown,
+  getState: () => BazarRootState,
+  context: ReturnType<typeof getAuthContext>,
+): Promise<MutationResult> => {
+  await publishNativeSnapshot(dispatch, context, "local");
+  if (!getState().network.isOnline) {
+    return { messId: context.messId, queued: true };
+  }
+  const summary = await syncNativeBazar(
+    context.userId,
+    context.messId,
+    context.token,
+  );
+  const syncError =
+    summary.failed > 0 ? "Some bazar changes could not sync yet." : null;
+  const payload = await publishNativeSnapshot(
+    dispatch,
+    context,
+    syncError ? "local" : "live",
+    syncError,
+  );
+  return { messId: context.messId, queued: payload.pendingCount > 0 };
 };
 
 export const loadBazar = createAsyncThunk<
-  { messId: number; items: ApiBazarItem[]; assignments: ApiBazarAssignment[]; consumers: ApiConsumer[] },
+  BazarPayload,
   { includeConsumers: boolean },
   { state: BazarRootState }
->("bazar/load", async ({ includeConsumers }, { getState }) => {
-  const { token, messId } = getAuthContext(getState());
-  const cached = await loadBazarFromCache(messId);
-  if (!getState().network.isOnline) {
-    if (!cached) throw new Error("No cached bazar list is available yet.");
-    return { messId, ...cached };
+>("bazar/load", async ({ includeConsumers }, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+
+  if (!isOfflineDatabaseSupported()) {
+    const cached = await loadBazarFromCache(context.messId);
+    if (!getState().network.isOnline) {
+      return {
+        messId: context.messId,
+        items: cached?.items ?? [],
+        assignments: cached?.assignments ?? [],
+        consumers: cached?.consumers ?? [],
+        dataSource: cached ? "local" : "none",
+        pendingCount: 0,
+        lastSyncedAt: null,
+      };
+    }
+    try {
+      const [bazar, members] = await Promise.all([
+        api.getBazar(context.token, context.messId),
+        includeConsumers
+          ? api.getMessConsumers(context.token, context.messId)
+          : Promise.resolve({ consumers: [] }),
+      ]);
+      const data = {
+        items: bazar.items,
+        assignments: bazar.assignments,
+        consumers: members.consumers,
+      };
+      await saveBazarToCache(context.messId, data);
+      return {
+        messId: context.messId,
+        ...data,
+        dataSource: "live",
+        pendingCount: 0,
+        lastSyncedAt: Date.now(),
+      };
+    } catch (error) {
+      if (!cached) throw error;
+      return {
+        messId: context.messId,
+        ...cached,
+        dataSource: "local",
+        pendingCount: 0,
+        lastSyncedAt: null,
+        syncError: error instanceof Error ? error.message : "Refresh failed.",
+      };
+    }
   }
-  try {
-    const [bazar, members] = await Promise.all([
-      api.getBazar(token, messId),
-      includeConsumers ? api.getMessConsumers(token, messId) : Promise.resolve({ consumers: [] }),
-    ]);
-    const data = { items: bazar.items, assignments: bazar.assignments, consumers: members.consumers };
-    await saveBazarToCache(messId, data);
-    return { messId, ...data };
-  } catch (error) {
-    if (cached) return { messId, ...cached };
-    throw error;
-  }
+
+  const local = await readNativePayload(
+    context.userId,
+    context.messId,
+    includeConsumers,
+    "local",
+  );
+  dispatch(bazarSnapshotReceived(local));
+  if (!getState().network.isOnline) return local;
+
+  const summary = await syncNativeBazar(
+    context.userId,
+    context.messId,
+    context.token,
+  );
+  const syncError =
+    summary.failed > 0 ? "Bazar refresh failed. Cached data is shown." : null;
+  return readNativePayload(
+    context.userId,
+    context.messId,
+    includeConsumers,
+    syncError ? "local" : "live",
+    syncError,
+  );
 });
 
-export const createBazarItem = createAsyncThunk<ApiBazarItem, { weekday: number; name: string; price: number }, { state: BazarRootState }>(
-  "bazar/createItem",
-  async (input, { getState }) => {
-    const { token, messId } = getAuthContext(getState());
-    if (!getState().network.isOnline) {
-      const now = new Date().toISOString();
-      const item: ApiBazarItem = { id: -Date.now(), messId, weekday: input.weekday, name: input.name, price: input.price, isCompleted: false, createdByUserId: 0, createdAt: now, updatedAt: now };
-      await enqueue({ type: "BAZAR_CREATE_ITEM", key: offlineKey("create"), payload: { tempId: item.id, ...input, messId }, token });
-      return item;
-    }
-    return (await api.createBazarItem(input.weekday, input.name, input.price, token, messId)).item;
-  },
-);
+export const createBazarItem = createAsyncThunk<
+  MutationResult,
+  { weekday: number; name: string; price: number },
+  { state: BazarRootState }
+>("bazar/createItem", async (input, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    await api.createBazarItem(
+      input.weekday,
+      input.name,
+      input.price,
+      context.token,
+      context.messId,
+    );
+    await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.createItem(context.userId, context.messId, input);
+  return finishNativeMutation(dispatch, getState, context);
+});
 
-export const updateBazarItem = createAsyncThunk<ApiBazarItem, { id: number; name: string; price: number }, { state: BazarRootState }>(
-  "bazar/updateItem",
-  async (input, { getState }) => {
-    const { token, messId } = getAuthContext(getState());
-    if (!getState().network.isOnline) {
-      const existing = getState().bazar.items.find((item) => item.id === input.id);
-      if (!existing) throw new Error("Bazar item not found.");
-      const item = { ...existing, name: input.name, price: input.price, updatedAt: new Date().toISOString() };
-      await enqueue({ type: "BAZAR_UPDATE_ITEM", key: offlineKey("update"), payload: { ...input, messId }, token });
-      return item;
-    }
-    return (await api.updateBazarItem(input.id, input.name, input.price, token, messId)).item;
-  },
-);
+export const updateBazarItem = createAsyncThunk<
+  MutationResult,
+  { id: number; name: string; price: number },
+  { state: BazarRootState }
+>("bazar/updateItem", async (input, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    await api.updateBazarItem(
+      input.id,
+      input.name,
+      input.price,
+      context.token,
+      context.messId,
+    );
+    await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.updateItem(context.userId, context.messId, input.id, input);
+  return finishNativeMutation(dispatch, getState, context);
+});
 
-export const updateBazarItemStatus = createAsyncThunk<ApiBazarItem, { id: number; completed: boolean }, { state: BazarRootState }>(
-  "bazar/updateItemStatus",
-  async (input, { getState }) => {
-    const { token, messId } = getAuthContext(getState());
-    if (!getState().network.isOnline) {
-      const existing = getState().bazar.items.find((item) => item.id === input.id);
-      if (!existing) throw new Error("Bazar item not found.");
-      const item = { ...existing, isCompleted: input.completed, updatedAt: new Date().toISOString() };
-      await enqueue({ type: "BAZAR_UPDATE_STATUS", key: offlineKey("status"), payload: { ...input, messId }, token });
-      return item;
-    }
-    return (await api.updateBazarItemStatus(input.id, input.completed, token, messId)).item;
-  },
-);
+export const updateBazarItemStatus = createAsyncThunk<
+  MutationResult,
+  { id: number; completed: boolean },
+  { state: BazarRootState }
+>("bazar/updateItemStatus", async (input, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    await api.updateBazarItemStatus(
+      input.id,
+      input.completed,
+      context.token,
+      context.messId,
+    );
+    await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.updateItemStatus(
+    context.userId,
+    context.messId,
+    input.id,
+    input.completed,
+  );
+  return finishNativeMutation(dispatch, getState, context);
+});
 
-export const deleteBazarItem = createAsyncThunk<number, number, { state: BazarRootState }>(
-  "bazar/deleteItem",
-  async (id, { getState }) => {
-    const { token, messId } = getAuthContext(getState());
-    if (!getState().network.isOnline) {
-      await enqueue({ type: "BAZAR_DELETE_ITEM", key: offlineKey("delete"), payload: { id, messId }, token });
-      return id;
-    }
-    await api.deleteBazarItem(id, token, messId);
-    return id;
-  },
-);
+export const deleteBazarItem = createAsyncThunk<
+  MutationResult,
+  number,
+  { state: BazarRootState }
+>("bazar/deleteItem", async (id, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    await api.deleteBazarItem(id, context.token, context.messId);
+    await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.deleteItem(context.userId, context.messId, id);
+  return finishNativeMutation(dispatch, getState, context);
+});
 
-export const deleteBazarItems = createAsyncThunk<number, number, { state: BazarRootState }>(
-  "bazar/deleteItems",
-  async (weekday, { getState }) => {
-    const { token, messId } = getAuthContext(getState());
-    if (!getState().network.isOnline) {
-      await enqueue({ type: "BAZAR_DELETE_ITEMS", key: offlineKey("clear"), payload: { weekday, messId }, token });
-      return weekday;
-    }
-    await api.deleteBazarItems(weekday, token, messId);
-    return weekday;
-  },
-);
+export const deleteBazarItems = createAsyncThunk<
+  MutationResult,
+  number,
+  { state: BazarRootState }
+>("bazar/deleteItems", async (weekday, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    await api.deleteBazarItems(weekday, context.token, context.messId);
+    await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.deleteWeekday(context.userId, context.messId, weekday);
+  return finishNativeMutation(dispatch, getState, context);
+});
 
-export const assignBazarMembers = createAsyncThunk<ApiBazarAssignment[], { weekday: number; consumerIds: number[] }, { state: BazarRootState }>(
-  "bazar/assignMembers",
-  async (input, { getState }) => {
-    const { token, messId } = getAuthContext(getState());
-    if (!getState().network.isOnline) {
-      const assignments = input.consumerIds.map((consumerId, index) => {
-        const consumer = getState().bazar.consumers.find((item) => item.id === consumerId);
-        return { id: -(Date.now() + index), weekday: input.weekday, consumerId, name: consumer?.name ?? null, email: consumer?.email ?? null };
-      });
-      await enqueue({ type: "BAZAR_ASSIGN_MEMBERS", key: offlineKey("assign"), payload: { ...input, messId }, token });
-      return assignments;
-    }
-    return (await api.assignBazarMembers(input.weekday, input.consumerIds, token, messId)).assignments;
-  },
-);
+export const assignBazarMembers = createAsyncThunk<
+  MutationResult,
+  { weekday: number; consumerIds: number[] },
+  { state: BazarRootState }
+>("bazar/assignMembers", async (input, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    await api.assignBazarMembers(
+      input.weekday,
+      input.consumerIds,
+      context.token,
+      context.messId,
+    );
+    await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.setAssignments(context.userId, context.messId, {
+    ...input,
+    consumers: getState().bazar.consumers,
+  });
+  return finishNativeMutation(dispatch, getState, context);
+});
+
+export const notifyBazarMembers = createAsyncThunk<
+  MutationResult,
+  { weekday: number },
+  { state: BazarRootState }
+>("bazar/notifyMembers", async ({ weekday }, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline notifications require the mobile app.");
+    await api.notifyAssignedBazarMembers(
+      weekday,
+      context.token,
+      context.messId,
+    );
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new BazarRepository(await getOfflineDatabase());
+  await repository.enqueueNotifyMembers(
+    context.userId,
+    context.messId,
+    weekday,
+  );
+  return finishNativeMutation(dispatch, getState, context);
+});
 
 const bazarSlice = createSlice({
   name: "bazar",
@@ -162,58 +429,55 @@ const bazarSlice = createSlice({
         if (state.scopeMessId === action.payload) return;
         return createInitialState(action.payload);
       })
+      .addCase(bazarSnapshotReceived, (state, action) => {
+        applySnapshot(state, action.payload);
+        state.loadStatus = "succeeded";
+      })
       .addCase(loadBazar.pending, (state) => {
         state.loadStatus = "loading";
         state.error = null;
       })
       .addCase(loadBazar.fulfilled, (state, action) => {
-        state.scopeMessId = action.payload.messId;
-        state.items = action.payload.items;
-        state.assignments = action.payload.assignments;
-        state.consumers = action.payload.consumers;
+        applySnapshot(state, action.payload);
         state.loadStatus = "succeeded";
       })
       .addCase(loadBazar.rejected, (state, action) => {
         state.loadStatus = "failed";
         state.error = action.error.message ?? "Could not load bazar list";
       })
-      .addCase(createBazarItem.fulfilled, (state, action) => {
-        state.items.unshift(action.payload);
-        state.mutationStatus = "succeeded";
-      })
-      .addCase(updateBazarItem.fulfilled, (state, action) => {
-        state.items = state.items.map((item) => item.id === action.payload.id ? action.payload : item);
-        state.mutationStatus = "succeeded";
-      })
-      .addCase(updateBazarItemStatus.fulfilled, (state, action) => {
-        state.items = state.items.map((item) => item.id === action.payload.id ? action.payload : item);
-        state.mutationStatus = "succeeded";
-      })
-      .addCase(deleteBazarItem.fulfilled, (state, action) => {
-        state.items = state.items.filter((item) => item.id !== action.payload);
-        state.mutationStatus = "succeeded";
-      })
-      .addCase(deleteBazarItems.fulfilled, (state, action) => {
-        state.items = state.items.filter((item) => item.weekday !== action.payload);
-        state.mutationStatus = "succeeded";
-      })
-      .addCase(assignBazarMembers.fulfilled, (state, action) => {
-        const existing = new Set(state.assignments.map((assignment) => assignment.id));
-        state.assignments.push(...action.payload.filter((assignment) => !existing.has(assignment.id)));
-        state.mutationStatus = "succeeded";
-      })
       .addMatcher(
-        (action) => action.type.startsWith("bazar/") && action.type.endsWith("/pending") && action.type !== loadBazar.pending.type,
+        (action) =>
+          action.type.startsWith("bazar/") &&
+          action.type.endsWith("/pending") &&
+          action.type !== loadBazar.pending.type,
         (state) => {
           state.mutationStatus = "loading";
           state.error = null;
         },
       )
       .addMatcher(
-        (action) => action.type.startsWith("bazar/") && action.type.endsWith("/rejected"),
+        (action): action is PayloadAction<MutationResult> =>
+          action.type.startsWith("bazar/") &&
+          action.type.endsWith("/fulfilled") &&
+          action.type !== loadBazar.fulfilled.type,
         (state) => {
+          state.mutationStatus = "succeeded";
+        },
+      )
+      .addMatcher(
+        (action) =>
+          action.type.startsWith("bazar/") &&
+          action.type.endsWith("/rejected") &&
+          action.type !== loadBazar.rejected.type,
+        (state, action) => {
           state.mutationStatus = "failed";
-          state.error = "Bazar request failed";
+          state.error =
+            "error" in action &&
+            typeof action.error === "object" &&
+            action.error &&
+            "message" in action.error
+              ? String(action.error.message)
+              : "Bazar request failed";
         },
       );
   },

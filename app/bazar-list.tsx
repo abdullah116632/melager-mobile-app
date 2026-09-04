@@ -16,7 +16,6 @@ import {
 } from "react-native";
 
 import { api, type ApiBazarItem } from "@/lib/api";
-import { saveBazarToCache } from "@/lib/cache";
 import { enqueue } from "@/lib/offlineQueue";
 import {
   useAppDispatch,
@@ -30,6 +29,7 @@ import {
   deleteBazarItem as deleteBazarItemAction,
   deleteBazarItems as deleteBazarItemsAction,
   loadBazar as loadBazarAction,
+  notifyBazarMembers as notifyBazarMembersAction,
   selectBazarState,
   updateBazarItem as updateBazarItemAction,
   updateBazarItemStatus as updateBazarItemStatusAction,
@@ -74,8 +74,15 @@ export default function BazarListRoute() {
   const { mess, role, token } = useAuth();
   const { isOnline } = useNetwork();
   const isAdmin = role === "admin";
-  const { items, assignments, consumers, loadStatus, mutationStatus } =
-    useAppSelector(selectBazarState);
+  const {
+    items,
+    assignments,
+    consumers,
+    loadStatus,
+    mutationStatus,
+    pendingCount,
+    error: syncError,
+  } = useAppSelector(selectBazarState);
   const upcomingDays = getUpcomingDays();
   const [selectedDayKey, setSelectedDayKey] = useState(upcomingDays[0]!.key);
   const [dayPickerOpen, setDayPickerOpen] = useState(false);
@@ -133,11 +140,6 @@ export default function BazarListRoute() {
   useEffect(() => {
     void loadBazar();
   }, [isOnline, loadBazar]);
-
-  useEffect(() => {
-    if (!mess) return;
-    void saveBazarToCache(mess.id, { items, assignments, consumers });
-  }, [assignments, consumers, items, mess?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -372,10 +374,6 @@ export default function BazarListRoute() {
 
   const submitAssignments = async () => {
     if (!token || !mess) return;
-    if (selectedConsumerIds.length === 0) {
-      Alert.alert("Select members", "Select at least one member to assign.");
-      return;
-    }
     try {
       await dispatch(
         assignBazarMembersAction({
@@ -394,31 +392,16 @@ export default function BazarListRoute() {
 
   const notifyAssignedMembers = async () => {
     if (!token || !mess || selectedAssignments.length === 0) return;
-    if (!isOnline) {
-      await enqueue({
-        type: "BAZAR_NOTIFY_MEMBERS",
-        key: `bazar:notify:${Date.now()}`,
-        payload: { weekday: selectedDay.weekday, messId: mess.id },
-        token,
-      });
-      Alert.alert(
-        "Saved offline",
-        "Assigned members will be notified when you are online.",
-      );
-      return;
-    }
     setNotifyingAssignments(true);
     try {
-      const result = await api.notifyAssignedBazarMembers(
-        selectedDay.weekday,
-        token,
-        mess.id,
-      );
+      const result = await dispatch(
+        notifyBazarMembersAction({ weekday: selectedDay.weekday }),
+      ).unwrap();
       Alert.alert(
-        "Notifications sent",
-        `${result.notifiedCount} assigned member${
-          result.notifiedCount === 1 ? " has" : "s have"
-        } been notified.`,
+        result.queued ? "Saved offline" : "Notifications sent",
+        result.queued
+          ? "Assigned members will be notified when you are online."
+          : "Assigned members have been notified.",
       );
     } catch (error) {
       Alert.alert(
@@ -459,6 +442,21 @@ export default function BazarListRoute() {
         </View>
         <Feather name="shopping-cart" size={20} color="#FFFFFF" />
       </View>
+
+      {syncError ? (
+        <View className="border-b border-amber-200 bg-amber-50 px-4 py-2">
+          <Text className="font-inter-medium text-[11px] text-amber-800">
+            {syncError}
+          </Text>
+        </View>
+      ) : pendingCount > 0 ? (
+        <View className="border-b border-sky-200 bg-sky-50 px-4 py-2">
+          <Text className="font-inter-medium text-[11px] text-sky-800">
+            Saved locally · {pendingCount} change
+            {pendingCount === 1 ? "" : "s"} waiting to sync.
+          </Text>
+        </View>
+      ) : null}
 
       <ScrollView
         showsVerticalScrollIndicator={false}

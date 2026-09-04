@@ -33,5 +33,9 @@ Feature UI must not import `expo-sqlite` directly. Each feature will receive its
 - Shared reference data: user profile, mess list, membership role, join requests,
   active mess and consumers. Native reads come from SQLite first; full server
   snapshots then refresh SQLite and Redux in the background.
+- Bazar: items, completion state, exact weekday assignments and assignment
+  notification read state. Native add/edit/delete/assignment writes are committed
+  to SQLite and the durable outbox together, then replayed through the idempotent
+  sync endpoint when connectivity returns.
 
 The existing AsyncStorage cache and legacy offline queue intentionally remain active until their features are migrated and verified one at a time.

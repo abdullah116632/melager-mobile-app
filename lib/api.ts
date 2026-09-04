@@ -250,6 +250,15 @@ export interface ApiBazarAssignment {
   email: string | null;
 }
 
+export type ApiBazarSyncOperation =
+  | "item_create"
+  | "item_update"
+  | "item_status"
+  | "item_delete"
+  | "assignments_set"
+  | "notifications_read"
+  | "notify_members";
+
 export interface ApiServerNotification {
   id: number;
   messId: number;
@@ -464,6 +473,20 @@ export const api = {
       token,
     ),
 
+  syncBazarMutation: <TResponse>(
+    clientMutationId: string,
+    operation: ApiBazarSyncOperation,
+    payload: Record<string, unknown>,
+    token: string,
+    messId: number,
+  ) =>
+    req<TResponse>(
+      "POST",
+      "/mess/bazar/sync",
+      { clientMutationId, operation, payload, messId },
+      token,
+    ),
+
   createBazarItem: (
     weekday: number,
     name: string,
@@ -573,7 +596,11 @@ export const api = {
       token,
     ),
 
-  notifyAssignedBazarMembers: (weekday: number, token: string, messId: number) =>
+  notifyAssignedBazarMembers: (
+    weekday: number,
+    token: string,
+    messId: number,
+  ) =>
     req<{ notifiedCount: number }>(
       "POST",
       "/mess/bazar/assignments/notify",
