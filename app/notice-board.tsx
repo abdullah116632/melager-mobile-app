@@ -85,8 +85,14 @@ export default function NoticeBoardRoute() {
   const { mess, role, token } = useAuth();
   const { isOnline, isCheckingNetwork } = useNetwork();
   const isAdmin = role === "admin";
-  const { notices, loadStatus, mutationStatus, reorderStatus } =
-    useAppSelector(selectNoticesState);
+  const {
+    notices,
+    loadStatus,
+    mutationStatus,
+    reorderStatus,
+    pendingCount,
+    error: noticeError,
+  } = useAppSelector(selectNoticesState);
   const loading = loadStatus === "loading" && notices.length === 0;
   const saving = mutationStatus === "loading";
   const reordering = reorderStatus === "loading";
@@ -128,9 +134,9 @@ export default function NoticeBoardRoute() {
 
   useFocusEffect(
     useCallback(() => {
-      if (token && mess && isOnline) void dispatch(markNoticesRead());
+      if (token && mess) void dispatch(markNoticesRead());
       return undefined;
-    }, [dispatch, isOnline, mess?.id, token]),
+    }, [dispatch, mess?.id, token]),
   );
 
   const refreshNotices = async () => {
@@ -146,7 +152,13 @@ export default function NoticeBoardRoute() {
     }
     setRefreshing(true);
     try {
-      await dispatch(loadNoticesAction({ force: true })).unwrap();
+      const result = await dispatch(
+        loadNoticesAction({ force: true }),
+      ).unwrap();
+      if (result.syncError) {
+        setRefreshError(result.syncError);
+        return;
+      }
       setRefreshError(null);
       setRefreshToastVisible(true);
       setTimeout(() => setRefreshToastVisible(false), 2200);
@@ -177,10 +189,6 @@ export default function NoticeBoardRoute() {
   const saveNotice = async () => {
     if (!token || !mess || !title.trim() || !body.trim()) {
       Alert.alert("Incomplete notice", "Please enter a title and notice text.");
-      return;
-    }
-    if (!isOnline) {
-      dispatch(offlineActionFailed(editingId ? "update" : "entry"));
       return;
     }
     try {
@@ -228,10 +236,6 @@ export default function NoticeBoardRoute() {
         style: "destructive",
         onPress: async () => {
           if (!token || !mess) return;
-          if (!isOnline) {
-            dispatch(offlineActionFailed("update"));
-            return;
-          }
           try {
             await dispatch(deleteNoticeAction(notice.id)).unwrap();
           } catch (error) {
@@ -253,15 +257,8 @@ export default function NoticeBoardRoute() {
     previous: ApiNotice[],
   ) => {
     if (!token || !mess) return;
-    if (!isOnline) {
-      dispatch(setNoticeOrder(previous));
-      dispatch(offlineActionFailed("update"));
-      return;
-    }
     try {
-      await dispatch(
-        reorderNoticesAction(next.map((notice) => notice.id)),
-      ).unwrap();
+      await dispatch(reorderNoticesAction(next)).unwrap();
     } catch (error) {
       dispatch(setNoticeOrder(previous));
       dispatch(
@@ -340,8 +337,26 @@ export default function NoticeBoardRoute() {
           </TouchableOpacity>
         </View>
       ) : null}
+      {!refreshError && noticeError ? (
+        <View className="flex-row items-center border-b border-amber-200 bg-amber-50 px-4 py-2">
+          <Feather name="info" size={14} color="#B45309" />
+          <Text className="ml-2 min-w-0 flex-1 font-inter-medium text-[11px] text-amber-800">
+            {noticeError}
+          </Text>
+        </View>
+      ) : null}
+      {!refreshError && !noticeError && pendingCount > 0 ? (
+        <View className="border-b border-sky-200 bg-sky-50 px-4 py-2">
+          <Text className="font-inter-medium text-[11px] text-sky-800">
+            Saved locally · {pendingCount} change
+            {pendingCount === 1 ? "" : "s"} waiting to sync.
+          </Text>
+        </View>
+      ) : null}
 
-      <View className={`${refreshError ? "pt-3" : "-mt-3"} flex-1 px-4`}>
+      <View
+        className={`${refreshError || noticeError || pendingCount > 0 ? "pt-3" : "-mt-3"} flex-1 px-4`}
+      >
         {isAdmin && formOpen ? (
           <Modal
             visible={formOpen}

@@ -37,5 +37,8 @@ Feature UI must not import `expo-sqlite` directly. Each feature will receive its
   notification read state. Native add/edit/delete/assignment writes are committed
   to SQLite and the durable outbox together, then replayed through the idempotent
   sync endpoint when connectivity returns.
+- Notice Board: local notice list, create/edit/delete, drag reorder and unread
+  read state. Pending local ordering is preserved while remote data refreshes;
+  stale reorder conflicts fall back to the server order instead of retrying forever.
 
 The existing AsyncStorage cache and legacy offline queue intentionally remain active until their features are migrated and verified one at a time.

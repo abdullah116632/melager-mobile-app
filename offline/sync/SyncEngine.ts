@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import { OutboxRepository } from "../repositories/outboxRepository";
 import { SyncStateRepository } from "../repositories/syncStateRepository";
 import { SyncRegistry } from "./registry";
-import type { SyncContext, SyncSummary } from "./types";
+import type { SyncContext, SyncOptions, SyncSummary } from "./types";
 
 const MAX_BACKOFF_MS = 5 * 60 * 1000;
 
@@ -21,7 +21,10 @@ const nextRetryAt = (attemptCount: number): number => {
 export class SyncEngine {
   private readonly outbox: OutboxRepository;
   private readonly syncState: SyncStateRepository;
-  private activeSync: Promise<SyncSummary> | null = null;
+  private activeSync: {
+    promise: Promise<SyncSummary>;
+    collections: Set<string> | null;
+  } | null = null;
 
   constructor(
     database: SQLiteDatabase,
@@ -31,15 +34,36 @@ export class SyncEngine {
     this.syncState = new SyncStateRepository(database);
   }
 
-  sync(context: SyncContext): Promise<SyncSummary> {
-    if (this.activeSync) return this.activeSync;
-    this.activeSync = this.run(context).finally(() => {
-      this.activeSync = null;
+  sync(context: SyncContext, options: SyncOptions = {}): Promise<SyncSummary> {
+    const requested = options.collections?.length
+      ? new Set(options.collections)
+      : null;
+    if (this.activeSync) {
+      if (options.force) {
+        return this.activeSync.promise.then(() =>
+          this.sync(context, { ...options, force: false }),
+        );
+      }
+      const activeCanSatisfy =
+        this.activeSync.collections === null ||
+        (requested !== null &&
+          [...requested].every((collection) =>
+            this.activeSync!.collections?.has(collection),
+          ));
+      if (activeCanSatisfy) return this.activeSync.promise;
+      return this.activeSync.promise.then(() => this.sync(context, options));
+    }
+    const promise = this.run(context, requested).finally(() => {
+      if (this.activeSync?.promise === promise) this.activeSync = null;
     });
-    return this.activeSync;
+    this.activeSync = { promise, collections: requested };
+    return promise;
   }
 
-  private async run(context: SyncContext): Promise<SyncSummary> {
+  private async run(
+    context: SyncContext,
+    collections: Set<string> | null,
+  ): Promise<SyncSummary> {
     const summary: SyncSummary = {
       pushed: 0,
       pulledCollections: 0,
@@ -80,6 +104,7 @@ export class SyncEngine {
     }
 
     for (const [collection, pull] of this.registry.getPullers()) {
+      if (collections !== null && !collections.has(collection)) continue;
       const previous = await this.syncState.get(context, collection);
       try {
         const result = await pull(previous?.cursor ?? null, context);

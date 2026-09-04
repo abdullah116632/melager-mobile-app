@@ -230,6 +230,13 @@ export interface ApiNotice {
   updatedAt: string;
 }
 
+export type ApiNoticeSyncOperation =
+  | "notice_create"
+  | "notice_update"
+  | "notice_delete"
+  | "notice_reorder"
+  | "notifications_read";
+
 export interface ApiBazarItem {
   id: number;
   messId: number;
@@ -401,6 +408,20 @@ export const api = {
       "GET",
       `/mess/notices?messId=${messId}`,
       undefined,
+      token,
+    ),
+
+  syncNoticeMutation: <TResponse>(
+    clientMutationId: string,
+    operation: ApiNoticeSyncOperation,
+    payload: Record<string, unknown>,
+    token: string,
+    messId: number,
+  ) =>
+    req<TResponse>(
+      "POST",
+      "/mess/notices/sync",
+      { clientMutationId, operation, payload, messId },
       token,
     ),
 

@@ -4,12 +4,14 @@ import { OFFLINE_DATABASE_VERSION } from "../constants";
 import { offlineInfrastructureMigration } from "./001-offline-infrastructure";
 import { referenceDataMigration } from "./002-reference-data";
 import { bazarMigration } from "./003-bazar";
+import { noticesMigration } from "./004-notices";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
   offlineInfrastructureMigration,
   referenceDataMigration,
   bazarMigration,
+  noticesMigration,
 ];
 
 type UserVersionRow = { user_version: number };

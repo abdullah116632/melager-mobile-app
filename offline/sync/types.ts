@@ -28,3 +28,10 @@ export interface SyncSummary {
   skipped: number;
   pending: number;
 }
+
+export interface SyncOptions {
+  /** Pull only these registered collections after pushing the outbox. */
+  collections?: string[];
+  /** Queue a follow-up run when another sync is already listing the outbox. */
+  force?: boolean;
+}

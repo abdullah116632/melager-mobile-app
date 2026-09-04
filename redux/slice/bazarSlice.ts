@@ -118,9 +118,13 @@ const syncNativeBazar = async (
   userId: number,
   messId: number,
   token: string,
+  force = false,
 ) => {
   const database = await getOfflineDatabase();
-  return getOfflineRuntime(database).engine.sync({ userId, messId, token });
+  return getOfflineRuntime(database).engine.sync(
+    { userId, messId, token },
+    { collections: ["bazar"], force },
+  );
 };
 
 const applySnapshot = (state: BazarState, payload: BazarPayload) => {
@@ -166,6 +170,7 @@ const finishNativeMutation = async (
     context.userId,
     context.messId,
     context.token,
+    true,
   );
   const syncError =
     summary.failed > 0 ? "Some bazar changes could not sync yet." : null;

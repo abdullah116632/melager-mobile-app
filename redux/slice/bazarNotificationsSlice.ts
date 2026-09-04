@@ -115,7 +115,10 @@ export const markBazarAssignmentsRead = createAsyncThunk<
     context.messId,
   );
   if (getState().network.isOnline) {
-    await getOfflineRuntime(database).engine.sync(context);
+    await getOfflineRuntime(database).engine.sync(context, {
+      collections: ["bazar"],
+      force: true,
+    });
   }
   return { messId: context.messId };
 });
