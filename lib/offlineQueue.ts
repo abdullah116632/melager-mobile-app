@@ -47,7 +47,16 @@ interface AddDepositEntryOp {
   token: string;
 }
 
-type QueuedOp = SetMealOp | SetExpenseOp | AddDepositEntryOp;
+interface BazarCreateItemOp { type: "BAZAR_CREATE_ITEM"; key: string; payload: { tempId: number; weekday: number; name: string; price: number; messId: number }; token: string; }
+interface BazarUpdateItemOp { type: "BAZAR_UPDATE_ITEM"; key: string; payload: { id: number; name: string; price: number; messId: number }; token: string; }
+interface BazarUpdateStatusOp { type: "BAZAR_UPDATE_STATUS"; key: string; payload: { id: number; completed: boolean; messId: number }; token: string; }
+interface BazarDeleteItemOp { type: "BAZAR_DELETE_ITEM"; key: string; payload: { id: number; messId: number }; token: string; }
+interface BazarDeleteItemsOp { type: "BAZAR_DELETE_ITEMS"; key: string; payload: { weekday: number; messId: number }; token: string; }
+interface BazarAssignMembersOp { type: "BAZAR_ASSIGN_MEMBERS"; key: string; payload: { weekday: number; consumerIds: number[]; messId: number }; token: string; }
+interface BazarNotifyMembersOp { type: "BAZAR_NOTIFY_MEMBERS"; key: string; payload: { weekday: number; messId: number }; token: string; }
+interface BazarAddToExpenseOp { type: "BAZAR_ADD_TO_EXPENSE"; key: string; payload: { yearMonth: string; day: number; messId: number }; token: string; }
+
+type QueuedOp = SetMealOp | SetExpenseOp | AddDepositEntryOp | BazarCreateItemOp | BazarUpdateItemOp | BazarUpdateStatusOp | BazarDeleteItemOp | BazarDeleteItemsOp | BazarAssignMembersOp | BazarNotifyMembersOp | BazarAddToExpenseOp;
 
 type Listener = (count: number) => void;
 const listeners = new Set<Listener>();
@@ -118,6 +127,7 @@ export async function flushQueue(): Promise<number> {
   const ops = [..._queue];
   let succeeded = 0;
   const failed: QueuedOp[] = [];
+  const bazarIdMap = new Map<number, number>();
 
   for (const op of ops) {
     try {
@@ -129,6 +139,26 @@ export async function flushQueue(): Promise<number> {
         await api.setExpense(yearMonth, day, items, op.token, messId);
       } else if (op.type === "ADD_DEPOSIT_ENTRY") {
         await api.addDepositEntry(op.payload, op.token);
+      } else if (op.type === "BAZAR_CREATE_ITEM") {
+        const result = await api.createBazarItem(op.payload.weekday, op.payload.name, op.payload.price, op.token, op.payload.messId);
+        bazarIdMap.set(op.payload.tempId, result.item.id);
+      } else if (op.type === "BAZAR_UPDATE_ITEM") {
+        const id = bazarIdMap.get(op.payload.id) ?? op.payload.id;
+        await api.updateBazarItem(id, op.payload.name, op.payload.price, op.token, op.payload.messId);
+      } else if (op.type === "BAZAR_UPDATE_STATUS") {
+        const id = bazarIdMap.get(op.payload.id) ?? op.payload.id;
+        await api.updateBazarItemStatus(id, op.payload.completed, op.token, op.payload.messId);
+      } else if (op.type === "BAZAR_DELETE_ITEM") {
+        const id = bazarIdMap.get(op.payload.id) ?? op.payload.id;
+        await api.deleteBazarItem(id, op.token, op.payload.messId);
+      } else if (op.type === "BAZAR_DELETE_ITEMS") {
+        await api.deleteBazarItems(op.payload.weekday, op.token, op.payload.messId);
+      } else if (op.type === "BAZAR_ASSIGN_MEMBERS") {
+        await api.assignBazarMembers(op.payload.weekday, op.payload.consumerIds, op.token, op.payload.messId);
+      } else if (op.type === "BAZAR_NOTIFY_MEMBERS") {
+        await api.notifyAssignedBazarMembers(op.payload.weekday, op.token, op.payload.messId);
+      } else if (op.type === "BAZAR_ADD_TO_EXPENSE") {
+        await api.addBazarItemsToExpense(op.payload.yearMonth, op.payload.day, op.token, op.payload.messId);
       }
       succeeded++;
     } catch {

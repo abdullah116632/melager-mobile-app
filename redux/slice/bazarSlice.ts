@@ -6,8 +6,11 @@ import {
   type ApiBazarItem,
   type ApiConsumer,
 } from "@/lib/api";
+import { loadBazarFromCache, saveBazarToCache } from "@/lib/cache";
+import { enqueue } from "@/lib/offlineQueue";
 import type { AuthState } from "@/redux/slice/authSlice";
 import { syncMessScope } from "@/redux/slice/messSlice";
+import type { NetworkState } from "@/redux/slice/networkSlice";
 
 export interface BazarState {
   items: ApiBazarItem[];
@@ -19,7 +22,8 @@ export interface BazarState {
   error: string | null;
 }
 
-type BazarRootState = { auth: AuthState; bazar: BazarState };
+type BazarRootState = { auth: AuthState; bazar: BazarState; network: NetworkState };
+const offlineKey = (kind: string) => `bazar:${kind}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 
 const createInitialState = (scopeMessId: number | null = null): BazarState => ({
   items: [],
@@ -43,17 +47,35 @@ export const loadBazar = createAsyncThunk<
   { state: BazarRootState }
 >("bazar/load", async ({ includeConsumers }, { getState }) => {
   const { token, messId } = getAuthContext(getState());
-  const [bazar, members] = await Promise.all([
-    api.getBazar(token, messId),
-    includeConsumers ? api.getMessConsumers(token, messId) : Promise.resolve({ consumers: [] }),
-  ]);
-  return { messId, items: bazar.items, assignments: bazar.assignments, consumers: members.consumers };
+  const cached = await loadBazarFromCache(messId);
+  if (!getState().network.isOnline) {
+    if (!cached) throw new Error("No cached bazar list is available yet.");
+    return { messId, ...cached };
+  }
+  try {
+    const [bazar, members] = await Promise.all([
+      api.getBazar(token, messId),
+      includeConsumers ? api.getMessConsumers(token, messId) : Promise.resolve({ consumers: [] }),
+    ]);
+    const data = { items: bazar.items, assignments: bazar.assignments, consumers: members.consumers };
+    await saveBazarToCache(messId, data);
+    return { messId, ...data };
+  } catch (error) {
+    if (cached) return { messId, ...cached };
+    throw error;
+  }
 });
 
 export const createBazarItem = createAsyncThunk<ApiBazarItem, { weekday: number; name: string; price: number }, { state: BazarRootState }>(
   "bazar/createItem",
   async (input, { getState }) => {
     const { token, messId } = getAuthContext(getState());
+    if (!getState().network.isOnline) {
+      const now = new Date().toISOString();
+      const item: ApiBazarItem = { id: -Date.now(), messId, weekday: input.weekday, name: input.name, price: input.price, isCompleted: false, createdByUserId: 0, createdAt: now, updatedAt: now };
+      await enqueue({ type: "BAZAR_CREATE_ITEM", key: offlineKey("create"), payload: { tempId: item.id, ...input, messId }, token });
+      return item;
+    }
     return (await api.createBazarItem(input.weekday, input.name, input.price, token, messId)).item;
   },
 );
@@ -62,6 +84,13 @@ export const updateBazarItem = createAsyncThunk<ApiBazarItem, { id: number; name
   "bazar/updateItem",
   async (input, { getState }) => {
     const { token, messId } = getAuthContext(getState());
+    if (!getState().network.isOnline) {
+      const existing = getState().bazar.items.find((item) => item.id === input.id);
+      if (!existing) throw new Error("Bazar item not found.");
+      const item = { ...existing, name: input.name, price: input.price, updatedAt: new Date().toISOString() };
+      await enqueue({ type: "BAZAR_UPDATE_ITEM", key: offlineKey("update"), payload: { ...input, messId }, token });
+      return item;
+    }
     return (await api.updateBazarItem(input.id, input.name, input.price, token, messId)).item;
   },
 );
@@ -70,6 +99,13 @@ export const updateBazarItemStatus = createAsyncThunk<ApiBazarItem, { id: number
   "bazar/updateItemStatus",
   async (input, { getState }) => {
     const { token, messId } = getAuthContext(getState());
+    if (!getState().network.isOnline) {
+      const existing = getState().bazar.items.find((item) => item.id === input.id);
+      if (!existing) throw new Error("Bazar item not found.");
+      const item = { ...existing, isCompleted: input.completed, updatedAt: new Date().toISOString() };
+      await enqueue({ type: "BAZAR_UPDATE_STATUS", key: offlineKey("status"), payload: { ...input, messId }, token });
+      return item;
+    }
     return (await api.updateBazarItemStatus(input.id, input.completed, token, messId)).item;
   },
 );
@@ -78,6 +114,10 @@ export const deleteBazarItem = createAsyncThunk<number, number, { state: BazarRo
   "bazar/deleteItem",
   async (id, { getState }) => {
     const { token, messId } = getAuthContext(getState());
+    if (!getState().network.isOnline) {
+      await enqueue({ type: "BAZAR_DELETE_ITEM", key: offlineKey("delete"), payload: { id, messId }, token });
+      return id;
+    }
     await api.deleteBazarItem(id, token, messId);
     return id;
   },
@@ -87,6 +127,10 @@ export const deleteBazarItems = createAsyncThunk<number, number, { state: BazarR
   "bazar/deleteItems",
   async (weekday, { getState }) => {
     const { token, messId } = getAuthContext(getState());
+    if (!getState().network.isOnline) {
+      await enqueue({ type: "BAZAR_DELETE_ITEMS", key: offlineKey("clear"), payload: { weekday, messId }, token });
+      return weekday;
+    }
     await api.deleteBazarItems(weekday, token, messId);
     return weekday;
   },
@@ -96,6 +140,14 @@ export const assignBazarMembers = createAsyncThunk<ApiBazarAssignment[], { weekd
   "bazar/assignMembers",
   async (input, { getState }) => {
     const { token, messId } = getAuthContext(getState());
+    if (!getState().network.isOnline) {
+      const assignments = input.consumerIds.map((consumerId, index) => {
+        const consumer = getState().bazar.consumers.find((item) => item.id === consumerId);
+        return { id: -(Date.now() + index), weekday: input.weekday, consumerId, name: consumer?.name ?? null, email: consumer?.email ?? null };
+      });
+      await enqueue({ type: "BAZAR_ASSIGN_MEMBERS", key: offlineKey("assign"), payload: { ...input, messId }, token });
+      return assignments;
+    }
     return (await api.assignBazarMembers(input.weekday, input.consumerIds, token, messId)).assignments;
   },
 );

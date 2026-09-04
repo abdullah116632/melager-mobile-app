@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ApiNotice, MonthData } from "@/lib/api";
+import type { ApiBazarAssignment, ApiBazarItem, ApiConsumer, ApiNotice, MonthData } from "@/lib/api";
 import type { DashboardDateRange } from "@/types/dashboard";
 import type { Consumer } from "@/types/mess";
 
@@ -7,12 +7,19 @@ const PREFIX = "@mess_cache:";
 const DEPOSIT_ENTRIES_PREFIX = "@mess_deposit_entries:";
 const CONSUMER_BREAKDOWN_PREFIX = "@mess_consumer_breakdown:";
 const NOTICES_PREFIX = "@mess_notices:";
+const BAZAR_PREFIX = "@mess_bazar:";
 const memoryCache = new Map<string, unknown>();
 
 export interface ConsumerBreakdownCacheData {
   appliedRange: DashboardDateRange | null;
   rangeData: Record<string, MonthData>;
   consumers: Consumer[];
+}
+
+export interface BazarCacheData {
+  items: ApiBazarItem[];
+  assignments: ApiBazarAssignment[];
+  consumers: ApiConsumer[];
 }
 
 function cacheKey(messId: number, yearMonth: string): string {
@@ -29,6 +36,35 @@ function consumerBreakdownCacheKey(messId: number): string {
 
 function noticesCacheKey(messId: number): string {
   return `${NOTICES_PREFIX}${messId}`;
+}
+
+function bazarCacheKey(messId: number): string {
+  return `${BAZAR_PREFIX}${messId}`;
+}
+
+export async function saveBazarToCache(messId: number, data: BazarCacheData): Promise<void> {
+  const key = bazarCacheKey(messId);
+  memoryCache.set(key, data);
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify({ data, savedAt: Date.now() }));
+  } catch {}
+}
+
+export async function loadBazarFromCache(messId: number): Promise<BazarCacheData | null> {
+  const key = bazarCacheKey(messId);
+  const inMemory = memoryCache.get(key);
+  if (inMemory) return inMemory as BazarCacheData;
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const data = (JSON.parse(raw) as { data?: Partial<BazarCacheData> }).data;
+    if (!data || !Array.isArray(data.items) || !Array.isArray(data.assignments) || !Array.isArray(data.consumers)) return null;
+    const cached = data as BazarCacheData;
+    memoryCache.set(key, cached);
+    return cached;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveNoticesToCache(

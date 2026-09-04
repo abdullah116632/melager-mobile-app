@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +19,9 @@ import {
   api,
   type ApiBazarItem,
 } from "@/lib/api";
-import { useAppDispatch, useAppSelector, useAuth } from "@/redux/hooks";
+import { saveBazarToCache } from "@/lib/cache";
+import { enqueue } from "@/lib/offlineQueue";
+import { useAppDispatch, useAppSelector, useAuth, useNetwork } from "@/redux/hooks";
 import {
   assignBazarMembers as assignBazarMembersAction,
   createBazarItem as createBazarItemAction,
@@ -59,6 +61,7 @@ export default function BazarListRoute() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { mess, role, token } = useAuth();
+  const { isOnline } = useNetwork();
   const isAdmin = role === "admin";
   const {
     items,
@@ -73,6 +76,7 @@ export default function BazarListRoute() {
   const [assignPickerOpen, setAssignPickerOpen] = useState(false);
   const [selectedConsumerIds, setSelectedConsumerIds] = useState<number[]>([]);
   const [itemName, setItemName] = useState("");
+  const itemNameInputRef = useRef<TextInput>(null);
   const [itemPrice, setItemPrice] = useState("");
   const [editingItem, setEditingItem] = useState<ApiBazarItem | null>(null);
   const [editingItemName, setEditingItemName] = useState("");
@@ -87,7 +91,12 @@ export default function BazarListRoute() {
   const selectedDay = upcomingDays.find((day) => day.key === selectedDayKey) ?? upcomingDays[0]!;
   const selectedItems = items
     .filter((item) => item.weekday === selectedDay.weekday)
-    .sort((firstItem, secondItem) => secondItem.id - firstItem.id);
+    .sort((firstItem, secondItem) => {
+      const createdAtDifference =
+        new Date(secondItem.createdAt).getTime() -
+        new Date(firstItem.createdAt).getTime();
+      return createdAtDifference || secondItem.id - firstItem.id;
+    });
   const selectedItemsTotal = selectedItems.reduce(
     (total, item) => total + item.price,
     0,
@@ -113,7 +122,12 @@ export default function BazarListRoute() {
 
   useEffect(() => {
     void loadBazar();
-  }, [loadBazar]);
+  }, [isOnline, loadBazar]);
+
+  useEffect(() => {
+    if (!mess) return;
+    void saveBazarToCache(mess.id, { items, assignments, consumers });
+  }, [assignments, consumers, items, mess?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -137,6 +151,7 @@ export default function BazarListRoute() {
       ).unwrap();
       setItemName("");
       setItemPrice("");
+      requestAnimationFrame(() => itemNameInputRef.current?.focus());
     } catch (error) {
       Alert.alert("Could not add item", error instanceof Error ? error.message : "Please try again.");
     } finally {
@@ -222,6 +237,11 @@ export default function BazarListRoute() {
     const today = new Date();
     const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
     const day = today.getDate();
+    if (!isOnline) {
+      void enqueue({ type: "BAZAR_ADD_TO_EXPENSE", key: `bazar:expense:${Date.now()}`, payload: { yearMonth, day, messId: mess.id }, token });
+      Alert.alert("Saved offline", "This expense update will be added when you are online.");
+      return;
+    }
     setAddingToExpense(true);
     void (async () => {
       try {
@@ -289,6 +309,11 @@ export default function BazarListRoute() {
 
   const notifyAssignedMembers = async () => {
     if (!token || !mess || selectedAssignments.length === 0) return;
+    if (!isOnline) {
+      await enqueue({ type: "BAZAR_NOTIFY_MEMBERS", key: `bazar:notify:${Date.now()}`, payload: { weekday: selectedDay.weekday, messId: mess.id }, token });
+      Alert.alert("Saved offline", "Assigned members will be notified when you are online.");
+      return;
+    }
     setNotifyingAssignments(true);
     try {
       const result = await api.notifyAssignedBazarMembers(
@@ -336,6 +361,7 @@ export default function BazarListRoute() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="always"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadBazar(true)} tintColor="#0F766E" />}
         contentContainerClassName="gap-4 px-4 py-4 pb-safe-offset-8"
       >
@@ -373,7 +399,7 @@ export default function BazarListRoute() {
 
             <View className="rounded-2xl border border-slate-300 bg-white p-4" style={cardShadow}>
               <View className="flex-row items-center"><View className="h-10 w-10 items-center justify-center rounded-xl bg-orange-50"><Feather name="shopping-cart" size={19} color="#C2410C" /></View><View className="ml-3 flex-1"><Text className="font-inter-bold text-base text-slate-900">Bazar items</Text><Text className="mt-0.5 font-inter text-xs text-slate-500">Items for {selectedDay.name}</Text></View><View className="items-end"><Text className="font-inter-bold text-sm text-orange-700">৳{selectedItemsTotal.toFixed(2)}</Text><Text className="font-inter text-[10px] text-slate-400">{selectedItems.length} items</Text></View>{isAdmin && selectedItems.length > 0 ? <TouchableOpacity className="ml-2 flex-row items-center rounded-lg bg-red-50 px-2.5 py-1.5" onPress={clearAllItems} disabled={saving} accessibilityLabel="Clear all bazar items"><Feather name="trash-2" size={13} color="#B91C1C" /><Text className="ml-1 font-inter-semibold text-[11px] text-red-700">Clear all</Text></TouchableOpacity> : null}</View>
-              <View className="mt-4 flex-row items-center gap-2"><TextInput className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900" value={itemName} onChangeText={setItemName} placeholder="Item name" placeholderTextColor="#94A3B8" /><TextInput className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900" value={itemPrice} onChangeText={setItemPrice} placeholder="Price" placeholderTextColor="#94A3B8" keyboardType="decimal-pad" /><TouchableOpacity className="h-11 w-11 items-center justify-center rounded-xl bg-orange-600" onPress={() => void addItem()} disabled={saving || addingItem} accessibilityLabel="Add bazar item">{addingItem ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Feather name="plus" size={20} color="#FFFFFF" />}</TouchableOpacity></View>
+              <View className="mt-4 flex-row items-center gap-2"><TextInput ref={itemNameInputRef} className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900" value={itemName} onChangeText={setItemName} placeholder="Item name" placeholderTextColor="#94A3B8" /><TextInput className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900" value={itemPrice} onChangeText={setItemPrice} placeholder="Price" placeholderTextColor="#94A3B8" keyboardType="decimal-pad" /><TouchableOpacity className="h-11 w-11 items-center justify-center rounded-xl bg-orange-600" onPress={() => void addItem()} disabled={saving || addingItem} accessibilityLabel="Add bazar item">{addingItem ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Feather name="plus" size={20} color="#FFFFFF" />}</TouchableOpacity></View>
               <View className="mt-3 gap-2">{selectedItems.length === 0 ? <Text className="font-inter text-xs text-slate-500">No items added for this day.</Text> : selectedItems.map((item) => <Pressable key={item.id} className={`flex-row items-center rounded-xl px-3 py-2.5 ${item.isCompleted ? "bg-emerald-50" : "bg-orange-50"}`} onPress={() => { if (isAdmin) openEditItem(item); }} disabled={!isAdmin} accessibilityLabel={`Edit ${item.name}`}><TouchableOpacity className="h-8 w-8 items-center justify-center" onPress={(event) => { event.stopPropagation(); void toggleItemCompleted(item); }} accessibilityRole="checkbox" accessibilityState={{ checked: item.isCompleted }} accessibilityLabel={`Mark ${item.name} as ${item.isCompleted ? "not completed" : "completed"}`}><Feather name={item.isCompleted ? "check-square" : "square"} size={19} color={item.isCompleted ? "#047857" : "#C2410C"} /></TouchableOpacity><Text className={`ml-1 min-w-0 flex-1 font-inter text-sm ${item.isCompleted ? "text-emerald-800 line-through" : "text-slate-700"}`}>{item.name}</Text>{item.price > 0 ? <Text className={`font-inter-semibold text-sm ${item.isCompleted ? "text-emerald-700" : "text-orange-700"}`}>৳{item.price}</Text> : <Text className="font-inter text-xs text-slate-400">No price</Text>}{isAdmin ? <><View className="mx-2 h-5 w-px bg-orange-200" /><TouchableOpacity className="h-8 w-8 items-center justify-center rounded-lg bg-white/70" onPress={(event) => { event.stopPropagation(); openEditItem(item); }} accessibilityLabel={`Edit ${item.name}`}><Feather name="edit-2" size={14} color={item.isCompleted ? "#047857" : "#C2410C"} /></TouchableOpacity><View className="mx-2 h-5 w-px bg-red-200" /><TouchableOpacity className="h-8 w-8 items-center justify-center rounded-lg bg-white/70" onPress={(event) => { event.stopPropagation(); deleteItem(item); }} disabled={saving} accessibilityLabel={`Delete ${item.name}`}><Feather name="trash-2" size={14} color="#B91C1C" /></TouchableOpacity></> : null}</Pressable>)}</View>
               {isAdmin && items.length > 0 ? <TouchableOpacity className="mt-3 flex-row items-center justify-center rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5" onPress={addItemsToTodayExpense} disabled={saving || addingToExpense} accessibilityLabel="Add all bazar items to today's expense">{addingToExpense ? <ActivityIndicator size="small" color="#C2410C" /> : <Feather name="file-plus" size={16} color="#C2410C" />}<Text className="ml-2 font-inter-semibold text-xs text-orange-800">{addingToExpense ? "Adding to expense..." : "Add all items to today's expense"}</Text></TouchableOpacity> : null}
             </View>
