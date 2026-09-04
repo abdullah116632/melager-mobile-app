@@ -8,6 +8,7 @@ import type { NetworkState } from "@/redux/slice/networkSlice";
 
 export interface NoticesState {
   notices: ApiNotice[];
+  unreadCount: number;
   scopeMessId: number | null;
   loadStatus: "idle" | "loading" | "succeeded" | "failed";
   mutationStatus: "idle" | "loading" | "succeeded" | "failed";
@@ -25,6 +26,7 @@ const createInitialState = (
   scopeMessId: number | null = null,
 ): NoticesState => ({
   notices: [],
+  unreadCount: 0,
   scopeMessId,
   loadStatus: "idle",
   mutationStatus: "idle",
@@ -73,6 +75,26 @@ export const loadNotices = createAsyncThunk<
     if (cached && !force) return { messId, notices: cached };
     throw error;
   }
+});
+
+export const loadUnreadNoticesCount = createAsyncThunk<
+  { messId: number; unreadCount: number },
+  void,
+  { state: NoticesRootState }
+>("notices/loadUnreadCount", async (_arg, { getState }) => {
+  const { token, messId } = getAuthContext(getState());
+  const response = await api.getUnreadNoticesCount(token, messId);
+  return { messId, unreadCount: response.unreadCount };
+});
+
+export const markNoticesRead = createAsyncThunk<
+  { messId: number; unreadCount: number },
+  void,
+  { state: NoticesRootState }
+>("notices/markRead", async (_arg, { getState }) => {
+  const { token, messId } = getAuthContext(getState());
+  const response = await api.markNoticesRead(token, messId);
+  return { messId, unreadCount: response.unreadCount };
 });
 
 export const createNotice = createAsyncThunk<
@@ -173,6 +195,17 @@ const noticesSlice = createSlice({
       .addCase(loadNotices.rejected, (state, action) => {
         state.loadStatus = "failed";
         state.error = action.error.message ?? "Could not load notices";
+      })
+      .addCase(loadUnreadNoticesCount.fulfilled, (state, action) => {
+        if (state.scopeMessId !== action.payload.messId) return;
+        state.unreadCount = Math.max(0, action.payload.unreadCount);
+      })
+      .addCase(markNoticesRead.pending, (state) => {
+        state.unreadCount = 0;
+      })
+      .addCase(markNoticesRead.fulfilled, (state, action) => {
+        if (state.scopeMessId !== action.payload.messId) return;
+        state.unreadCount = 0;
       })
       .addCase(createNotice.pending, (state) => {
         state.mutationStatus = "loading";

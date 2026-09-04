@@ -391,6 +391,22 @@ export const api = {
       token,
     ),
 
+  getUnreadNoticesCount: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "GET",
+      `/mess/notices/unread-count?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  markNoticesRead: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "POST",
+      "/mess/notices/read",
+      { messId },
+      token,
+    ),
+
   updateNotice: (
     id: number,
     title: string,

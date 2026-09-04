@@ -3,11 +3,13 @@ import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 import { useAppSelector, useAuth } from "@/redux/hooks";
 import { selectMessagesState } from "@/redux/slice/messagesSlice";
+import { selectNoticesState } from "@/redux/slice/noticesSlice";
 
 export const DashboardQuickNavDrawer = () => {
   const router = useRouter();
   const { exitMess } = useAuth();
   const { unreadCount } = useAppSelector(selectMessagesState);
+  const { unreadCount: unreadNoticeCount } = useAppSelector(selectNoticesState);
 
   const navigate = (
     route:
@@ -56,6 +58,13 @@ export const DashboardQuickNavDrawer = () => {
         >
           <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-amber-50">
             <Feather name="clipboard" size={18} color="#B45309" />
+            {unreadNoticeCount > 0 ? (
+              <View className="absolute -right-2 -top-2 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 py-0.5">
+                <Text className="font-inter-bold text-[9px] leading-3 text-white">
+                  {unreadNoticeCount > 99 ? "99+" : unreadNoticeCount}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
             Notice Board

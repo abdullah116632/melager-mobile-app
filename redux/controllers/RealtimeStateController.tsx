@@ -20,6 +20,7 @@ import {
   messageReceived,
   unreadMessageReceived,
 } from "@/redux/slice/messagesSlice";
+import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
 import { refreshNotifications } from "@/redux/slice/notificationSlice";
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
@@ -60,6 +61,7 @@ export const RealtimeStateController = ({
       const socket = connectRealtime(token, messId);
       clearApiCache();
       void dispatch(loadUnreadMessageCount());
+      void dispatch(loadUnreadNoticesCount());
       socket.on("notification:created", () => {
         clearApiCache();
         void dispatch(refreshNotifications());

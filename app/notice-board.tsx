@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import DraggableFlatList, {
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
@@ -27,6 +27,7 @@ import {
   createNotice as createNoticeAction,
   deleteNotice as deleteNoticeAction,
   loadNotices as loadNoticesAction,
+  markNoticesRead,
   reorderNotices as reorderNoticesAction,
   selectNoticesState,
   setNoticeOrder,
@@ -112,6 +113,13 @@ export default function NoticeBoardRoute() {
         );
       });
   }, [dispatch, isCheckingNetwork, isOnline, mess?.id, token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (token && mess && isOnline) void dispatch(markNoticesRead());
+      return undefined;
+    }, [dispatch, isOnline, mess?.id, token]),
+  );
 
   const refreshNotices = async () => {
     if (!token || !mess) return;

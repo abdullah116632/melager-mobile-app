@@ -9,6 +9,7 @@ import {
   syncMessScope,
 } from "@/redux/slice/messSlice";
 import { loadUnreadMessageCount } from "@/redux/slice/messagesSlice";
+import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
 
 export const MessStateController = ({ children }: { children: ReactNode }) => {
   const dispatch = useAppDispatch();
@@ -23,6 +24,7 @@ export const MessStateController = ({ children }: { children: ReactNode }) => {
     if (token && messId) {
       void dispatch(loadMonth({ messId, yearMonth }));
       void dispatch(loadUnreadMessageCount());
+      void dispatch(loadUnreadNoticesCount());
     }
   }, [dispatch, token, messId, yearMonth]);
 

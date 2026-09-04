@@ -13,17 +13,19 @@ import {
   selectNotificationState,
 } from "@/redux/slice/notificationSlice";
 import { loadUnreadMessageCount } from "@/redux/slice/messagesSlice";
+import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
 
 const PUSH_REGISTRATION_RETRY_MS = 30_000;
 
 if (Platform.OS !== "web") {
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
-      const isMessage = notification.request.content.data?.type === "message";
+      const type = notification.request.content.data?.type;
+      const isDirectUnreadItem = type === "message" || type === "notice";
       return {
         shouldShowAlert: true,
         shouldPlaySound: true,
-        shouldSetBadge: !isMessage,
+        shouldSetBadge: !isDirectUnreadItem,
         shouldShowBanner: true,
         shouldShowList: true,
       };
@@ -48,6 +50,15 @@ const getPushToken = async (): Promise<string | null> => {
       Notifications.setNotificationChannelAsync("messages", {
         name: "Messages",
         description: "New messages from your mess members",
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: "default",
+        enableVibrate: true,
+        vibrationPattern: [0, 250, 150, 250],
+        showBadge: false,
+      }),
+      Notifications.setNotificationChannelAsync("notices", {
+        name: "Notices",
+        description: "New notices from your mess manager",
         importance: Notifications.AndroidImportance.HIGH,
         sound: "default",
         enableVibrate: true,
@@ -86,7 +97,10 @@ export const PushNotificationStateController = ({
   const unreadCount = useMemo(
     () =>
       notificationState.notifications.filter(
-        (notification) => !notification.read && notification.type !== "message",
+        (notification) =>
+          !notification.read &&
+          notification.type !== "message" &&
+          notification.type !== "notice",
       ).length,
     [notificationState.notifications],
   );
@@ -159,6 +173,11 @@ export const PushNotificationStateController = ({
           void dispatch(loadUnreadMessageCount());
           return;
         }
+        if (type === "notice") {
+          clearApiCache();
+          void dispatch(loadUnreadNoticesCount());
+          return;
+        }
         clearApiCache();
         void dispatch(refreshNotifications());
       },
@@ -178,6 +197,7 @@ export const PushNotificationStateController = ({
     const data = lastResponse.notification.request.content.data;
     const route = data?.route;
     const isMessage = data?.type === "message";
+    const isNotice = data?.type === "notice";
     const notificationMessId = Number(data?.messId);
     if (Number.isInteger(notificationMessId) && notificationMessId > 0) {
       const targetMess = auth.messes.find(
@@ -185,7 +205,10 @@ export const PushNotificationStateController = ({
       );
       if (targetMess && targetMess.id !== auth.activeMess?.id) {
         dispatch(selectMess(targetMess));
-      } else if (!targetMess && route === "/messages") {
+      } else if (
+        !targetMess &&
+        (route === "/messages" || route === "/notice-board")
+      ) {
         Notifications.clearLastNotificationResponse();
         return;
       }
@@ -198,7 +221,7 @@ export const PushNotificationStateController = ({
         .catch(() => undefined);
     }
     clearApiCache();
-    if (!isMessage) void dispatch(refreshNotifications());
+    if (!isMessage && !isNotice) void dispatch(refreshNotifications());
     Notifications.clearLastNotificationResponse();
 
     if (typeof route === "string" && route.startsWith("/")) {

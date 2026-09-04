@@ -263,10 +263,11 @@ const notificationSlice = createSlice({
         }
         if (payload.seenOptOuts) state.seenOptOuts = payload.seenOptOuts;
         state.isFirstPoll = false;
-        // Message unread state is tracked separately and displayed on the
-        // Dashboard Messages shortcut, not in the general notification list.
+        // Message and notice unread state are tracked separately on their
+        // Dashboard shortcuts, not in the general notification list.
         state.notifications = state.notifications.filter(
-          (notification) => notification.type !== "message",
+          (notification) =>
+            notification.type !== "message" && notification.type !== "notice",
         );
         if (payload.notifications.length > 0) {
           const merged = new Map<string, AppNotification>();
