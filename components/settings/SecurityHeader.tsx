@@ -4,16 +4,25 @@ import { useRouter } from "expo-router";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "@/redux/hooks";
 
-export const SecurityHeader = () => {
+export const SecurityHeader = ({
+  returnTo,
+}: {
+  returnTo?: "dashboard" | "manager";
+}) => {
   const router = useRouter();
   const { role, mess } = useAuth();
   const isAdmin = role === "admin";
   const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(mess ? "/(tabs)/profile" : "/account");
+    if (returnTo === "manager") {
+      router.replace("/(tabs)/manager");
+      return;
     }
+    if (returnTo === "dashboard") {
+      router.replace("/(tabs)/dashboard");
+      return;
+    }
+    if (router.canGoBack()) router.back();
+    else router.replace(mess ? "/(tabs)/profile" : "/account");
   };
 
   return (

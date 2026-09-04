@@ -59,16 +59,16 @@ export const DashboardSummaryCards = ({
   return (
     <>
       <View
-        className="mx-4 mb-5 overflow-hidden rounded-[18px] border border-slate-300 bg-white"
+        className="mx-4 mb-5 overflow-hidden rounded-[18px] border border-violet-200 bg-violet-50"
         style={cardShadow}
       >
-        <View className="flex-row items-center border-b border-violet-100 bg-violet-50 px-4 py-3">
-          <View className="h-9 w-9 items-center justify-center rounded-full bg-violet-200">
+        <View className="flex-row items-center gap-2 px-4 py-3">
+          <View className="h-8 w-8 items-center justify-center rounded-lg bg-violet-100">
             <Feather name="bar-chart-2" size={17} color="#7C3AED" />
           </View>
-          <View className="ml-2.5 min-w-0 flex-1">
-            <Text className="font-inter-bold text-[15px] text-slate-900">
-              Mess Summary
+          <View className="min-w-0 flex-1">
+            <Text className="font-inter-semibold text-sm text-slate-800">
+              Mess Monthly Summary
             </Text>
             <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
               Overall figures for this month
@@ -76,55 +76,18 @@ export const DashboardSummaryCards = ({
           </View>
         </View>
 
-        <View className="border-t border-slate-200 px-2">
-          <View className="flex-row flex-wrap">
-            {items.map((item, index) => (
-              <View key={item.label} className={`w-full px-2.5 ${index < items.length - 1 ? "border-b border-slate-200" : ""}`}>
-                <View className="flex-row items-center py-3">
-                  <View
-                    className="h-8 w-8 items-center justify-center"
-                  >
-                    <Ionicons name={item.icon} size={16} color={item.color} />
-                  </View>
-                  <View className="ml-2 min-w-0 flex-1">
-                    <Text
-                      className="font-inter text-[10px] text-slate-500"
-                      numberOfLines={1}
-                    >
-                      {item.label}
-                    </Text>
-                    {item.sub ? (
-                      <Text className="mt-0.5 font-inter text-[9px] text-slate-500">
-                        {item.sub}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text
-                    className="ml-3 font-inter-bold text-[15px] text-slate-950"
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.7}
-                  >
-                    {item.value}
-                  </Text>
-                </View>
+        <View className="flex-row flex-wrap gap-2 p-2">
+          <View className="w-full flex-row items-center justify-between rounded-xl border border-violet-200 bg-white p-3">
+            <View className="flex-row items-center gap-2">
+              <View className="h-8 w-8 items-center justify-center rounded-lg bg-violet-50">
+                <Feather
+                  name="credit-card"
+                  size={16}
+                  color={balancePositive ? "#0F766E" : "#DC2626"}
+                />
               </View>
-            ))}
-          </View>
-          <View className="flex-row items-center border-t border-slate-200 px-2.5 py-3">
-            <View className="h-9 w-9 items-center justify-center">
-              <Feather
-                name="credit-card"
-                size={17}
-                color={balancePositive ? "#0F766E" : "#DC2626"}
-              />
-            </View>
-            <View className="ml-2.5 flex-1">
-              <Text className="font-inter text-[11px] text-slate-600">
+              <Text className="font-inter-semibold text-sm text-slate-700">
                 Current Balance
-              </Text>
-              <Text className="mt-0.5 font-inter text-[10px] text-slate-500">
-                Deposits minus expenses
               </Text>
             </View>
             <Text
@@ -137,6 +100,32 @@ export const DashboardSummaryCards = ({
               {formatDashboardAmount(Math.abs(netBalance))}
             </Text>
           </View>
+          {items.map((item) => (
+            <View
+              key={item.label}
+              className="w-full flex-row items-center rounded-xl border border-violet-100 bg-white px-2.5 py-2"
+            >
+              <View className="h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+                <Ionicons name={item.icon} size={16} color={item.color} />
+              </View>
+              <View className="ml-2 min-w-0 flex-1 flex-row items-center justify-between gap-1">
+                <Text
+                  className="min-w-0 flex-1 font-inter text-[10px] text-slate-500"
+                  numberOfLines={1}
+                >
+                  {item.label}
+                </Text>
+                <Text
+                  className="font-inter-bold text-[13px] text-slate-950"
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {item.value}
+                </Text>
+              </View>
+            </View>
+          ))}
         </View>
       </View>
     </>

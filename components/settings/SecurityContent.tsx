@@ -9,7 +9,11 @@ import { TransferAdminForm } from "./TransferAdminForm";
 import { UpdateEmailForm } from "./UpdateEmailForm";
 import type { SecurityModalType } from "@/types/security";
 
-export const SecurityContent = () => {
+export const SecurityContent = ({
+  returnTo,
+}: {
+  returnTo?: "dashboard" | "manager";
+}) => {
   const [activeModal, setActiveModal] = useState<SecurityModalType>(null);
   const closeModal = () => setActiveModal(null);
 
@@ -28,7 +32,7 @@ export const SecurityContent = () => {
 
   return (
     <>
-      <SecurityHeader />
+      <SecurityHeader returnTo={returnTo} />
       <SecurityActionList onOpen={setActiveModal} />
       <SecurityBottomSheet
         visible={activeModal !== null}

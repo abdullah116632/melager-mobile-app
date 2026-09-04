@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 
 type ConsumersHeaderProps = {
+  returnTo?: "dashboard" | "manager";
   loading: boolean;
   totalConsumers: number;
   onRefresh: () => void;
@@ -10,6 +11,7 @@ type ConsumersHeaderProps = {
 };
 
 export const ConsumersHeader = ({
+  returnTo = "dashboard",
   loading,
   totalConsumers,
   onRefresh,
@@ -21,7 +23,11 @@ export const ConsumersHeader = ({
     <View className="flex-row items-center gap-3 bg-teal-700 px-4 pb-5 pt-4">
       <TouchableOpacity
         className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10"
-        onPress={() => router.back()}
+        onPress={() =>
+          router.replace(
+            returnTo === "manager" ? "/(tabs)/manager" : "/(tabs)/dashboard",
+          )
+        }
         activeOpacity={0.7}
       >
         <Feather name="arrow-left" size={22} color="#fff" />

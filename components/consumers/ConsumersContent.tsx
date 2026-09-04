@@ -9,7 +9,11 @@ import type { Consumer } from "@/types/consumer";
 import { ConsumersHeader } from "./ConsumersHeader";
 import { ConsumersList } from "./ConsumersList";
 
-export const ConsumersContent = () => {
+export const ConsumersContent = ({
+  returnTo = "dashboard",
+}: {
+  returnTo?: "dashboard" | "manager";
+}) => {
   const insets = useSafeAreaInsets();
   const { token, activeMess, role } = useAuth();
   const [consumers, setConsumers] = useState<Consumer[]>([]);
@@ -47,6 +51,7 @@ export const ConsumersContent = () => {
         />
       )}
       <ConsumersHeader
+        returnTo={returnTo}
         loading={loading}
         totalConsumers={consumers.length}
         onRefresh={() => void fetchConsumers()}

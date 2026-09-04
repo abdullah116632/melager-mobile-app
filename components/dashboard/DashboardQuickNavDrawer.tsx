@@ -7,19 +7,29 @@ import { selectNoticesState } from "@/redux/slice/noticesSlice";
 import { selectBazarNotificationsState } from "@/redux/slice/bazarNotificationsSlice";
 import { selectConsumerBreakdownNotificationsState } from "@/redux/slice/consumerBreakdownNotificationsSlice";
 
-export const DashboardQuickNavDrawer = () => {
+interface DashboardQuickNavDrawerProps {
+  returnTo?: "dashboard" | "manager";
+}
+
+export const DashboardQuickNavDrawer = ({
+  returnTo = "dashboard",
+}: DashboardQuickNavDrawerProps) => {
   const router = useRouter();
   const { exitMess } = useAuth();
   const { unreadCount } = useAppSelector(selectMessagesState);
   const { unreadCount: unreadNoticeCount } = useAppSelector(selectNoticesState);
-  const { unreadCount: unreadBazarCount } = useAppSelector(selectBazarNotificationsState);
-  const { unreadCount: unreadBreakdownCount } = useAppSelector(selectConsumerBreakdownNotificationsState);
+  const { unreadCount: unreadBazarCount } = useAppSelector(
+    selectBazarNotificationsState,
+  );
+  const { unreadCount: unreadBreakdownCount } = useAppSelector(
+    selectConsumerBreakdownNotificationsState,
+  );
 
   const navigate = (
     route:
       "/consumer-breakdown" | "/notice-board" | "/bazar-list" | "/messages",
   ) => {
-    router.push(route);
+    router.push(`${route}?returnTo=${returnTo}`);
   };
 
   return (

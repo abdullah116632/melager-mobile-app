@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useState } from "react";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -119,6 +119,12 @@ const MessageBubble = ({
 
 export default function MessagesRoute() {
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const source = Array.isArray(returnTo) ? returnTo[0] : returnTo;
+  const goBack = () =>
+    router.replace(
+      source === "manager" ? "/(tabs)/manager" : "/(tabs)/dashboard",
+    );
   const dispatch = useAppDispatch();
   const { mess, token, user } = useAuth();
   const { isOnline } = useNetwork();
@@ -221,7 +227,7 @@ export default function MessagesRoute() {
         <View className="flex-row items-center border-b border-slate-700 bg-[#0F172A] px-4 pb-4 pt-2">
           <TouchableOpacity
             className="h-10 w-10 items-center justify-center rounded-xl border border-slate-600 bg-slate-800"
-            onPress={() => router.back()}
+            onPress={goBack}
             accessibilityLabel="Back"
           >
             <Feather name="arrow-left" size={21} color="#FFFFFF" />

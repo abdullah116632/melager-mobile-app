@@ -73,6 +73,14 @@ export const ManagerSummaryCard = () => {
       className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-slate-300 bg-white"
       style={cardShadow}
     >
+      <View className="flex-row items-center gap-2 px-4 py-3">
+        <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
+          <Feather name="bar-chart-2" size={17} color="#475569" />
+        </View>
+        <Text className="font-inter-semibold text-sm text-slate-800">
+          Mess Monthly Summary
+        </Text>
+      </View>
       <View className="flex-row flex-wrap gap-2 p-2">
         <View className="w-full flex-row items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
           <View className="flex-row items-center gap-2">

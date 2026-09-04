@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import DraggableFlatList, {
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
@@ -73,6 +73,12 @@ const NOTICE_COLORS = [
 
 export default function NoticeBoardRoute() {
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const source = Array.isArray(returnTo) ? returnTo[0] : returnTo;
+  const goBack = () =>
+    router.replace(
+      source === "manager" ? "/(tabs)/manager" : "/(tabs)/dashboard",
+    );
   const dispatch = useAppDispatch();
   const { mess, role, token } = useAuth();
   const { isOnline, isCheckingNetwork } = useNetwork();
@@ -255,7 +261,7 @@ export default function NoticeBoardRoute() {
       <View className="flex-row items-center bg-[#075F5B] px-4 pb-4 pt-2">
         <TouchableOpacity
           className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/15"
-          onPress={() => router.back()}
+          onPress={goBack}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Back"

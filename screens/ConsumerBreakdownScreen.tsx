@@ -52,7 +52,11 @@ const getMonthConsumers = (data: MonthData): Consumer[] =>
     accountDeletedAt: consumer.accountDeletedAt,
   }));
 
-export const ConsumerBreakdownScreen = () => {
+export const ConsumerBreakdownScreen = ({
+  returnTo = "dashboard",
+}: {
+  returnTo?: "dashboard" | "manager";
+}) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const dispatch = useAppDispatch();
@@ -247,7 +251,11 @@ export const ConsumerBreakdownScreen = () => {
       <View className="flex-row items-center bg-[#075F5B] px-4 pb-4 pt-2">
         <TouchableOpacity
           className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/15"
-          onPress={() => router.back()}
+          onPress={() =>
+            router.replace(
+              returnTo === "manager" ? "/(tabs)/manager" : "/(tabs)/dashboard",
+            )
+          }
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel="Back to dashboard"

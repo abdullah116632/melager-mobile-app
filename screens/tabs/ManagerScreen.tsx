@@ -157,7 +157,7 @@ export function ManagerScreen() {
         </View>
       </LinearGradient>
 
-      <DashboardQuickNavDrawer />
+      <DashboardQuickNavDrawer returnTo="manager" />
 
       <ManagerSummaryCard />
 
@@ -168,28 +168,28 @@ export function ManagerScreen() {
             icon: "calendar-outline",
             tintClassName: "bg-emerald-50",
             iconColor: "#059669",
-            onPress: () => router.push("/meal-status"),
+            onPress: () => router.push("/meal-status?returnTo=manager"),
           },
           {
             label: "Member Requests",
             icon: "person-add-outline",
             tintClassName: "bg-violet-50",
             iconColor: "#6D28D9",
-            onPress: () => router.push("/member-requests"),
+            onPress: () => router.push("/member-requests?returnTo=manager"),
           },
           {
             label: "All Members",
             icon: "people-outline",
             tintClassName: "bg-teal-50",
             iconColor: "#0F766E",
-            onPress: () => router.push("/consumers"),
+            onPress: () => router.push("/consumers?returnTo=manager"),
           },
           {
             label: "Security",
             icon: "shield-checkmark-outline",
             tintClassName: "bg-amber-50",
             iconColor: "#B45309",
-            onPress: () => router.push("/settings/security"),
+            onPress: () => router.push("/settings/security?returnTo=manager"),
           },
         ]}
       />

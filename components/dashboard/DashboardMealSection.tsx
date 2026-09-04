@@ -308,12 +308,6 @@ export const DashboardMealSection = forwardRef<
           })}
         </View>
       </View>
-      {!isAdmin && !isPast && (
-        <Text className="pb-2.5 text-center font-inter text-[11px] text-slate-500">
-          Tap a meal to turn it on or off
-        </Text>
-      )}
-
       <DashboardDatePicker
         visible={datePickerVisible}
         value={selectedDate}
