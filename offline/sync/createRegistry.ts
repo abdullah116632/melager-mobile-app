@@ -8,6 +8,8 @@ import { registerDailyMealsSync } from "../features/dailyMeals/registerDailyMeal
 import { registerDepositSync } from "../features/deposits/registerDepositSync";
 import { registerExpenseSync } from "../features/expenses/registerExpenseSync";
 import { registerMessageSync } from "../features/messages/registerMessageSync";
+import { registerNotificationSync } from "../features/notifications/registerNotificationSync";
+import { registerSettingsSync } from "../features/settings/registerSettingsSync";
 import { SyncRegistry } from "./registry";
 
 /**
@@ -25,6 +27,8 @@ export function createSyncRegistry(database: SQLiteDatabase): SyncRegistry {
   registerDepositSync(registry, database);
   registerExpenseSync(registry, database);
   registerMessageSync(registry, database);
+  registerNotificationSync(registry, database);
+  registerSettingsSync(registry, database);
 
   return registry;
 }

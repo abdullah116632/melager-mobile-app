@@ -21,6 +21,8 @@ import {
 } from "@/lib/api";
 import { clearOfflineQueue } from "@/lib/offlineQueue";
 import { patchCachedConsumerProfile } from "@/lib/cache";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { OutboxRepository } from "@/offline/repositories/outboxRepository";
 import {
   clearLocalReferenceData,
   getLocalAuthSnapshot,
@@ -354,7 +356,9 @@ export const updateProfileName = createAuthAsyncThunk<
 >("auth/updateProfileName", async (name, { getState }) => {
   const { token, user } = getState().auth;
   if (!token || !user) throw new Error("Not authenticated");
-  const result = await api.updateProfile(name, token);
+  const result = await api.updateProfile(name, token).catch(async () => {
+    const db=await getOfflineDatabase();await new OutboxRepository(db).enqueue({userId:user.id,entityType:"profile_setting",entityId:"name",operation:"update",dedupeKey:"profile:name",payload:{kind:"name",value:name}});return {name};
+  });
   await patchLocalUser(user.id, { name: result.name });
   await patchCachedConsumerProfile({
     userId: user.id,
@@ -369,7 +373,7 @@ export const updatePhone = createAuthAsyncThunk<string | null, string | null>(
   async (phone, { getState }) => {
     const { token, user } = getState().auth;
     if (!token || !user) throw new Error("Not authenticated");
-    const result = await api.updatePhone(phone, token);
+  const result = await api.updatePhone(phone, token).catch(async () => {const db=await getOfflineDatabase();await new OutboxRepository(db).enqueue({userId:user.id,entityType:"profile_setting",entityId:"phone",operation:"update",dedupeKey:"profile:phone",payload:{kind:"phone",value:phone}});return {mobileNumber:phone};});
     await patchLocalUser(user.id, { mobileNumber: result.mobileNumber });
     return result.mobileNumber;
   },
@@ -380,7 +384,7 @@ export const updateMessName = createAuthAsyncThunk<string, string>(
   async (name, { getState }) => {
     const { token, activeMess } = getState().auth;
     if (!token || !activeMess) throw new Error("No active mess");
-    const result = await api.updateMessName(name, token, activeMess.id);
+  const result = await api.updateMessName(name, token, activeMess.id).catch(async () => {const db=await getOfflineDatabase();await new OutboxRepository(db).enqueue({userId:getState().auth.user!.id,messId:activeMess.id,entityType:"profile_setting",entityId:"mess",operation:"update",dedupeKey:`mess:name:${activeMess.id}`,payload:{kind:"mess",value:name}});return {name};});
     await patchLocalMess(activeMess.id, { name: result.name });
     return result.name;
   },
