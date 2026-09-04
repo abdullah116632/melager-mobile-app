@@ -8,8 +8,17 @@ import {
   unwrapResult,
 } from "@reduxjs/toolkit";
 
-import { api, clearApiCache, type MonthData } from "@/lib/api";
+import {
+  api,
+  clearApiCache,
+  type ApiConsumer,
+  type MonthData,
+} from "@/lib/api";
 import { loadFromCache, saveToCache } from "@/lib/cache";
+import {
+  getLocalConsumers,
+  saveLocalConsumers,
+} from "@/offline/features/reference/storage";
 import { updateProfileName, type AuthState } from "@/redux/slice/authSlice";
 import type { NetworkState } from "@/redux/slice/networkSlice";
 import type { Consumer } from "@/types/mess";
@@ -25,6 +34,8 @@ export interface MessState {
   requestStatus: "idle" | "loading" | "succeeded" | "failed";
   requestError: string | null;
   dataSource: "none" | "cache" | "live";
+  consumerDataSource: "none" | "local" | "live";
+  consumersLastSyncAt: number | null;
   lastLiveSyncAt: number | null;
   lastRefreshError: string | null;
   lastManualRefreshAt: number | null;
@@ -53,6 +64,8 @@ const createInitialState = (
   requestStatus: "idle",
   requestError: null,
   dataSource: "none",
+  consumerDataSource: "none",
+  consumersLastSyncAt: null,
   lastLiveSyncAt: null,
   lastRefreshError: null,
   lastManualRefreshAt: null,
@@ -76,9 +89,43 @@ export const monthDataReceived = createAction<{
   data: MonthData;
 }>("mess/monthDataReceived");
 
+export const localConsumersReceived = createAction<{
+  messId: number;
+  consumers: Consumer[];
+  savedAt: number;
+}>("mess/localConsumersReceived");
+
+const toConsumers = (consumers: ApiConsumer[]): Consumer[] =>
+  consumers.map((consumer) => ({
+    id: consumer.id.toString(),
+    name: consumer.name,
+    userId: consumer.userId,
+    email: consumer.email,
+    mobileNumber: consumer.mobileNumber,
+    isAdmin: consumer.isAdmin,
+    accountDeletedAt: consumer.accountDeletedAt,
+  }));
+
 const createMessAsyncThunk = createAsyncThunk.withTypes<{
   state: MessRootState;
 }>();
+
+export const hydrateConsumersFromLocal = createMessAsyncThunk<void, void>(
+  "mess/hydrateConsumersFromLocal",
+  async (_arg, { dispatch, getState }) => {
+    const { user, activeMess } = getState().auth;
+    if (!user || !activeMess) return;
+    const cached = await getLocalConsumers(user.id, activeMess.id);
+    if (!cached) return;
+    dispatch(
+      localConsumersReceived({
+        messId: activeMess.id,
+        consumers: toConsumers(cached.consumers),
+        savedAt: cached.savedAt,
+      }),
+    );
+  },
+);
 
 interface LoadMonthArgs {
   messId: number;
@@ -93,8 +140,8 @@ interface LoadMonthResult extends LoadMonthArgs {
 export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
   "mess/loadMonth",
   async ({ messId, yearMonth, force = false }, { dispatch, getState }) => {
-    const { token, activeMess } = getState().auth;
-    if (!token || activeMess?.id !== messId) {
+    const { token, user, activeMess } = getState().auth;
+    if (!token || !user || activeMess?.id !== messId) {
       return { messId, yearMonth, force, data: null };
     }
 
@@ -107,11 +154,15 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
     if (!alreadyLoaded && !force) {
       const cached = await loadFromCache(messId, yearMonth);
       if (cached) {
+        const cachedMonth = cached as MonthData;
+        await saveLocalConsumers(user.id, messId, cachedMonth.consumers).catch(
+          () => undefined,
+        );
         dispatch(
           monthDataReceived({
             messId,
             yearMonth,
-            data: cached as MonthData,
+            data: cachedMonth,
           }),
         );
       }
@@ -119,13 +170,20 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
 
     if (!getState().network.isOnline) {
       if (!alreadyLoaded && !getState().mess.loadedMonths[key]) {
-        throw new Error("No internet connection and no cached data is available.");
+        throw new Error(
+          "No internet connection and no cached data is available.",
+        );
       }
       return { messId, yearMonth, force, data: null };
     }
 
     const data = await api.getMonthData(yearMonth, token, messId);
-    if (data) void saveToCache(messId, yearMonth, data);
+    if (data) {
+      await Promise.all([
+        saveToCache(messId, yearMonth, data),
+        saveLocalConsumers(user.id, messId, data.consumers),
+      ]);
+    }
     return { messId, yearMonth, force, data };
   },
   {
@@ -160,27 +218,38 @@ export const refreshMonth = createMessAsyncThunk<void, void>(
 export const refreshConsumers = createMessAsyncThunk<
   { messId: number; consumers: Consumer[] } | null,
   void
->("mess/refreshConsumers", async (_arg, { getState }) => {
-  const { token, activeMess } = getState().auth;
-  if (!token || !activeMess) return null;
+>("mess/refreshConsumers", async (_arg, { dispatch, getState }) => {
+  const { token, user, activeMess } = getState().auth;
+  if (!token || !user || !activeMess) return null;
+  const cached = await getLocalConsumers(user.id, activeMess.id);
+  if (cached) {
+    // The reducer receives this before any network request completes, keeping
+    // screen rendering independent from connection speed.
+    dispatch(
+      localConsumersReceived({
+        messId: activeMess.id,
+        consumers: toConsumers(cached.consumers),
+        savedAt: cached.savedAt,
+      }),
+    );
+  }
+  if (!getState().network.isOnline) return null;
   clearApiCache();
   const result = await api.getConsumers(token, activeMess.id);
+  await saveLocalConsumers(user.id, activeMess.id, result.consumers);
   return {
     messId: activeMess.id,
-    consumers: result.consumers.map((consumer) => ({
-      id: consumer.id.toString(),
-      name: consumer.name,
-      userId: consumer.userId,
-      email: consumer.email,
-      mobileNumber: consumer.mobileNumber,
-      isAdmin: consumer.isAdmin,
-      accountDeletedAt: consumer.accountDeletedAt,
-    })),
+    consumers: toConsumers(result.consumers),
   };
 });
 
 export const addConsumer = createMessAsyncThunk<
-  { consumer: Consumer | null; invitationSent: boolean },
+  {
+    consumer: Consumer | null;
+    invitationSent: boolean;
+    messId: number;
+    consumers: Consumer[];
+  },
   {
     name: string;
     email: string;
@@ -191,8 +260,8 @@ export const addConsumer = createMessAsyncThunk<
   "mess/addConsumer",
   async ({ name, email, mobileNumber, isOnline }, { getState }) => {
     if (!isOnline) throw new Error("Internet connection required.");
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) {
+    const { token, user, activeMess } = getState().auth;
+    if (!token || !user || !activeMess) {
       throw new Error("Please select a mess and sign in again.");
     }
     const result = await api.addConsumer(
@@ -202,24 +271,44 @@ export const addConsumer = createMessAsyncThunk<
       token,
       activeMess.id,
     );
+    clearApiCache();
+    const latest = await api.getConsumers(token, activeMess.id);
+    await saveLocalConsumers(user.id, activeMess.id, latest.consumers);
     return {
       consumer: result.consumer
         ? { id: result.consumer.id.toString(), name: result.consumer.name }
         : null,
       invitationSent: result.invitationSent,
+      messId: activeMess.id,
+      consumers: toConsumers(latest.consumers),
     };
   },
 );
 
 export const removeConsumer = createMessAsyncThunk<
-  { id: string; removed: boolean },
+  {
+    id: string;
+    removed: boolean;
+    messId: number | null;
+    consumers: Consumer[];
+  },
   { id: string; isOnline: boolean }
 >("mess/removeConsumer", async ({ id, isOnline }, { getState }) => {
   if (!isOnline) throw new Error("Internet connection required.");
-  const { token, activeMess } = getState().auth;
-  if (!token || !activeMess) return { id, removed: false };
+  const { token, user, activeMess } = getState().auth;
+  if (!token || !user || !activeMess) {
+    return { id, removed: false, messId: null, consumers: [] };
+  }
   await api.removeConsumer(parseInt(id, 10), token, activeMess.id);
-  return { id, removed: true };
+  clearApiCache();
+  const latest = await api.getConsumers(token, activeMess.id);
+  await saveLocalConsumers(user.id, activeMess.id, latest.consumers);
+  return {
+    id,
+    removed: true,
+    messId: activeMess.id,
+    consumers: toConsumers(latest.consumers),
+  };
 });
 
 const messAsyncThunks = [
@@ -236,15 +325,7 @@ const applyMonthData = (
   data: MonthData,
 ) => {
   if (state.scopeMessId !== messId) return;
-  state.consumers = data.consumers.map((consumer) => ({
-    id: consumer.id.toString(),
-    name: consumer.name,
-    userId: consumer.userId,
-    email: consumer.email,
-    mobileNumber: consumer.mobileNumber,
-    isAdmin: consumer.isAdmin,
-    accountDeletedAt: consumer.accountDeletedAt,
-  }));
+  state.consumers = toConsumers(data.consumers);
   state.loadedMonths[monthKey(messId, yearMonth)] = true;
 };
 
@@ -286,6 +367,12 @@ const messSlice = createSlice({
       .addCase(goToSpecificMonth, (state, action) => {
         state.currentYear = action.payload.year;
         state.currentMonth = action.payload.month;
+      })
+      .addCase(localConsumersReceived, (state, action) => {
+        if (state.scopeMessId !== action.payload.messId) return;
+        state.consumers = action.payload.consumers;
+        state.consumerDataSource = "local";
+        state.consumersLastSyncAt = action.payload.savedAt;
       })
       .addCase(monthDataReceived, (state, action) => {
         applyMonthData(
@@ -333,21 +420,27 @@ const messSlice = createSlice({
         state.lastManualRefreshAt = Date.now();
       })
       .addCase(addConsumer.fulfilled, (state, action) => {
-        if (action.payload.consumer) {
-          state.consumers.push(action.payload.consumer);
-        }
+        if (state.scopeMessId !== action.payload.messId) return;
+        state.consumers = action.payload.consumers;
+        state.consumerDataSource = "live";
+        state.consumersLastSyncAt = Date.now();
       })
       .addCase(removeConsumer.fulfilled, (state, action) => {
-        if (!action.payload.removed) return;
-        const { id } = action.payload;
-        state.consumers = state.consumers.filter(
-          (consumer) => consumer.id !== id,
-        );
+        if (
+          !action.payload.removed ||
+          state.scopeMessId !== action.payload.messId
+        )
+          return;
+        state.consumers = action.payload.consumers;
+        state.consumerDataSource = "live";
+        state.consumersLastSyncAt = Date.now();
       })
       .addCase(refreshConsumers.fulfilled, (state, action) => {
         if (!action.payload || state.scopeMessId !== action.payload.messId)
           return;
         state.consumers = action.payload.consumers;
+        state.consumerDataSource = "live";
+        state.consumersLastSyncAt = Date.now();
       })
       .addCase(updateProfileName.fulfilled, (state, action) => {
         const consumer = state.consumers.find(

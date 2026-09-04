@@ -248,6 +248,8 @@ export const useMess = () => {
     requestStatus: state.requestStatus,
     requestError: state.requestError,
     dataSource: state.dataSource,
+    consumerDataSource: state.consumerDataSource,
+    consumersLastSyncAt: state.consumersLastSyncAt,
     lastLiveSyncAt: state.lastLiveSyncAt,
     lastRefreshError: state.lastRefreshError,
     refreshMonth: async () => {

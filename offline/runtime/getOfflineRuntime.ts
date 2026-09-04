@@ -17,7 +17,7 @@ export function getOfflineRuntime(database: SQLiteDatabase): OfflineRuntime {
   const existing = runtimes.get(database);
   if (existing) return existing;
 
-  const registry = createSyncRegistry();
+  const registry = createSyncRegistry(database);
   const runtime: OfflineRuntime = {
     registry,
     engine: new SyncEngine(database, registry),

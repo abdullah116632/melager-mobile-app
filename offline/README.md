@@ -17,6 +17,7 @@ UI and Redux
 - `outbox/` defines durable local mutations. Authentication tokens must never be persisted here.
 - `sync/` coordinates registered feature processors and incremental pullers.
 - `runtime/` owns the shared registry, outbox and single-flight sync engine.
+- `features/` owns normalized tables, repositories and sync adapters by domain.
 - `controller/` triggers sync when the app opens, resumes or reconnects.
 - `background/` defines and registers the OS-managed background sync task.
 - `provider/` initializes SQLite before native application controllers start.
@@ -26,5 +27,11 @@ only in memory. Existing AsyncStorage tokens are migrated automatically on the
 first launch after this version is installed.
 
 Feature UI must not import `expo-sqlite` directly. Each feature will receive its own normalized tables, repository and sync adapter in a separate migration step.
+
+## Migrated features
+
+- Shared reference data: user profile, mess list, membership role, join requests,
+  active mess and consumers. Native reads come from SQLite first; full server
+  snapshots then refresh SQLite and Redux in the background.
 
 The existing AsyncStorage cache and legacy offline queue intentionally remain active until their features are migrated and verified one at a time.

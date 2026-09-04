@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { selectActiveMess, selectAuthToken } from "@/redux/slice/authSlice";
 import {
   formatYearMonth,
+  hydrateConsumersFromLocal,
   loadMonth,
   selectMessState,
   syncMessScope,
@@ -21,12 +22,20 @@ export const MessStateController = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     dispatch(syncMessScope(messId));
+  }, [dispatch, messId]);
+
+  useEffect(() => {
     if (token && messId) {
       void dispatch(loadMonth({ messId, yearMonth }));
       void dispatch(loadUnreadMessageCount());
       void dispatch(loadUnreadNoticesCount());
     }
   }, [dispatch, token, messId, yearMonth]);
+
+  useEffect(() => {
+    if (!token || !messId) return;
+    void dispatch(hydrateConsumersFromLocal());
+  }, [dispatch, token, messId]);
 
   return <>{children}</>;
 };
