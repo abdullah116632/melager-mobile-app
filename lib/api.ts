@@ -804,6 +804,12 @@ export const api = {
       token,
     ),
 
+  syncDailyMeal: (clientMutationId: string, messId: number, payload: { yearMonth: string; consumerId: string; day: number; count: number; baseCount: number }, token: string) =>
+    req<{ count: number }>("POST", "/mess/daily-meals/sync", { clientMutationId, messId, payload }, token),
+
+  getDailyMealChanges: (messId: number, yearMonth: string, cursor: string | null, token: string) =>
+    req<{ changes: Array<{ cursor: string; payload: { consumerId: string; day: number; count: number } }>; cursor: string }>("GET", `/mess/daily-meals/changes?messId=${messId}&yearMonth=${yearMonth}&cursor=${cursor ?? "0"}`, undefined, token),
+
 
   setExpense: (
     yearMonth: string,

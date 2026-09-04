@@ -158,7 +158,12 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
       if (cached) {
         const cachedMonth = cached as MonthData;
         try {
-          const localMeals = await new DailyMealsRepository(await getOfflineDatabase()).getMonth(user.id, messId, yearMonth);
+          const repository = new DailyMealsRepository(await getOfflineDatabase());
+          const beforeSeed = await repository.getMonth(user.id, messId, yearMonth);
+          if (Object.keys(beforeSeed).length === 0) {
+            await repository.mergeRemote(user.id, messId, yearMonth, cachedMonth.meals);
+          }
+          const localMeals = await repository.getMonth(user.id, messId, yearMonth);
           if (Object.keys(localMeals).length > 0) cachedMonth.meals = localMeals;
         } catch {
           // SQLite is native-only; preserve the legacy cache on web.

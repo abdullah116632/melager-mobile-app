@@ -1,6 +1,8 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { Platform, Text, View } from "react-native";
+import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
+import { DailyMealsRepository } from "@/offline/features/dailyMeals/DailyMealsRepository";
 import MonthPicker from "@/components/MonthPicker";
 import { useAuth } from "@/redux/hooks";
 import { useMeals } from "@/redux/hooks";
@@ -9,7 +11,8 @@ import { MealCellEditor, type MealCellEditorHandle } from "./MealCellEditor";
 import { MealsGrid, type MealsGridHandle } from "./MealsGrid";
 
 export const MealsTableSection = () => {
-  const { role } = useAuth();
+  const { role, user, mess } = useAuth();
+  const { database } = useOfflineDatabase();
   const {
     consumers,
     currentYearMonth,
@@ -20,6 +23,7 @@ export const MealsTableSection = () => {
   } = useMeals();
   const isAdmin = role === "admin";
   const [selectedCell, setSelectedCell] = useState<ActiveMealCell | null>(null);
+  const [conflictCount, setConflictCount] = useState(0);
   const editorRef = useRef<MealCellEditorHandle | null>(null);
   const gridRef = useRef<MealsGridHandle | null>(null);
   const daysCount = getDaysInMonth(currentYearMonth);
@@ -27,6 +31,11 @@ export const MealsTableSection = () => {
   useEffect(() => {
     setSelectedCell(null);
   }, [currentYearMonth]);
+
+  useEffect(() => {
+    if (!database || !user?.id || !mess?.id) return;
+    void new DailyMealsRepository(database).getConflictCount(user.id, mess.id, currentYearMonth).then(setConflictCount).catch(() => undefined);
+  }, [database, currentYearMonth, mess?.id, user?.id]);
 
   const selectCell = useCallback((consumerId: string, day: number) => {
     gridRef.current?.preserveVerticalPosition();
@@ -95,6 +104,14 @@ export const MealsTableSection = () => {
         onCellDown={isAdmin ? () => copyAndMove("down") : undefined}
         cellNavEnabled={isAdmin && !!selectedCell}
       />
+
+      {conflictCount > 0 && (
+        <View className="mx-3 mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+          <Text className="font-inter-medium text-xs text-amber-800">
+            {conflictCount} meal update needs review because it was changed on another device.
+          </Text>
+        </View>
+      )}
 
       {isAdmin && selectedCell && (
         <MealCellEditor
