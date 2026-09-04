@@ -95,10 +95,13 @@ function ClassicTabLayout() {
   return (
     <Tabs
       initialRouteName="dashboard"
-      detachInactiveScreens={false}
+      detachInactiveScreens
       screenOptions={{
         lazy: true,
-        freezeOnBlur: false,
+        // Meals, accounting, expense, and deposit screens are expensive.
+        // Keep only the visible tab rendering; its Redux state remains intact
+        // and is immediately current when the tab is focused again.
+        freezeOnBlur: true,
         animation: "none",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,

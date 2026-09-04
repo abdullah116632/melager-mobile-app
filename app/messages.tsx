@@ -90,7 +90,7 @@ const MessageBubble = ({
         {!own ? (
           <View className="mb-1.5 flex-row items-center">
             <View className="mr-1.5 h-1.5 w-1.5 rounded-full bg-cyan-400" />
-            <Text className="font-inter-semibold text-[11px] text-cyan-300">
+            <Text className="font-inter-semibold text-[9px] text-cyan-300">
               {message.senderName}
             </Text>
           </View>
@@ -192,14 +192,14 @@ export default function MessagesRoute() {
 
   const submitMessage = async () => {
     const body = draft.trim();
-    if (!body || sendStatus === "loading") return;
+    if (!body || !user || sendStatus === "loading") return;
     if (!isOnline) {
       dispatch(offlineActionFailed("entry"));
       return;
     }
     setDraft("");
     try {
-      await dispatch(sendMessage(body)).unwrap();
+      await dispatch(sendMessage({ body, senderUserId: user.id })).unwrap();
     } catch (error) {
       setDraft(body);
       dispatch(

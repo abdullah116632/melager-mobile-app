@@ -63,9 +63,9 @@ export const loadMessages = createAsyncThunk<
 
 export const sendMessage = createAsyncThunk<
   { messId: number; message: ApiMessage },
-  string,
+  { body: string; senderUserId: number },
   { state: MessagesRootState }
->("messages/send", async (body, { getState }) => {
+>("messages/send", async ({ body }, { getState }) => {
   const { token, messId } = getAuthContext(getState());
   const response = await api.sendMessage(body, token, messId);
   return { messId, message: response.message };
@@ -166,9 +166,9 @@ const messagesSlice = createSlice({
         state.messages.unshift({
           id: -Date.now(),
           messId: activeMess,
-          senderUserId: 0,
+          senderUserId: action.meta.arg.senderUserId,
           senderName: "You",
-          body: action.meta.arg,
+          body: action.meta.arg.body,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -177,7 +177,9 @@ const messagesSlice = createSlice({
         if (state.scopeMessId !== action.payload.messId) return;
         const pendingIndex = state.messages.findIndex(
           (message) =>
-            message.senderUserId === 0 && message.body === action.meta.arg,
+            message.id < 0 &&
+            message.senderUserId === action.meta.arg.senderUserId &&
+            message.body === action.meta.arg.body,
         );
         if (pendingIndex >= 0) state.messages.splice(pendingIndex, 1);
         if (
@@ -192,7 +194,9 @@ const messagesSlice = createSlice({
       .addCase(sendMessage.rejected, (state, action) => {
         const pendingIndex = state.messages.findIndex(
           (message) =>
-            message.senderUserId === 0 && message.body === action.meta.arg,
+            message.id < 0 &&
+            message.senderUserId === action.meta.arg.senderUserId &&
+            message.body === action.meta.arg.body,
         );
         if (pendingIndex >= 0) state.messages.splice(pendingIndex, 1);
         state.sendStatus = "failed";

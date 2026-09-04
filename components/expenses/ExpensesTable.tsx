@@ -162,7 +162,7 @@ export const ExpensesTable = () => {
                     </Text>
                   ) : (
                     <Text className="font-inter text-[13px] text-slate-500">
-                      —
+                      ৳0
                     </Text>
                   )}
                 </View>
@@ -192,12 +192,12 @@ export const ExpensesTable = () => {
                     </View>
                   ) : (
                     <Text
-                      className="font-inter text-[13px] text-slate-500"
+                      className="font-inter text-xs italic text-slate-500"
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.75}
                     >
-                      No Expenses
+                      No expenses
                     </Text>
                   )}
                 </TouchableOpacity>
