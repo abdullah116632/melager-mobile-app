@@ -384,10 +384,6 @@ export const useExpenses = () => {
       day: number,
       items: DayExpenseItem[],
     ) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("entry"));
-        throw new Error("No internet connection.");
-      }
       await unwrapAsyncResult(
         dispatch(setExpenseAction({ yearMonth, day, items, isOnline })),
       );

@@ -7,6 +7,9 @@ import {
 } from "@reduxjs/toolkit";
 
 import { api, type MonthData } from "@/lib/api";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { ExpenseRepository } from "@/offline/features/expenses/ExpenseRepository";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
 import {
   loadMonth,
@@ -30,6 +33,7 @@ export interface ExpenseState {
 type ExpenseRootState = {
   auth: AuthState;
   expenses: ExpenseState;
+  network: { isOnline: boolean };
 };
 
 const createInitialState = (
@@ -60,12 +64,12 @@ export const setExpense = createAsyncThunk.withTypes<{
   SetExpenseArgs
 >(
   "expenses/setExpense",
-  async ({ yearMonth, day, items, isOnline }, { getState }) => {
-    if (!isOnline) throw new Error("Internet connection required.");
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) {
+  async ({ yearMonth, day, items }, { getState }) => {
+    const { token, activeMess, user } = getState().auth;
+    if (!activeMess || !user) {
       throw new Error("Please select a mess and sign in again.");
     }
+    try{const database=await getOfflineDatabase();await new ExpenseRepository(database).save(user.id,activeMess.id,yearMonth,day,items);if(token&&getState().network.isOnline)void getOfflineRuntime(database).engine.sync({userId:user.id,messId:activeMess.id,token},{force:true});return {messId:activeMess.id,yearMonth,day,items};}catch{if(!token)throw new Error("Local expense storage is unavailable.");}
     await api.setExpense(yearMonth, day, items, token, activeMess.id);
     return { messId: activeMess.id, yearMonth, day, items };
   },

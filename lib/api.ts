@@ -824,6 +824,7 @@ export const api = {
       { yearMonth, day, items, messId },
       token,
     ),
+  syncExpenseDay:(clientMutationId:string,messId:number,payload:Record<string,unknown>,token:string)=>req<{success:boolean}>("POST","/mess/expenses/sync",{clientMutationId,messId,payload},token),
 
   setDeposit: (
     consumerId: string,
