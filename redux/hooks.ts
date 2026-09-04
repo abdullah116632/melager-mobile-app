@@ -481,10 +481,6 @@ export const useDeposits = () => {
       );
     },
     addEntry: async (data: DepositEntryInput) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("entry"));
-        throw new Error("No internet connection.");
-      }
       return unwrapAsyncResult(
         dispatch(addDepositEntryAction({ yearMonth, data })),
       );
@@ -493,19 +489,11 @@ export const useDeposits = () => {
       entryId: number,
       data: Omit<DepositEntryInput, "consumerId">,
     ) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("update"));
-        throw new Error("No internet connection.");
-      }
       return unwrapAsyncResult(
         dispatch(updateDepositEntryAction({ yearMonth, entryId, data })),
       );
     },
     deleteEntry: async (entryId: number) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("update"));
-        throw new Error("No internet connection.");
-      }
       return unwrapAsyncResult(
         dispatch(deleteDepositEntryAction({ yearMonth, entryId })),
       );

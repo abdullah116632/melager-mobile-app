@@ -5,6 +5,7 @@ import { registerReferenceSync } from "../features/reference/registerReferenceSy
 import { registerNoticeSync } from "../features/notices/registerNoticeSync";
 import { registerMealScheduleSync } from "../features/meals/registerMealScheduleSync";
 import { registerDailyMealsSync } from "../features/dailyMeals/registerDailyMealsSync";
+import { registerDepositSync } from "../features/deposits/registerDepositSync";
 import { SyncRegistry } from "./registry";
 
 /**
@@ -19,6 +20,7 @@ export function createSyncRegistry(database: SQLiteDatabase): SyncRegistry {
   registerNoticeSync(registry, database);
   registerMealScheduleSync(registry, database);
   registerDailyMealsSync(registry, database);
+  registerDepositSync(registry, database);
 
   return registry;
 }

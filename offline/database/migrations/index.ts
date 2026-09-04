@@ -8,6 +8,7 @@ import { noticesMigration } from "./004-notices";
 import { mealScheduleMigration } from "./005-meal-schedule";
 import { dailyMealsMigration } from "./006-daily-meals";
 import { dailyMealSyncStateMigration } from "./007-daily-meal-sync-state";
+import { depositsMigration } from "./008-deposits";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
@@ -18,6 +19,7 @@ const migrations: DatabaseMigration[] = [
   mealScheduleMigration,
   dailyMealsMigration,
   dailyMealSyncStateMigration,
+  depositsMigration,
 ];
 
 type UserVersionRow = { user_version: number };

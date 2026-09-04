@@ -1027,6 +1027,9 @@ export const api = {
     token: string,
   ) => req<{ entry: DepositEntry }>("POST", "/mess/deposit-entry", data, token),
 
+  syncDepositMutation: <T>(clientMutationId:string,messId:number,operation:string,payload:Record<string,unknown>,token:string) =>
+    req<T>("POST","/mess/deposits/sync",{clientMutationId,messId,operation,payload},token),
+
   updateDepositEntry: (
     id: number,
     data: {
