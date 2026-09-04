@@ -40,5 +40,9 @@ Feature UI must not import `expo-sqlite` directly. Each feature will receive its
 - Notice Board: local notice list, create/edit/delete, drag reorder and unread
   read state. Pending local ordering is preserved while remote data refreshes;
   stale reorder conflicts fall back to the server order instead of retrying forever.
+- Meal Schedule and Menu: daily enabled state, breakfast/lunch/dinner menus,
+  availability and opt-out windows are cached locally; schedule edits made
+  offline are stored in the durable outbox and replayed through the existing
+  meal-schedule API, preserving compatibility with older app versions.
 
 The existing AsyncStorage cache and legacy offline queue intentionally remain active until their features are migrated and verified one at a time.

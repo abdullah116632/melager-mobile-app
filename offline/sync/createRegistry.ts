@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import { registerBazarSync } from "../features/bazar/registerBazarSync";
 import { registerReferenceSync } from "../features/reference/registerReferenceSync";
 import { registerNoticeSync } from "../features/notices/registerNoticeSync";
+import { registerMealScheduleSync } from "../features/meals/registerMealScheduleSync";
 import { SyncRegistry } from "./registry";
 
 /**
@@ -15,6 +16,7 @@ export function createSyncRegistry(database: SQLiteDatabase): SyncRegistry {
   registerReferenceSync(registry, database);
   registerBazarSync(registry, database);
   registerNoticeSync(registry, database);
+  registerMealScheduleSync(registry, database);
 
   return registry;
 }

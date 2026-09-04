@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import { ApiError } from "@/lib/api";
 import { useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 import {
@@ -11,7 +12,9 @@ import { setSchedule } from "@/redux/slice/mealMenuSlice";
 import {
   getMealStatus,
   updateMealSchedule,
+  queueMealScheduleUpdate,
 } from "@/services/mealStatusService";
+import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
 import { getDashboardSchedule } from "@/services/dashboardService";
 import type {
   ControlScope,
@@ -82,7 +85,8 @@ export const ScheduleEditor = ({
   loadedDate,
 }: ScheduleEditorProps) => {
   const dispatch = useAppDispatch();
-  const { mess, token } = useAuth();
+  const { mess, token, user } = useAuth();
+  const { database } = useOfflineDatabase();
   const [draft, setDraft] = useState(() => createDraftFromSchedule(schedule));
   const [saving, setSaving] = useState(false);
   const [pendingControls, setPendingControls] = useState<PendingMealControls>(
@@ -153,8 +157,7 @@ export const ScheduleEditor = ({
         type === mealType
           ? draft[type]
           : createDraftFromSchedule(schedule)[type];
-      await updateMealSchedule(
-        {
+      const update = {
           messId: mess.id,
           date: selectedDate,
           breakfastEnabled: getMeal("breakfast").enabled,
@@ -175,9 +178,31 @@ export const ScheduleEditor = ({
               ...control!,
             }),
           ),
-        },
-        token,
-      );
+        };
+      const nextSchedule = {
+        breakfastEnabled: getMeal("breakfast").enabled,
+        breakfastMenu: getMeal("breakfast").menu.trim() || null,
+        breakfastOptOutStart: getMeal("breakfast").start.trim() || null,
+        breakfastOptOutEnd: getMeal("breakfast").end.trim() || null,
+        lunchEnabled: getMeal("lunch").enabled,
+        lunchMenu: getMeal("lunch").menu.trim() || null,
+        lunchOptOutStart: getMeal("lunch").start.trim() || null,
+        lunchOptOutEnd: getMeal("lunch").end.trim() || null,
+        dinnerEnabled: getMeal("dinner").enabled,
+        dinnerMenu: getMeal("dinner").menu.trim() || null,
+        dinnerOptOutStart: getMeal("dinner").start.trim() || null,
+        dinnerOptOutEnd: getMeal("dinner").end.trim() || null,
+      };
+      try {
+        await updateMealSchedule(update, token);
+      } catch (remoteError) {
+        if (remoteError instanceof ApiError) throw remoteError;
+        const queued = await queueMealScheduleUpdate(database, user?.id ?? null, update, nextSchedule).catch(() => false);
+        if (!queued) throw remoteError;
+        dispatch(setSchedule({ date: selectedDate, schedule: nextSchedule, myOptOuts: [], totalConsumers: 0, activeByMeal: { breakfast: 0, lunch: 0, dinner: 0 }, totalActive: 0 }));
+        Alert.alert("Saved offline", "Schedule will sync when you are online.");
+        return;
+      }
       const updatedDashboardSchedule = await getDashboardSchedule(
         mess.id,
         token,
