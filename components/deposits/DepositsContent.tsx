@@ -25,10 +25,10 @@ export const DepositsContent = () => {
   const loadError = !isOnline
     ? "You are offline. Reconnect to load deposits."
     : entriesError;
-  const loadErrorMessage = "Unable to load deposits. Pull down to try again.";
+  const loadErrorMessage = loadError ?? "Unable to load deposits. Pull down to try again.";
 
   useEffect(() => {
-    if (!isOnline || depositsScopeMessId === null) return;
+    if (depositsScopeMessId === null) return;
     void dispatch(
       loadDepositEntries({
         messId: depositsScopeMessId,
@@ -37,7 +37,7 @@ export const DepositsContent = () => {
     )
       .unwrap()
       .catch(() => undefined);
-  }, [currentYearMonth, depositsScopeMessId, dispatch, isOnline]);
+  }, [currentYearMonth, depositsScopeMessId, dispatch]);
 
   const refreshDeposits = async () => {
     if (depositsScopeMessId === null) return;

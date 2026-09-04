@@ -1,8 +1,10 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
-import { api, type ApiNotice } from "@/lib/api";
+import { api, clearApiCache, type ApiNotice } from "@/lib/api";
+import { loadNoticesFromCache, saveNoticesToCache } from "@/lib/cache";
 import type { AuthState } from "@/redux/slice/authSlice";
 import { syncMessScope } from "@/redux/slice/messSlice";
+import type { NetworkState } from "@/redux/slice/networkSlice";
 
 export interface NoticesState {
   notices: ApiNotice[];
@@ -15,10 +17,13 @@ export interface NoticesState {
 
 type NoticesRootState = {
   auth: AuthState;
+  network: NetworkState;
   notices: NoticesState;
 };
 
-const createInitialState = (scopeMessId: number | null = null): NoticesState => ({
+const createInitialState = (
+  scopeMessId: number | null = null,
+): NoticesState => ({
   notices: [],
   scopeMessId,
   loadStatus: "idle",
@@ -29,18 +34,45 @@ const createInitialState = (scopeMessId: number | null = null): NoticesState => 
 
 const getAuthContext = (state: NoticesRootState) => {
   const { token, activeMess } = state.auth;
-  if (!token || !activeMess) throw new Error("Please select a mess and sign in again.");
+  if (!token || !activeMess)
+    throw new Error("Please select a mess and sign in again.");
   return { token, messId: activeMess.id };
 };
 
+const noticesCacheReceived = createAction<{
+  messId: number;
+  notices: ApiNotice[];
+}>("notices/cacheReceived");
+
+interface LoadNoticesArgs {
+  force?: boolean;
+}
+
 export const loadNotices = createAsyncThunk<
   { messId: number; notices: ApiNotice[] },
-  void,
+  LoadNoticesArgs,
   { state: NoticesRootState }
->("notices/load", async (_, { getState }) => {
+>("notices/load", async ({ force = false }, { dispatch, getState }) => {
   const { token, messId } = getAuthContext(getState());
-  const response = await api.getNotices(token, messId);
-  return { messId, notices: response.notices };
+  const cached = await loadNoticesFromCache(messId);
+  if (cached) dispatch(noticesCacheReceived({ messId, notices: cached }));
+
+  if (!getState().network.isOnline) {
+    if (cached) return { messId, notices: cached };
+    throw new Error(
+      "No internet connection and no cached notices are available.",
+    );
+  }
+
+  clearApiCache();
+  try {
+    const response = await api.getNotices(token, messId);
+    await saveNoticesToCache(messId, response.notices);
+    return { messId, notices: response.notices };
+  } catch (error) {
+    if (cached && !force) return { messId, notices: cached };
+    throw error;
+  }
 });
 
 export const createNotice = createAsyncThunk<
@@ -49,8 +81,11 @@ export const createNotice = createAsyncThunk<
   { state: NoticesRootState }
 >("notices/create", async (input, { getState }) => {
   const { token, messId } = getAuthContext(getState());
+  if (!getState().network.isOnline)
+    throw new Error("Internet connection required.");
   await api.createNotice(input.title, input.body, input.color, token, messId);
   const response = await api.getNotices(token, messId);
+  await saveNoticesToCache(messId, response.notices);
   return { messId, notices: response.notices };
 });
 
@@ -60,7 +95,20 @@ export const updateNotice = createAsyncThunk<
   { state: NoticesRootState }
 >("notices/update", async (input, { getState }) => {
   const { token, messId } = getAuthContext(getState());
-  const response = await api.updateNotice(input.id, input.title, input.body, input.color, token, messId);
+  if (!getState().network.isOnline)
+    throw new Error("Internet connection required.");
+  const response = await api.updateNotice(
+    input.id,
+    input.title,
+    input.body,
+    input.color,
+    token,
+    messId,
+  );
+  const notices = getState().notices.notices.map((notice) =>
+    notice.id === response.notice.id ? response.notice : notice,
+  );
+  await saveNoticesToCache(messId, notices);
   return { messId, notice: response.notice };
 });
 
@@ -70,7 +118,13 @@ export const deleteNotice = createAsyncThunk<
   { state: NoticesRootState }
 >("notices/delete", async (id, { getState }) => {
   const { token, messId } = getAuthContext(getState());
+  if (!getState().network.isOnline)
+    throw new Error("Internet connection required.");
   await api.deleteNotice(id, token, messId);
+  const notices = getState().notices.notices.filter(
+    (notice) => notice.id !== id,
+  );
+  await saveNoticesToCache(messId, notices);
   return { messId, id };
 });
 
@@ -80,7 +134,10 @@ export const reorderNotices = createAsyncThunk<
   { state: NoticesRootState }
 >("notices/reorder", async (noticeIds, { getState }) => {
   const { token, messId } = getAuthContext(getState());
+  if (!getState().network.isOnline)
+    throw new Error("Internet connection required.");
   const response = await api.reorderNotices(noticeIds, token, messId);
+  await saveNoticesToCache(messId, response.notices);
   return { messId, notices: response.notices };
 });
 
@@ -97,6 +154,12 @@ const noticesSlice = createSlice({
       .addCase(syncMessScope, (state, action) => {
         if (state.scopeMessId === action.payload) return;
         return createInitialState(action.payload);
+      })
+      .addCase(noticesCacheReceived, (state, action) => {
+        if (state.scopeMessId !== action.payload.messId) return;
+        state.notices = action.payload.notices;
+        state.loadStatus = "succeeded";
+        state.error = null;
       })
       .addCase(loadNotices.pending, (state) => {
         state.loadStatus = "loading";
@@ -123,13 +186,17 @@ const noticesSlice = createSlice({
       .addCase(updateNotice.fulfilled, (state, action) => {
         if (state.scopeMessId !== action.payload.messId) return;
         state.notices = state.notices.map((notice) =>
-          notice.id === action.payload.notice.id ? action.payload.notice : notice,
+          notice.id === action.payload.notice.id
+            ? action.payload.notice
+            : notice,
         );
         state.mutationStatus = "succeeded";
       })
       .addCase(deleteNotice.fulfilled, (state, action) => {
         if (state.scopeMessId !== action.payload.messId) return;
-        state.notices = state.notices.filter((notice) => notice.id !== action.payload.id);
+        state.notices = state.notices.filter(
+          (notice) => notice.id !== action.payload.id,
+        );
         state.mutationStatus = "succeeded";
       })
       .addCase(createNotice.rejected, (state, action) => {

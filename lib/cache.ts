@@ -1,8 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { ApiNotice, MonthData } from "@/lib/api";
+import type { DashboardDateRange } from "@/types/dashboard";
+import type { Consumer } from "@/types/mess";
 
 const PREFIX = "@mess_cache:";
 const DEPOSIT_ENTRIES_PREFIX = "@mess_deposit_entries:";
+const CONSUMER_BREAKDOWN_PREFIX = "@mess_consumer_breakdown:";
+const NOTICES_PREFIX = "@mess_notices:";
 const memoryCache = new Map<string, unknown>();
+
+export interface ConsumerBreakdownCacheData {
+  appliedRange: DashboardDateRange | null;
+  rangeData: Record<string, MonthData>;
+  consumers: Consumer[];
+}
 
 function cacheKey(messId: number, yearMonth: string): string {
   return `${PREFIX}${messId}:${yearMonth}`;
@@ -10,6 +21,90 @@ function cacheKey(messId: number, yearMonth: string): string {
 
 function depositEntriesCacheKey(messId: number, yearMonth: string): string {
   return `${DEPOSIT_ENTRIES_PREFIX}${messId}:${yearMonth}`;
+}
+
+function consumerBreakdownCacheKey(messId: number): string {
+  return `${CONSUMER_BREAKDOWN_PREFIX}${messId}`;
+}
+
+function noticesCacheKey(messId: number): string {
+  return `${NOTICES_PREFIX}${messId}`;
+}
+
+export async function saveNoticesToCache(
+  messId: number,
+  notices: ApiNotice[],
+): Promise<void> {
+  const key = noticesCacheKey(messId);
+  memoryCache.set(key, notices);
+  try {
+    await AsyncStorage.setItem(
+      key,
+      JSON.stringify({ notices, savedAt: Date.now() }),
+    );
+  } catch {}
+}
+
+export async function loadNoticesFromCache(
+  messId: number,
+): Promise<ApiNotice[] | null> {
+  const key = noticesCacheKey(messId);
+  const inMemory = memoryCache.get(key);
+  if (Array.isArray(inMemory)) return inMemory as ApiNotice[];
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { notices?: unknown };
+    if (!Array.isArray(parsed.notices)) return null;
+    const notices = parsed.notices as ApiNotice[];
+    memoryCache.set(key, notices);
+    return notices;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveConsumerBreakdownToCache(
+  messId: number,
+  data: ConsumerBreakdownCacheData,
+): Promise<void> {
+  const key = consumerBreakdownCacheKey(messId);
+  memoryCache.set(key, data);
+  try {
+    await AsyncStorage.setItem(
+      key,
+      JSON.stringify({ data, savedAt: Date.now() }),
+    );
+  } catch {}
+}
+
+export async function loadConsumerBreakdownFromCache(
+  messId: number,
+): Promise<ConsumerBreakdownCacheData | null> {
+  const key = consumerBreakdownCacheKey(messId);
+  const inMemory = memoryCache.get(key);
+  if (inMemory) return inMemory as ConsumerBreakdownCacheData;
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      data?: Partial<ConsumerBreakdownCacheData>;
+    };
+    const data = parsed.data;
+    if (!data || !Array.isArray(data.consumers)) return null;
+    const normalized: ConsumerBreakdownCacheData = {
+      appliedRange: data.appliedRange ?? null,
+      rangeData:
+        data.rangeData && typeof data.rangeData === "object"
+          ? data.rangeData
+          : {},
+      consumers: data.consumers,
+    };
+    memoryCache.set(key, normalized);
+    return normalized;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveDepositEntriesToCache(

@@ -6,6 +6,7 @@ import {
   saveDepositEntriesToCache,
 } from "@/lib/cache";
 import type { AuthState } from "@/redux/slice/authSlice";
+import type { NetworkState } from "@/redux/slice/networkSlice";
 import {
   loadMonth,
   monthDataReceived,
@@ -37,6 +38,7 @@ export interface DepositsState {
 type DepositsRootState = {
   auth: AuthState;
   deposits: DepositsState;
+  network: NetworkState;
 };
 
 const createInitialState = (
@@ -120,7 +122,6 @@ export const loadDepositEntries = createDepositsAsyncThunk<
     if (!token || !activeMess || activeMess.id !== messId) {
       throw new Error("Please select a mess and sign in again.");
     }
-    const networkRequest = getDepositEntriesRequest(messId, yearMonth, token);
     if (!force) {
       const cachedEntries = await loadDepositEntriesFromCache(
         messId,
@@ -136,7 +137,17 @@ export const loadDepositEntries = createDepositsAsyncThunk<
         );
       }
     }
-    const entries = await networkRequest;
+    if (!getState().network.isOnline) {
+      if (!getState().deposits.loadedEntryMonths[yearMonth]) {
+        throw new Error("No internet connection and no cached deposits are available.");
+      }
+      return {
+        messId,
+        yearMonth,
+        entries: getState().deposits.entriesByMonth[yearMonth] ?? [],
+      };
+    }
+    const entries = await getDepositEntriesRequest(messId, yearMonth, token);
     void saveDepositEntriesToCache(messId, yearMonth, entries);
     return { messId, yearMonth, entries };
   },

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useNetwork } from "@/redux/hooks";
 
-const BANNER_BODY_HEIGHT = 40;
+const BANNER_BODY_HEIGHT = 30;
 const SLIDE_BUFFER = 8;
 
 export function OfflineBanner() {
@@ -15,7 +15,7 @@ export function OfflineBanner() {
   const [justSynced, setJustSynced] = useState(false);
   const justSyncedRef = useRef(false);
 
-  const showBanner = !isOnline || isSyncing || pendingCount > 0 || justSynced;
+  const showBanner = isSyncing || (isOnline && pendingCount > 0) || justSynced;
   const topInset = Platform.OS === "web" ? 0 : insets.top;
   const bannerHeight = BANNER_BODY_HEIGHT + topInset;
   const hiddenOffset = -(bannerHeight + SLIDE_BUFFER);
@@ -50,11 +50,7 @@ export function OfflineBanner() {
   let label = "You're offline";
   let backgroundClassName = "bg-amber-700";
 
-  if (!isOnline && pendingCount > 0) {
-    label = `Offline · ${pendingCount} change${pendingCount !== 1 ? "s" : ""} will sync when you reconnect`;
-  } else if (!isOnline) {
-    label = "You're offline — changes will sync when you reconnect";
-  } else if (isSyncing) {
+  if (isSyncing) {
     icon = "refresh-cw";
     label = `Syncing ${pendingCount} change${pendingCount !== 1 ? "s" : ""}…`;
     backgroundClassName = "bg-blue-700";
@@ -78,8 +74,8 @@ export function OfflineBanner() {
         transform: [{ translateY: slideAnimation }],
       }}
     >
-      <View className="flex-row items-center gap-[7px] px-3.5 pb-2">
-        <Feather name={icon} size={13} color="#fff" />
+      <View className="flex-row items-center gap-[7px] px-3.5 pb-1.5">
+        <Feather name={icon} size={12} color="#fff" />
         <Text
           className="flex-1 font-inter-semibold text-xs text-white"
           numberOfLines={1}

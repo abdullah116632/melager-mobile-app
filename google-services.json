@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "912872774539",
+    "project_id": "mealager",
+    "storage_bucket": "mealager.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:912872774539:android:9e89ff44edb990b3e8ed8e",
+        "android_client_info": {
+          "package_name": "com.melager.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXUZul6UuehXoULLwitKpF7wKEnc_oNVQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

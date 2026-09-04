@@ -20,7 +20,13 @@ export const DashboardAccountingSection = forwardRef<
   object
 >((_props, ref) => {
   const { user } = useAuth();
-  const { consumers, currentYearMonth, dataLoading, refreshMonth } = useMess();
+  const {
+    consumers,
+    currentYearMonth,
+    currentMonthLoaded,
+    dataLoading,
+    refreshMonth,
+  } = useMess();
   const { getGrandTotal, getConsumerTotal } = useMeals();
   const { getMonthExpenseTotal } = useExpenses();
   const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
@@ -54,7 +60,10 @@ export const DashboardAccountingSection = forwardRef<
         monthDataLoading={dataLoading}
         showSyncStatus={false}
       />
-      <DashboardPersonalSummary consumer={personalConsumer} />
+      <DashboardPersonalSummary
+        consumer={personalConsumer}
+        isLoading={dataLoading || !currentMonthLoaded}
+      />
       <DashboardSummaryCards accounting={accounting} />
     </>
   );

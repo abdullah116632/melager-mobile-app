@@ -59,6 +59,7 @@ import {
   formatYearMonth,
 } from "@/redux/slice/messSlice";
 import {
+  offlineActionFailed,
   selectNetworkState,
   syncOfflineQueue,
 } from "@/redux/slice/networkSlice";
@@ -250,9 +251,17 @@ export const useMess = () => {
     lastLiveSyncAt: state.lastLiveSyncAt,
     lastRefreshError: state.lastRefreshError,
     refreshMonth: async () => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("refresh"));
+        throw new Error("No internet connection.");
+      }
       await unwrapAsyncResult(dispatch(refreshMessMonth()));
     },
     refreshConsumers: async () => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("refresh"));
+        throw new Error("No internet connection.");
+      }
       await unwrapAsyncResult(dispatch(refreshMessConsumers()));
     },
     goToPrevMonth: () => dispatch(goToPreviousMonth()),
@@ -266,6 +275,10 @@ export const useMess = () => {
       );
     },
     addConsumer: async (name: string, email: string, mobileNumber?: string) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("entry"));
+        throw new Error("No internet connection.");
+      }
       const result = await unwrapAsyncResult(
         dispatch(
           addMessConsumer({
@@ -279,6 +292,10 @@ export const useMess = () => {
       return { invitationSent: result.invitationSent };
     },
     removeConsumer: async (id: string) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("update"));
+        throw new Error("No internet connection.");
+      }
       await unwrapAsyncResult(dispatch(removeMessConsumer({ id, isOnline })));
     },
     getDaysInMonth,
@@ -325,6 +342,10 @@ export const useMeals = () => {
       day: number,
       count: number,
     ) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("entry"));
+        return;
+      }
       void dispatch(
         setMealAction({ yearMonth, consumerId, day, count, isOnline }),
       );
@@ -365,6 +386,10 @@ export const useExpenses = () => {
       day: number,
       items: DayExpenseItem[],
     ) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("entry"));
+        throw new Error("No internet connection.");
+      }
       await unwrapAsyncResult(
         dispatch(setExpenseAction({ yearMonth, day, items, isOnline })),
       );
@@ -429,6 +454,10 @@ export const useDeposits = () => {
       day: number,
       amount: number,
     ) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("entry"));
+        return;
+      }
       void dispatch(
         setDepositAction({
           yearMonth: selectedYearMonth,
@@ -453,18 +482,35 @@ export const useDeposits = () => {
         ),
       );
     },
-    addEntry: async (data: DepositEntryInput) =>
-      unwrapAsyncResult(dispatch(addDepositEntryAction({ yearMonth, data }))),
+    addEntry: async (data: DepositEntryInput) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("entry"));
+        throw new Error("No internet connection.");
+      }
+      return unwrapAsyncResult(
+        dispatch(addDepositEntryAction({ yearMonth, data })),
+      );
+    },
     updateEntry: async (
       entryId: number,
       data: Omit<DepositEntryInput, "consumerId">,
-    ) =>
-      unwrapAsyncResult(
+    ) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("update"));
+        throw new Error("No internet connection.");
+      }
+      return unwrapAsyncResult(
         dispatch(updateDepositEntryAction({ yearMonth, entryId, data })),
-      ),
-    deleteEntry: async (entryId: number) =>
-      unwrapAsyncResult(
+      );
+    },
+    deleteEntry: async (entryId: number) => {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("update"));
+        throw new Error("No internet connection.");
+      }
+      return unwrapAsyncResult(
         dispatch(deleteDepositEntryAction({ yearMonth, entryId })),
-      ),
+      );
+    },
   };
 };

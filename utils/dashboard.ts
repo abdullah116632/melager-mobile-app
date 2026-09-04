@@ -174,7 +174,11 @@ export const calculateDashboardAccounting = ({
   };
 
   const sumMeals = (yearMonth: string) => {
-    if (!appliedRange && yearMonth === currentYearMonth) {
+    if (
+      !appliedRange &&
+      yearMonth === currentYearMonth &&
+      !rangeData[yearMonth]
+    ) {
       return getGrandTotal(yearMonth);
     }
     const data = rangeData[yearMonth];
@@ -193,7 +197,11 @@ export const calculateDashboardAccounting = ({
   };
 
   const sumExpenses = (yearMonth: string) => {
-    if (!appliedRange && yearMonth === currentYearMonth) {
+    if (
+      !appliedRange &&
+      yearMonth === currentYearMonth &&
+      !rangeData[yearMonth]
+    ) {
       return getMonthExpenseTotal(yearMonth);
     }
     const data = rangeData[yearMonth];
@@ -205,7 +213,11 @@ export const calculateDashboardAccounting = ({
   };
 
   const sumDeposits = (yearMonth: string) => {
-    if (!appliedRange && yearMonth === currentYearMonth) {
+    if (
+      !appliedRange &&
+      yearMonth === currentYearMonth &&
+      !rangeData[yearMonth]
+    ) {
       return getGrandDepositTotal(yearMonth);
     }
     const data = rangeData[yearMonth];
@@ -224,7 +236,11 @@ export const calculateDashboardAccounting = ({
   };
 
   const sumConsumerMeals = (yearMonth: string, consumerId: string) => {
-    if (!appliedRange && yearMonth === currentYearMonth) {
+    if (
+      !appliedRange &&
+      yearMonth === currentYearMonth &&
+      !rangeData[yearMonth]
+    ) {
       return getConsumerTotal(yearMonth, consumerId);
     }
     return Object.entries(rangeData[yearMonth]?.meals[consumerId] ?? {}).reduce(
@@ -235,7 +251,11 @@ export const calculateDashboardAccounting = ({
   };
 
   const sumConsumerDeposits = (yearMonth: string, consumerId: string) => {
-    if (!appliedRange && yearMonth === currentYearMonth) {
+    if (
+      !appliedRange &&
+      yearMonth === currentYearMonth &&
+      !rangeData[yearMonth]
+    ) {
       return getConsumerDepositTotal(yearMonth, consumerId);
     }
     return Object.entries(

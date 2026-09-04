@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
   Alert,
@@ -13,6 +13,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DashboardConsumerBreakdown } from "@/components/dashboard/DashboardConsumerBreakdown";
+import { clearApiCache } from "@/lib/api";
+import {
+  loadConsumerBreakdownFromCache,
+  saveConsumerBreakdownToCache,
+} from "@/lib/cache";
 import {
   useAppDispatch,
   useAuth,
@@ -20,14 +25,31 @@ import {
   useExpenses,
   useMeals,
   useMess,
+  useNetwork,
 } from "@/redux/hooks";
-import { refreshConsumers } from "@/redux/slice/messSlice";
+import { loadMonth, refreshConsumers } from "@/redux/slice/messSlice";
+import {
+  apiActionFailed,
+  offlineActionFailed,
+} from "@/redux/slice/networkSlice";
 import { getDashboardRangeData } from "@/services/dashboardService";
 import type { DashboardDateRange, MonthData } from "@/types/dashboard";
+import type { Consumer } from "@/types/mess";
 import {
   calculateDashboardAccounting,
   getDefaultDashboardRange,
 } from "@/utils/dashboard";
+
+const getMonthConsumers = (data: MonthData): Consumer[] =>
+  data.consumers.map((consumer) => ({
+    id: consumer.id.toString(),
+    name: consumer.name,
+    userId: consumer.userId,
+    email: consumer.email,
+    mobileNumber: consumer.mobileNumber,
+    isAdmin: consumer.isAdmin,
+    accountDeletedAt: consumer.accountDeletedAt,
+  }));
 
 export const ConsumerBreakdownScreen = () => {
   const insets = useSafeAreaInsets();
@@ -35,6 +57,7 @@ export const ConsumerBreakdownScreen = () => {
   const dispatch = useAppDispatch();
   const { mess, token } = useAuth();
   const { consumers, currentYearMonth } = useMess();
+  const { isOnline } = useNetwork();
   const { getGrandTotal, getConsumerTotal } = useMeals();
   const { getMonthExpenseTotal } = useExpenses();
   const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
@@ -45,24 +68,99 @@ export const ConsumerBreakdownScreen = () => {
     null,
   );
   const [rangeData, setRangeData] = useState<Record<string, MonthData>>({});
+  const [breakdownConsumers, setBreakdownConsumers] =
+    useState<Consumer[]>(consumers);
+  const consumersRef = useRef(consumers);
   const [rangeLoading, setRangeLoading] = useState(false);
+
+  useEffect(() => {
+    consumersRef.current = consumers;
+    setBreakdownConsumers(consumers);
+  }, [consumers]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!mess) return;
-      void dispatch(refreshConsumers())
-        .unwrap()
-        .catch(() => undefined);
-    }, [dispatch, mess?.id]),
-  );
+      if (!mess || !token) return;
+      let cancelled = false;
 
-  useEffect(() => {
-    const nextRange = getDefaultDashboardRange(currentYearMonth);
-    setDraftStartDate(nextRange.startDate);
-    setDraftEndDate(nextRange.endDate);
-    setAppliedRange(null);
-    setRangeData({});
-  }, [currentYearMonth, mess?.id]);
+      const hydrateThenRefresh = async () => {
+        const nextDefaultRange = getDefaultDashboardRange(currentYearMonth);
+        const cached = await loadConsumerBreakdownFromCache(mess.id);
+        if (cancelled) return;
+
+        const cachedRange = cached?.appliedRange ?? null;
+        const cachedRangeData = cached?.rangeData ?? {};
+        setAppliedRange(cachedRange);
+        setRangeData(cachedRangeData);
+        setDraftStartDate(cachedRange?.startDate ?? nextDefaultRange.startDate);
+        setDraftEndDate(cachedRange?.endDate ?? nextDefaultRange.endDate);
+        if (cached) setBreakdownConsumers(cached.consumers);
+
+        // Render the persisted snapshot first. This automatic network refresh
+        // is best-effort, so failure leaves the cached values untouched.
+        if (!isOnline) return;
+
+        clearApiCache();
+        let latestConsumers = cached?.consumers ?? consumersRef.current;
+        let latestRangeData = cachedRangeData;
+
+        try {
+          const refreshed = await dispatch(refreshConsumers()).unwrap();
+          if (cancelled) return;
+          if (refreshed) {
+            latestConsumers = refreshed.consumers;
+            setBreakdownConsumers(refreshed.consumers);
+          }
+        } catch {}
+
+        try {
+          const monthResult = await dispatch(
+            loadMonth({
+              messId: mess.id,
+              yearMonth: currentYearMonth,
+              force: true,
+            }),
+          ).unwrap();
+          if (cancelled) return;
+          if (monthResult.data) {
+            latestConsumers = getMonthConsumers(monthResult.data);
+            setBreakdownConsumers(latestConsumers);
+            if (!cachedRange) {
+              latestRangeData = {
+                [currentYearMonth]: monthResult.data,
+              };
+              setRangeData(latestRangeData);
+            }
+          }
+        } catch {}
+
+        if (cachedRange) {
+          try {
+            latestRangeData = await getDashboardRangeData(
+              mess.id,
+              token,
+              cachedRange.startDate,
+              cachedRange.endDate,
+            );
+            if (cancelled) return;
+            setRangeData(latestRangeData);
+          } catch {}
+        }
+
+        if (cancelled) return;
+        void saveConsumerBreakdownToCache(mess.id, {
+          appliedRange: cachedRange,
+          rangeData: latestRangeData,
+          consumers: latestConsumers,
+        });
+      };
+
+      void hydrateThenRefresh();
+      return () => {
+        cancelled = true;
+      };
+    }, [currentYearMonth, dispatch, isOnline, mess?.id, token]),
+  );
 
   const fetchRange = useCallback(
     async (startDate: string, endDate: string) => {
@@ -80,18 +178,40 @@ export const ConsumerBreakdownScreen = () => {
       );
       return;
     }
+    if (!isOnline) {
+      dispatch(offlineActionFailed("refresh"));
+      return;
+    }
     setRangeLoading(true);
     try {
+      clearApiCache();
       const data = await fetchRange(draftStartDate, draftEndDate);
       if (!data) return;
+      const nextRange = {
+        startDate: draftStartDate,
+        endDate: draftEndDate,
+      };
+      const firstMonth = Object.values(data)[0];
+      const latestConsumers = firstMonth
+        ? getMonthConsumers(firstMonth)
+        : breakdownConsumers;
       setRangeData(data);
-      setAppliedRange({ startDate: draftStartDate, endDate: draftEndDate });
+      setAppliedRange(nextRange);
+      setBreakdownConsumers(latestConsumers);
+      if (mess) {
+        void saveConsumerBreakdownToCache(mess.id, {
+          appliedRange: nextRange,
+          rangeData: data,
+          consumers: latestConsumers,
+        });
+      }
     } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error
-          ? error.message
-          : "Could not load the selected date range.",
+      dispatch(
+        apiActionFailed(
+          error instanceof Error
+            ? error.message
+            : "Could not load the selected date range.",
+        ),
       );
     } finally {
       setRangeLoading(false);
@@ -99,7 +219,7 @@ export const ConsumerBreakdownScreen = () => {
   };
 
   const accounting = calculateDashboardAccounting({
-    consumers,
+    consumers: breakdownConsumers,
     currentYearMonth,
     appliedRange,
     rangeData,

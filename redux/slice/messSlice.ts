@@ -11,6 +11,7 @@ import {
 import { api, clearApiCache, type MonthData } from "@/lib/api";
 import { loadFromCache, saveToCache } from "@/lib/cache";
 import { updateProfileName, type AuthState } from "@/redux/slice/authSlice";
+import type { NetworkState } from "@/redux/slice/networkSlice";
 import type { Consumer } from "@/types/mess";
 
 export interface MessState {
@@ -32,6 +33,7 @@ export interface MessState {
 type MessRootState = {
   auth: AuthState;
   mess: MessState;
+  network: NetworkState;
 };
 
 const now = new Date();
@@ -99,11 +101,9 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
     const key = monthKey(messId, yearMonth);
     const alreadyLoaded = Boolean(getState().mess.loadedMonths[key]);
 
-    // Show a saved snapshot immediately when available, but do not hide a
-    // failed network refresh. The caller needs the rejection to distinguish
-    // fresh server data from stale cached data.
-    const networkRequest = api.getMonthData(yearMonth, token, messId);
-
+    // A persisted snapshot keeps the primary month-based screens usable in
+    // airplane mode. Never wait for the fetch timeout when NetInfo already
+    // knows the device is offline.
     if (!alreadyLoaded && !force) {
       const cached = await loadFromCache(messId, yearMonth);
       if (cached) {
@@ -117,7 +117,14 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
       }
     }
 
-    const data = await networkRequest;
+    if (!getState().network.isOnline) {
+      if (!alreadyLoaded && !getState().mess.loadedMonths[key]) {
+        throw new Error("No internet connection and no cached data is available.");
+      }
+      return { messId, yearMonth, force, data: null };
+    }
+
+    const data = await api.getMonthData(yearMonth, token, messId);
     if (data) void saveToCache(messId, yearMonth, data);
     return { messId, yearMonth, force, data };
   },

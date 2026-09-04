@@ -16,12 +16,17 @@ const cardShadow = {
 
 interface DashboardPersonalSummaryProps {
   consumer: DashboardConsumerRow | null;
+  isLoading: boolean;
 }
 
 export const DashboardPersonalSummary = ({
   consumer,
+  isLoading,
 }: DashboardPersonalSummaryProps) => {
-  if (!consumer) {
+  // A missing consumer is normal while the month snapshot is still loading.
+  // Keep the card structure stable and reserve "unavailable" for a genuinely
+  // unlinked account after data has arrived.
+  if (!consumer && !isLoading) {
     return (
       <>
         <View className="mx-4 mb-3">
@@ -44,24 +49,26 @@ export const DashboardPersonalSummary = ({
     );
   }
 
-  const balancePositive = consumer.balance >= 0;
-  const remainingBalance = `${balancePositive ? "+" : "-"}৳${formatDashboardAmount(Math.abs(consumer.balance))}`;
+  const balancePositive = !consumer || consumer.balance >= 0;
+  const remainingBalance = consumer
+    ? `${balancePositive ? "+" : "-"}৳${formatDashboardAmount(Math.abs(consumer.balance))}`
+    : "—";
   const items = [
     {
       label: "Meals You Takes",
-      value: formatDashboardQuantity(consumer.meals),
+      value: consumer ? formatDashboardQuantity(consumer.meals) : "—",
       icon: "restaurant" as const,
       color: "#059669",
     },
     {
       label: "Your Total Deposits",
-      value: `৳${formatDashboardAmount(consumer.deposits)}`,
+      value: consumer ? `৳${formatDashboardAmount(consumer.deposits)}` : "—",
       icon: "card" as const,
       color: "#2563EB",
     },
     {
       label: "Your Total Cost",
-      value: `৳${formatDashboardAmount(consumer.cost)}`,
+      value: consumer ? `৳${formatDashboardAmount(consumer.cost)}` : "—",
       icon: "cash" as const,
       color: "#EA580C",
     },

@@ -30,6 +30,7 @@ export const DashboardContent = () => {
     <ScrollView
       className="flex-1"
       showsVerticalScrollIndicator={false}
+      removeClippedSubviews={false}
       contentContainerClassName={`pt-2 ${Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"}`}
       refreshControl={
         <RefreshControl

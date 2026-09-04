@@ -9,6 +9,7 @@ export interface NetworkState {
   isSyncing: boolean;
   requestStatus: "idle" | "loading" | "succeeded" | "failed";
   requestError: string | null;
+  offlineActionError: string | null;
 }
 
 type NetworkRootState = { network: NetworkState };
@@ -20,6 +21,7 @@ const initialState: NetworkState = {
   isSyncing: false,
   requestStatus: "idle",
   requestError: null,
+  offlineActionError: null,
 };
 
 export const networkStatusChanged = createAction<boolean | null>(
@@ -27,6 +29,13 @@ export const networkStatusChanged = createAction<boolean | null>(
 );
 export const offlineQueueSizeChanged = createAction<number>(
   "network/offlineQueueSizeChanged",
+);
+export const offlineActionFailed = createAction<
+  "refresh" | "entry" | "update"
+>("network/offlineActionFailed");
+export const apiActionFailed = createAction<string>("network/apiActionFailed");
+export const clearOfflineActionError = createAction(
+  "network/clearOfflineActionError",
 );
 
 export const syncOfflineQueue = createAsyncThunk<
@@ -54,6 +63,20 @@ const networkSlice = createSlice({
       })
       .addCase(offlineQueueSizeChanged, (state, action) => {
         state.pendingCount = action.payload;
+      })
+      .addCase(offlineActionFailed, (state, action) => {
+        state.offlineActionError =
+          action.payload === "refresh"
+            ? "Refresh failed because you are offline"
+            : action.payload === "entry"
+              ? "Data entry failed because you are offline"
+              : "Update failed because you are offline";
+      })
+      .addCase(apiActionFailed, (state, action) => {
+        state.offlineActionError = action.payload;
+      })
+      .addCase(clearOfflineActionError, (state) => {
+        state.offlineActionError = null;
       })
       .addCase(syncOfflineQueue.pending, (state) => {
         state.isSyncing = true;

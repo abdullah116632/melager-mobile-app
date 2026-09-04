@@ -1,18 +1,17 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
-import { useAuth } from "@/redux/hooks";
+import { useAppSelector, useAuth } from "@/redux/hooks";
+import { selectMessagesState } from "@/redux/slice/messagesSlice";
 
 export const DashboardQuickNavDrawer = () => {
   const router = useRouter();
   const { exitMess } = useAuth();
+  const { unreadCount } = useAppSelector(selectMessagesState);
 
   const navigate = (
     route:
-      | "/consumer-breakdown"
-      | "/notice-board"
-      | "/bazar-list"
-      | "/messages",
+      "/consumer-breakdown" | "/notice-board" | "/bazar-list" | "/messages",
   ) => {
     router.push(route);
   };
@@ -85,6 +84,13 @@ export const DashboardQuickNavDrawer = () => {
         >
           <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-sky-50">
             <Feather name="message-circle" size={18} color="#0369A1" />
+            {unreadCount > 0 ? (
+              <View className="absolute -right-2 -top-2 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 py-0.5">
+                <Text className="font-inter-bold text-[9px] leading-3 text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
             Messages

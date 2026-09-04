@@ -181,8 +181,6 @@ function ClassicTabLayout() {
         name="meals"
         options={{
           title: "Meals",
-          lazy: false,
-          freezeOnBlur: false,
           tabBarIcon: ({ color, focused }) => (
             <ClassicTabIcon
               name="restaurant-outline"
@@ -197,8 +195,6 @@ function ClassicTabLayout() {
         name="expenses"
         options={{
           title: "Expenses",
-          lazy: false,
-          freezeOnBlur: false,
           tabBarIcon: ({ color, focused }) => (
             <ClassicTabIcon
               name="cash-outline"
@@ -213,8 +209,6 @@ function ClassicTabLayout() {
         name="deposits"
         options={{
           title: "Deposits",
-          lazy: false,
-          freezeOnBlur: false,
           tabBarIcon: ({ color, focused }) => (
             <ClassicTabIcon
               name="card-outline"

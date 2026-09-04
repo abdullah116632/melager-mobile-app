@@ -5,9 +5,9 @@ import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
 import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { useFonts } from "expo-font";
-import { Stack, useSegments, useRouter } from "expo-router";
+import { Slot, useSegments, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -16,9 +16,10 @@ import { cssInterop } from "nativewind";
 import { Provider } from "react-redux";
 
 import { AppDrawer } from "@/components/AppDrawer";
-import { ConnectivityGate } from "@/components/ConnectivityGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NotificationPanel } from "@/components/NotificationPanel";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { OfflineActionBanner } from "@/components/OfflineActionBanner";
 import { RefreshSuccessToast } from "@/components/RefreshSuccessToast";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { MessStateController } from "@/redux/controllers/MessStateController";
@@ -61,14 +62,7 @@ function AuthGate() {
   const inAdminOtp = first === "settings" && second === "admin-otp";
   const inManagerTab =
     (first === "(tabs)" && second === "manager") || first === "manager";
-  const redirectingToMessHub = Boolean(
-    user &&
-    !activeMess &&
-    !inMessHub &&
-    !inMessSetup &&
-    !inAccount &&
-    !inAccountSecurity,
-  );
+  const pendingRedirectRef = useRef<string | null>(null);
 
   useEffect(() => {
     void dispatch(initializeAuth());
@@ -77,18 +71,27 @@ function AuthGate() {
   useEffect(() => {
     let cancelled = false;
 
+    const replaceOnce = (path: "/" | "/auth" | "/(tabs)/dashboard") => {
+      if (pendingRedirectRef.current === path) return;
+      pendingRedirectRef.current = path;
+      router.replace(path);
+    };
+
     const applyRouteGuard = async () => {
       if (authLoading) return;
 
       if (!user) {
-        if (!inAuth) router.replace("/auth");
+        if (!inAuth) replaceOnce("/auth");
+        else pendingRedirectRef.current = null;
       } else if (!activeMess) {
         if (!inMessHub && !inMessSetup && !inAccount && !inAccountSecurity) {
-          router.replace("/");
+          replaceOnce("/");
+        } else {
+          pendingRedirectRef.current = null;
         }
       } else {
         if (inManagerTab && activeMess.role !== "admin") {
-          router.replace("/(tabs)/dashboard");
+          replaceOnce("/(tabs)/dashboard");
           return;
         }
         const pendingAdminOtp = await getPendingAdminOtp();
@@ -99,7 +102,9 @@ function AuthGate() {
         }
         if (pendingAdminOtp) await clearPendingAdminOtp();
         if (inAuth || inMessHub || inMessSetup) {
-          router.replace("/(tabs)/dashboard");
+          replaceOnce("/(tabs)/dashboard");
+        } else {
+          pendingRedirectRef.current = null;
         }
       }
     };
@@ -110,10 +115,9 @@ function AuthGate() {
     };
   }, [user, activeMess, authLoading, segments]);
 
-  // Do not render the previous protected route during the brief interval
-  // before the auth redirect runs. This prevents a dashboard flash after
-  // launching or reconnecting while signed out.
-  if (authLoading || (!user && !inAuth) || redirectingToMessHub) {
+  // Cover protected content while authentication is still being restored or
+  // while a signed-out user is waiting for the auth redirect.
+  if (authLoading || (!user && !inAuth)) {
     return (
       <View className="absolute inset-0 z-[999] items-center justify-center bg-teal-700">
         <ActivityIndicator size="large" color="#fff" />
@@ -127,21 +131,7 @@ function AuthGate() {
 function RootLayoutNav() {
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="mess-setup" options={{ headerShown: false }} />
-        <Stack.Screen name="account" options={{ headerShown: false }} />
-        <Stack.Screen name="meal-status" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="consumer-breakdown"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen name="notice-board" options={{ headerShown: false }} />
-        <Stack.Screen name="messages" options={{ headerShown: false }} />
-        <Stack.Screen name="notifications" options={{ headerShown: false }} />
-      </Stack>
+      <Slot />
       <AuthGate />
       <AppDrawer />
     </>
@@ -179,7 +169,8 @@ export default function RootLayout() {
                       </KeyboardProvider>
                       <RefreshSuccessToast />
                       <NotificationPanel />
-                      <ConnectivityGate />
+                      <OfflineBanner />
+                      <OfflineActionBanner />
                     </NativeWindGestureHandlerRootView>
                   </NotificationStateController>
                 </RealtimeStateController>

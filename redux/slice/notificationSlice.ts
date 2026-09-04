@@ -36,8 +36,7 @@ const createInitialState = (): NotificationState => ({
 const initialState = createInitialState();
 
 let notificationCounter = 0;
-const createNotificationId = () =>
-  `n_${++notificationCounter}_${Date.now()}`;
+const createNotificationId = () => `n_${++notificationCounter}_${Date.now()}`;
 
 export const getNotificationScopeKey = (token: string, messId: number) => {
   let tokenHash = 5381;
@@ -72,158 +71,151 @@ export const refreshNotifications = createAsyncThunk<
   RefreshNotificationResult,
   void,
   { state: NotificationRootState }
->(
-  "notification/refresh",
-  async (_arg, { getState }) => {
-    const startState = getState();
-    const { token, activeMess } = startState.auth;
-    const scopeKey = startState.notification.scopeKey;
-    if (!token || !activeMess || !scopeKey) {
-      return { scopeKey: scopeKey ?? "", stale: true, notifications: [] };
+>("notification/refresh", async (_arg, { getState }) => {
+  const startState = getState();
+  const { token, activeMess } = startState.auth;
+  const scopeKey = startState.notification.scopeKey;
+  if (!token || !activeMess || !scopeKey) {
+    return { scopeKey: scopeKey ?? "", stale: true, notifications: [] };
+  }
+
+  const isFirstPoll = startState.notification.isFirstPoll;
+  const previousRequestIds = new Set(startState.notification.seenRequestIds);
+  const previousOptOuts = new Set(startState.notification.seenOptOuts);
+  const newNotifications: AppNotification[] = [];
+
+  const serverNotificationsPromise = api
+    .getNotifications(token, activeMess.id)
+    .catch(() => null);
+  const memberRequestsPromise =
+    activeMess.role === "admin"
+      ? api.getMemberRequests(token, activeMess.id).catch(() => null)
+      : Promise.resolve(null);
+  const mealOptOutsPromise =
+    activeMess.role === "admin"
+      ? api.getMealOptOuts(activeMess.id, undefined, token).catch(() => null)
+      : Promise.resolve(null);
+  const [serverResult, memberResult, mealResult] = await Promise.all([
+    serverNotificationsPromise,
+    memberRequestsPromise,
+    mealOptOutsPromise,
+  ]);
+
+  const currentState = getState();
+  const currentToken = currentState.auth.token;
+  const currentMess = currentState.auth.activeMess;
+  if (
+    currentState.notification.scopeKey !== scopeKey ||
+    !currentToken ||
+    currentMess?.id !== activeMess.id ||
+    getNotificationScopeKey(currentToken, currentMess.id) !== scopeKey
+  ) {
+    return { scopeKey, stale: true, notifications: [] };
+  }
+
+  let pendingRequestCount: number | undefined;
+  let seenRequestIds: number[] | undefined;
+  if (memberResult) {
+    pendingRequestCount = memberResult.requests.length;
+    seenRequestIds = memberResult.requests.map((request) => request.id);
+    if (!isFirstPoll) {
+      memberResult.requests.forEach((request) => {
+        if (!previousRequestIds.has(request.id)) {
+          newNotifications.push({
+            id: createNotificationId(),
+            type: "member_request",
+            title: "New Join Request",
+            body: `${request.name} wants to join your mess`,
+            timestamp: Date.now(),
+            read: false,
+            route: "/member-requests",
+          });
+        }
+      });
     }
+  }
 
-    const isFirstPoll = startState.notification.isFirstPoll;
-    const previousRequestIds = new Set(
-      startState.notification.seenRequestIds,
-    );
-    const previousOptOuts = new Set(startState.notification.seenOptOuts);
-    const newNotifications: AppNotification[] = [];
+  let seenOptOuts: string[] | undefined;
+  if (mealResult) {
+    const mealTypes = ["breakfast", "lunch", "dinner"] as const;
+    const currentOptOuts = new Set<string>();
+    const consumerNames = new Map<number, string>();
 
-    const serverNotificationsPromise = api
-      .getNotifications(token, activeMess.id)
-      .catch(() => null);
-    const memberRequestsPromise =
-      activeMess.role === "admin"
-        ? api.getMemberRequests(token, activeMess.id).catch(() => null)
-        : Promise.resolve(null);
-    const mealOptOutsPromise =
-      activeMess.role === "admin"
-        ? api.getMealOptOuts(activeMess.id, undefined, token).catch(() => null)
-        : Promise.resolve(null);
-    const [serverResult, memberResult, mealResult] = await Promise.all([
-      serverNotificationsPromise,
-      memberRequestsPromise,
-      mealOptOutsPromise,
-    ]);
+    mealResult.consumers.forEach((consumer) => {
+      consumerNames.set(consumer.consumerId, consumer.consumerName);
+      mealTypes.forEach((meal) => {
+        if (consumer[meal]) {
+          currentOptOuts.add(`${consumer.consumerId}:${meal}`);
+        }
+      });
+    });
 
-    const currentState = getState();
-    const currentToken = currentState.auth.token;
-    const currentMess = currentState.auth.activeMess;
-    if (
-      currentState.notification.scopeKey !== scopeKey ||
-      !currentToken ||
-      currentMess?.id !== activeMess.id ||
-      getNotificationScopeKey(currentToken, currentMess.id) !== scopeKey
-    ) {
-      return { scopeKey, stale: true, notifications: [] };
-    }
-
-    let pendingRequestCount: number | undefined;
-    let seenRequestIds: number[] | undefined;
-    if (memberResult) {
-      pendingRequestCount = memberResult.requests.length;
-      seenRequestIds = memberResult.requests.map((request) => request.id);
-      if (!isFirstPoll) {
-        memberResult.requests.forEach((request) => {
-          if (!previousRequestIds.has(request.id)) {
-            newNotifications.push({
-              id: createNotificationId(),
-              type: "member_request",
-              title: "New Join Request",
-              body: `${request.name} wants to join your mess`,
-              timestamp: Date.now(),
-              read: false,
-              route: "/member-requests",
-            });
-          }
-        });
-      }
-    }
-
-    let seenOptOuts: string[] | undefined;
-    if (mealResult) {
-      const mealTypes = ["breakfast", "lunch", "dinner"] as const;
-      const currentOptOuts = new Set<string>();
-      const consumerNames = new Map<number, string>();
-
-      mealResult.consumers.forEach((consumer) => {
-        consumerNames.set(consumer.consumerId, consumer.consumerName);
-        mealTypes.forEach((meal) => {
-          if (consumer[meal]) {
-            currentOptOuts.add(`${consumer.consumerId}:${meal}`);
-          }
+    if (!isFirstPoll) {
+      currentOptOuts.forEach((key) => {
+        if (previousOptOuts.has(key)) return;
+        const [consumerId, meal] = key.split(":");
+        const name = consumerNames.get(parseInt(consumerId, 10)) ?? "A member";
+        const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
+        newNotifications.push({
+          id: createNotificationId(),
+          type: "meal_opt_out",
+          title: "Meal Turned Off",
+          body: `${name} opted out of ${mealLabel} today`,
+          timestamp: Date.now(),
+          read: false,
+          route: "/meal-status",
         });
       });
 
-      if (!isFirstPoll) {
-        currentOptOuts.forEach((key) => {
-          if (previousOptOuts.has(key)) return;
-          const [consumerId, meal] = key.split(":");
-          const name =
-            consumerNames.get(parseInt(consumerId, 10)) ?? "A member";
-          const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
-          newNotifications.push({
-            id: createNotificationId(),
-            type: "meal_opt_out",
-            title: "Meal Turned Off",
-            body: `${name} opted out of ${mealLabel} today`,
-            timestamp: Date.now(),
-            read: false,
-            route: "/meal-status",
-          });
+      previousOptOuts.forEach((key) => {
+        if (currentOptOuts.has(key)) return;
+        const [consumerId, meal] = key.split(":");
+        const name = consumerNames.get(parseInt(consumerId, 10)) ?? "A member";
+        const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
+        newNotifications.push({
+          id: createNotificationId(),
+          type: "meal_opt_out",
+          title: "Meal Turned On",
+          body: `${name} turned ${mealLabel} back on today`,
+          timestamp: Date.now(),
+          read: false,
+          route: "/meal-status",
         });
-
-        previousOptOuts.forEach((key) => {
-          if (currentOptOuts.has(key)) return;
-          const [consumerId, meal] = key.split(":");
-          const name =
-            consumerNames.get(parseInt(consumerId, 10)) ?? "A member";
-          const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
-          newNotifications.push({
-            id: createNotificationId(),
-            type: "meal_opt_out",
-            title: "Meal Turned On",
-            body: `${name} turned ${mealLabel} back on today`,
-            timestamp: Date.now(),
-            read: false,
-            route: "/meal-status",
-          });
-        });
-      }
-      seenOptOuts = [...currentOptOuts];
+      });
     }
+    seenOptOuts = [...currentOptOuts];
+  }
 
-    const serverNotifications: AppNotification[] =
-      serverResult?.notifications.map((notification) => ({
-        id: `server_${notification.id}`,
-        type:
-          notification.type === "notice" ||
-          notification.type === "bazar_assignment"
-            || notification.type === "message"
-            ? notification.type
-            : "notice",
-        title: notification.title,
-        body: notification.body,
-        timestamp: new Date(notification.createdAt).getTime(),
-        read: notification.readAt !== null,
-        route:
-          notification.type === "notice"
-            ? "/notice-board"
-            : notification.type === "message"
-              ? "/messages"
-              : "/bazar-list",
-      })) ?? [];
+  const serverNotifications: AppNotification[] =
+    serverResult?.notifications.map((notification) => ({
+      id: `server_${notification.id}`,
+      type:
+        notification.type === "notice" ||
+        notification.type === "bazar_assignment" ||
+        notification.type === "message"
+          ? notification.type
+          : "notice",
+      title: notification.title,
+      body: notification.body,
+      timestamp: new Date(notification.createdAt).getTime(),
+      read: notification.readAt !== null,
+      route:
+        notification.type === "notice"
+          ? "/notice-board"
+          : notification.type === "message"
+            ? "/messages"
+            : "/bazar-list",
+    })) ?? [];
 
-    return {
-      scopeKey,
-      stale: false,
-      pendingRequestCount,
-      seenRequestIds,
-      seenOptOuts,
-      notifications: [...serverNotifications, ...newNotifications],
-    };
-  },
-);
+  return {
+    scopeKey,
+    stale: false,
+    pendingRequestCount,
+    seenRequestIds,
+    seenOptOuts,
+    notifications: [...serverNotifications, ...newNotifications],
+  };
+});
 
 const notificationSlice = createSlice({
   name: "notification",
@@ -271,6 +263,11 @@ const notificationSlice = createSlice({
         }
         if (payload.seenOptOuts) state.seenOptOuts = payload.seenOptOuts;
         state.isFirstPoll = false;
+        // Message unread state is tracked separately and displayed on the
+        // Dashboard Messages shortcut, not in the general notification list.
+        state.notifications = state.notifications.filter(
+          (notification) => notification.type !== "message",
+        );
         if (payload.notifications.length > 0) {
           const merged = new Map<string, AppNotification>();
           [...payload.notifications, ...state.notifications].forEach(

@@ -324,10 +324,15 @@ export const api = {
     req<MeAuthResponse>("GET", "/auth/me", undefined, token),
 
   registerPushToken: (pushToken: string, platform: string, token: string) =>
-    req<void>("POST", "/devices/push-token", {
-      token: pushToken,
-      platform,
-    }, token),
+    req<void>(
+      "POST",
+      "/devices/push-token",
+      {
+        token: pushToken,
+        platform,
+      },
+      token,
+    ),
 
   createMess: (name: string, token: string) =>
     req<{ mess: ApiMess }>("POST", "/mess/create", { name }, token),
@@ -557,7 +562,8 @@ export const api = {
   ) => {
     const params = new URLSearchParams({ messId: String(messId) });
     if (options?.limit) params.set("limit", String(options.limit));
-    if (options?.beforeCreatedAt) params.set("beforeCreatedAt", options.beforeCreatedAt);
+    if (options?.beforeCreatedAt)
+      params.set("beforeCreatedAt", options.beforeCreatedAt);
     if (options?.beforeId) params.set("beforeId", String(options.beforeId));
     return req<{ messages: ApiMessage[]; nextCursor: ApiMessageCursor | null }>(
       "GET",
@@ -572,6 +578,22 @@ export const api = {
       "POST",
       "/mess/messages",
       { body, messId },
+      token,
+    ),
+
+  getUnreadMessageCount: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "GET",
+      `/mess/messages/unread-count?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  markMessagesRead: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "POST",
+      "/mess/messages/read",
+      { messId },
       token,
     ),
 

@@ -2,7 +2,7 @@
   "name": "melager-mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "dev": "expo start",
     "dev:web": "expo start --web --port ${PORT:-8081}",
