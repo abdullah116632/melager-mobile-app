@@ -83,8 +83,6 @@ export const refreshNotifications = createAsyncThunk<
   }
 
   const isFirstPoll = startState.notification.isFirstPoll;
-  const previousRequestIds = new Set(startState.notification.seenRequestIds);
-  const previousOptOuts = new Set(startState.notification.seenOptOuts);
   const newNotifications: AppNotification[] = [];
 
   const serverNotificationsPromise = api
@@ -94,14 +92,9 @@ export const refreshNotifications = createAsyncThunk<
     activeMess.role === "admin"
       ? api.getMemberRequests(token, activeMess.id).catch(() => null)
       : Promise.resolve(null);
-  const mealOptOutsPromise =
-    activeMess.role === "admin"
-      ? api.getMealOptOuts(activeMess.id, undefined, token).catch(() => null)
-      : Promise.resolve(null);
-  const [serverResult, memberResult, mealResult] = await Promise.all([
+  const [serverResult, memberResult] = await Promise.all([
     serverNotificationsPromise,
     memberRequestsPromise,
-    mealOptOutsPromise,
   ]);
 
   const currentState = getState();
@@ -121,78 +114,15 @@ export const refreshNotifications = createAsyncThunk<
   if (memberResult) {
     pendingRequestCount = memberResult.requests.length;
     seenRequestIds = memberResult.requests.map((request) => request.id);
-    if (!isFirstPoll) {
-      memberResult.requests.forEach((request) => {
-        if (!previousRequestIds.has(request.id)) {
-          newNotifications.push({
-            id: createNotificationId(),
-            type: "member_request",
-            title: "New Join Request",
-            body: `${request.name} wants to join your mess`,
-            timestamp: Date.now(),
-            read: false,
-            route: "/member-requests",
-          });
-        }
-      });
-    }
-  }
-
-  let seenOptOuts: string[] | undefined;
-  if (mealResult) {
-    const mealTypes = ["breakfast", "lunch", "dinner"] as const;
-    const currentOptOuts = new Set<string>();
-    const consumerNames = new Map<number, string>();
-
-    mealResult.consumers.forEach((consumer) => {
-      consumerNames.set(consumer.consumerId, consumer.consumerName);
-      mealTypes.forEach((meal) => {
-        if (consumer[meal]) {
-          currentOptOuts.add(`${consumer.consumerId}:${meal}`);
-        }
-      });
-    });
-
-    if (!isFirstPoll) {
-      currentOptOuts.forEach((key) => {
-        if (previousOptOuts.has(key)) return;
-        const [consumerId, meal] = key.split(":");
-        const name = consumerNames.get(parseInt(consumerId, 10)) ?? "A member";
-        const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
-        newNotifications.push({
-          id: createNotificationId(),
-          type: "meal_opt_out",
-          title: "Meal Turned Off",
-          body: `${name} opted out of ${mealLabel} today`,
-          timestamp: Date.now(),
-          read: false,
-          route: "/meal-status",
-        });
-      });
-
-      previousOptOuts.forEach((key) => {
-        if (currentOptOuts.has(key)) return;
-        const [consumerId, meal] = key.split(":");
-        const name = consumerNames.get(parseInt(consumerId, 10)) ?? "A member";
-        const mealLabel = meal.charAt(0).toUpperCase() + meal.slice(1);
-        newNotifications.push({
-          id: createNotificationId(),
-          type: "meal_opt_out",
-          title: "Meal Turned On",
-          body: `${name} turned ${mealLabel} back on today`,
-          timestamp: Date.now(),
-          read: false,
-          route: "/meal-status",
-        });
-      });
-    }
-    seenOptOuts = [...currentOptOuts];
   }
 
   const serverNotifications: AppNotification[] =
     serverResult?.notifications.map((notification) => ({
       id: `server_${notification.id}`,
       type:
+        notification.type === "member_request" ||
+        notification.type === "member_request_accepted" ||
+        notification.type === "meal_opt_out" ||
         notification.type === "notice" ||
         notification.type === "message" ||
         notification.type === "menu"
@@ -203,7 +133,13 @@ export const refreshNotifications = createAsyncThunk<
       timestamp: new Date(notification.createdAt).getTime(),
       read: notification.readAt !== null,
       route:
-        notification.type === "notice"
+        notification.type === "member_request"
+          ? "/member-requests"
+          : notification.type === "member_request_accepted"
+            ? "/"
+            : notification.type === "meal_opt_out"
+              ? "/meal-status"
+            : notification.type === "notice"
           ? "/notice-board"
           : notification.type === "message"
             ? "/messages"
@@ -217,7 +153,6 @@ export const refreshNotifications = createAsyncThunk<
     stale: false,
     pendingRequestCount,
     seenRequestIds,
-    seenOptOuts,
     notifications: [...serverNotifications, ...newNotifications],
   };
 });

@@ -28,19 +28,19 @@ const formatNotificationTime = (timestamp: number) => {
 
 const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
   const icon =
-    type === "member_request"
+    type === "member_request" || type === "member_request_accepted"
         ? "user-plus"
         : type === "notice"
           ? "clipboard"
           : "coffee";
   const color =
-    type === "member_request"
+    type === "member_request" || type === "member_request_accepted"
         ? "#1D4ED8"
         : type === "notice"
           ? "#B45309"
           : "#0F766E";
   const background =
-    type === "member_request"
+    type === "member_request" || type === "member_request_accepted"
         ? "bg-blue-100"
         : type === "notice"
           ? "bg-amber-100"

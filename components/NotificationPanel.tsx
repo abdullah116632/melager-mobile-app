@@ -29,7 +29,7 @@ const timeAgo = (timestamp: number): string => {
 };
 
 const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
-  if (type === "member_request") {
+  if (type === "member_request" || type === "member_request_accepted") {
     return (
       <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-blue-100">
         <Feather name="user-plus" size={16} color="#1D4ED8" />

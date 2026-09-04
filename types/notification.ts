@@ -2,6 +2,7 @@ export type AppNotification = {
   id: string;
   type:
     | "member_request"
+    | "member_request_accepted"
     | "meal_opt_out"
     | "notice"
     | "message"
@@ -12,6 +13,7 @@ export type AppNotification = {
   read: boolean;
   route:
     | "/member-requests"
+    | "/"
     | "/meal-status"
     | "/notice-board"
     | "/bazar-list"
