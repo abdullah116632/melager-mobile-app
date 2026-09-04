@@ -28,7 +28,7 @@ export const MealOptOutTable = ({ consumers }: MealOptOutTableProps) => {
   const hasOptOuts = optOutRows.length > 0;
 
   return (
-    <View className="mx-4 mb-3.5 rounded-2xl border border-slate-200 bg-white p-4">
+    <View className="mx-4 mb-3.5 rounded-2xl border border-slate-300 bg-[#E2E8F0] p-4">
       <Text className="mb-3.5 font-inter-bold text-[15px] text-slate-900">
         Meal On/Off {hasOptOuts ? `(${optOutRows.length})` : ""}
       </Text>
@@ -60,7 +60,7 @@ export const MealOptOutTable = ({ consumers }: MealOptOutTableProps) => {
           {optOutRows.map((row, index) => (
             <View
               key={row.consumerId}
-              className={`flex-row items-center border-b-[0.5px] border-slate-200 ${index % 2 === 0 ? "bg-white" : "bg-slate-50"}`}
+              className={`flex-row items-center border-b-[0.5px] border-slate-300 ${index % 2 === 0 ? "bg-[#E2E8F0]" : "bg-slate-200"}`}
             >
               <Text
                 className="w-[140px] py-3 pl-3 font-inter text-sm text-slate-900"

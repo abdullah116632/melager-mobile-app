@@ -12,6 +12,7 @@ export interface MealMenuState {
   schedule: TodaySchedule | null;
   optOuts: string[];
   pendingOptOuts: string[];
+  scheduleRevision: number;
 }
 
 type MealMenuRootState = { mealMenu: MealMenuState };
@@ -27,6 +28,7 @@ const initialState: MealMenuState = {
   schedule: null,
   optOuts: [],
   pendingOptOuts: [],
+  scheduleRevision: 0,
 };
 
 const mealMenuSlice = createSlice({
@@ -56,6 +58,9 @@ const mealMenuSlice = createSlice({
       state.schedule = action.payload;
       if (action.payload) state.optOuts = action.payload.myOptOuts;
     },
+    invalidateSchedule: (state) => {
+      state.scheduleRevision += 1;
+    },
     setOptOuts: (state, action: PayloadAction<string[]>) => {
       state.optOuts = action.payload;
     },
@@ -78,11 +83,11 @@ export const {
   setCalendarMarkersLoading,
   setCalendarMarkers,
   setSchedule,
+  invalidateSchedule,
   setOptOuts,
   setPendingOptOut,
 } = mealMenuSlice.actions;
 
-export const selectMealMenuState = (state: MealMenuRootState) =>
-  state.mealMenu;
+export const selectMealMenuState = (state: MealMenuRootState) => state.mealMenu;
 
 export default mealMenuSlice.reducer;

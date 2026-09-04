@@ -1,7 +1,16 @@
 import Feather from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
-import { Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { MEAL_ICONS, MEAL_LABELS } from "@/constants/mealStatus";
+import {
+  ActivityIndicator,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { MEAL_LABELS } from "@/constants/mealStatus";
 import type { MealDraftItem, MealType } from "@/types/mealStatus";
 import { formatTime12Hour } from "@/utils/mealStatus";
 import { TimePickerModal } from "./TimePickerModal";
@@ -17,6 +26,9 @@ interface MealScheduleItemProps {
   isPast: boolean;
   onEnabledChange: (enabled: boolean) => void;
   onFieldChange: (field: MealScheduleTextField, value: string) => void;
+  onMenuSave: () => void;
+  menuSaving: boolean;
+  menuSaveVisible: boolean;
 }
 
 export const MealScheduleItem = ({
@@ -26,6 +38,9 @@ export const MealScheduleItem = ({
   isPast,
   onEnabledChange,
   onFieldChange,
+  onMenuSave,
+  menuSaving,
+  menuSaveVisible,
 }: MealScheduleItemProps) => {
   const [timePickerField, setTimePickerField] =
     useState<TimePickerField | null>(null);
@@ -35,11 +50,25 @@ export const MealScheduleItem = ({
   };
 
   return (
-    <View
-      className={`py-3.5 ${isLast ? "" : "border-b-[0.5px] border-slate-200"}`}
-    >
+    <View className={`py-3.5 ${isLast ? "" : "border-b border-slate-300"}`}>
       <View className="mb-2 flex-row items-center gap-2">
-        <Text className="text-lg">{MEAL_ICONS[mealType]}</Text>
+        <View className="h-9 w-9 items-center justify-center rounded-full bg-teal-50">
+          {mealType === "lunch" ? (
+            <View className="h-7 w-7 items-center justify-center rounded-full border-[1.5px] border-teal-600">
+              <MaterialCommunityIcons
+                name="silverware-fork-knife"
+                size={16}
+                color="#0F8A80"
+              />
+            </View>
+          ) : (
+            <Ionicons
+              name={mealType === "breakfast" ? "sunny-outline" : "moon-outline"}
+              size={20}
+              color="#0F8A80"
+            />
+          )}
+        </View>
         <Text className="font-inter-semibold text-[15px] text-slate-900">
           {MEAL_LABELS[mealType]}
         </Text>
@@ -59,15 +88,17 @@ export const MealScheduleItem = ({
       </View>
 
       {meal.enabled && (
-        <TextInput
-          className="mb-2 h-[42px] rounded-[10px] border-[1.5px] border-slate-200 bg-slate-50 px-3 font-inter text-sm text-slate-900"
-          placeholder="Menu (optional)"
-          placeholderTextColor="#64748B"
-          value={meal.menu}
-          onChangeText={(value) => onFieldChange("menu", value)}
-          editable={!isPast}
-          maxLength={80}
-        />
+        <>
+          <TextInput
+            className="mb-2 h-[42px] rounded-[10px] border-[1.5px] border-slate-200 bg-slate-50 px-3 font-inter text-sm text-slate-900"
+            placeholder="Menu (optional)"
+            placeholderTextColor="#64748B"
+            value={meal.menu}
+            onChangeText={(value) => onFieldChange("menu", value)}
+            editable={!isPast}
+            maxLength={80}
+          />
+        </>
       )}
 
       <View className="flex-row items-center gap-1.5">
@@ -103,6 +134,21 @@ export const MealScheduleItem = ({
           </TouchableOpacity>
         </View>
       </View>
+
+      {menuSaveVisible && (
+        <TouchableOpacity
+          className="mt-2 h-[36px] items-center justify-center rounded-lg bg-teal-700"
+          onPress={onMenuSave}
+          disabled={menuSaving || isPast}
+          activeOpacity={0.8}
+        >
+          {menuSaving ? (
+            <ActivityIndicator size={14} color="#FFFFFF" />
+          ) : (
+            <Text className="font-inter-semibold text-xs text-white">Save</Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       <TimePickerModal
         visible={timePickerField !== null}

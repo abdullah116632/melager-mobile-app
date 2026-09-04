@@ -23,6 +23,9 @@ import {
 import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
 import { loadUnreadBazarAssignmentCount } from "@/redux/slice/bazarNotificationsSlice";
 import { loadUnreadConsumerBreakdownCount } from "@/redux/slice/consumerBreakdownNotificationsSlice";
+import { loadMonth } from "@/redux/slice/messSlice";
+import { loadDepositEntries } from "@/redux/slice/depositsSlice";
+import { invalidateSchedule } from "@/redux/slice/mealMenuSlice";
 import { refreshNotifications } from "@/redux/slice/notificationSlice";
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
@@ -61,6 +64,53 @@ export const RealtimeStateController = ({
     let isActive = AppState.currentState === "active";
     const connect = () => {
       const socket = connectRealtime(token, messId);
+      const monthRefreshes = new Map<string, Promise<unknown>>();
+      const refreshMonthFromEvent = (payload: unknown) => {
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          typeof (payload as { messId?: unknown }).messId !== "number" ||
+          (payload as { messId: number }).messId !== messId
+        ) {
+          return;
+        }
+        clearApiCache();
+        const event = payload as {
+          yearMonth?: unknown;
+          yearMonths?: unknown;
+          refreshEntries?: unknown;
+        };
+        const yearMonths = Array.isArray(event.yearMonths)
+          ? event.yearMonths.filter(
+              (value): value is string => typeof value === "string",
+            )
+          : typeof event.yearMonth === "string"
+            ? [event.yearMonth]
+            : [];
+        yearMonths.forEach((yearMonth) => {
+          const refreshKey = `${messId}:${yearMonth}`;
+          const previousRefresh =
+            monthRefreshes.get(refreshKey) ?? Promise.resolve();
+          const nextRefresh = previousRefresh
+            .catch(() => undefined)
+            .then(() =>
+              Promise.all([
+                dispatch(loadMonth({ messId, yearMonth, force: true })),
+                event.refreshEntries
+                  ? dispatch(
+                      loadDepositEntries({ messId, yearMonth, force: true }),
+                    )
+                  : Promise.resolve(),
+              ]),
+            )
+            .finally(() => {
+              if (monthRefreshes.get(refreshKey) === nextRefresh) {
+                monthRefreshes.delete(refreshKey);
+              }
+            });
+          monthRefreshes.set(refreshKey, nextRefresh);
+        });
+      };
       clearApiCache();
       void dispatch(loadUnreadMessageCount());
       void dispatch(loadUnreadNoticesCount());
@@ -77,6 +127,20 @@ export const RealtimeStateController = ({
       socket.on("notification:created", () => {
         clearApiCache();
         void dispatch(refreshNotifications());
+      });
+      socket.on("meals:updated", refreshMonthFromEvent);
+      socket.on("expenses:updated", refreshMonthFromEvent);
+      socket.on("deposits:updated", refreshMonthFromEvent);
+      socket.on("meal-schedule:updated", (payload: unknown) => {
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          (payload as { messId?: unknown }).messId !== messId ||
+          typeof (payload as { date?: unknown }).date !== "string"
+        ) {
+          return;
+        }
+        dispatch(invalidateSchedule());
       });
     };
     if (isActive) connect();
