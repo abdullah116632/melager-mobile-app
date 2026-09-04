@@ -5,6 +5,9 @@ import {
 } from "@reduxjs/toolkit";
 
 import { api, type ApiMessage, type ApiMessageCursor } from "@/lib/api";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { MessageRepository } from "@/offline/features/messages/MessageRepository";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
 import { syncMessScope } from "@/redux/slice/messSlice";
 
@@ -33,6 +36,7 @@ const initialState: MessagesState = {
   sendStatus: "idle",
   error: null,
 };
+const cachedMessagesReceived = createSlice({name:"messageCache",initialState:[] as ApiMessage[],reducers:{received:(_s,a:PayloadAction<ApiMessage[]>)=>a.payload}}).actions.received;
 
 const getAuthContext = (state: MessagesRootState) => {
   const { token, activeMess } = state.auth;
@@ -50,9 +54,11 @@ export const loadMessages = createAsyncThunk<
   },
   { beforeCreatedAt?: string; beforeId?: number } | undefined,
   { state: MessagesRootState }
->("messages/load", async (cursor, { getState }) => {
-  const { token, messId } = getAuthContext(getState());
+>("messages/load", async (cursor, { getState, dispatch }) => {
+  const { token, messId } = getAuthContext(getState()); const userId=getState().auth.user!.id;
+  if(!cursor){try{const local=await new MessageRepository(await getOfflineDatabase()).list(userId,messId);if(local.length)dispatch(cachedMessagesReceived(local));}catch{}}
   const response = await api.getMessages(token, messId, cursor);
+  try{await new MessageRepository(await getOfflineDatabase()).merge(userId,response.messages)}catch{}
   return {
     messId,
     messages: response.messages,
@@ -67,6 +73,8 @@ export const sendMessage = createAsyncThunk<
   { state: MessagesRootState }
 >("messages/send", async ({ body }, { getState }) => {
   const { token, messId } = getAuthContext(getState());
+  const userId=getState().auth.user!.id;
+  try{const database=await getOfflineDatabase();const message=await new MessageRepository(database).compose(userId,messId,userId,body);void getOfflineRuntime(database).engine.sync({userId,messId,token},{collections:["messages"],force:true});return {messId,message};}catch{}
   const response = await api.sendMessage(body, token, messId);
   return { messId, message: response.message };
 });
@@ -87,6 +95,8 @@ export const markMessagesRead = createAsyncThunk<
   { state: MessagesRootState }
 >("messages/markRead", async (_arg, { getState }) => {
   const { token, messId } = getAuthContext(getState());
+  const userId=getState().auth.user!.id;
+  try { const database=await getOfflineDatabase();await new MessageRepository(database).markRead(userId,messId);void getOfflineRuntime(database).engine.sync({userId,messId,token},{collections:["messages"],force:true});return {messId,unreadCount:0}; } catch {}
   const response = await api.markMessagesRead(token, messId);
   return { messId, unreadCount: response.unreadCount };
 });
@@ -95,6 +105,7 @@ const messagesSlice = createSlice({
   name: "messages",
   initialState,
   reducers: {
+    cachedMessagesReceived: (state, action: PayloadAction<ApiMessage[]>) => { if(state.scopeMessId===action.payload[0]?.messId||action.payload.length>0) state.messages=action.payload; },
     messageReceived: (state, action: PayloadAction<ApiMessage>) => {
       const message = action.payload;
       if (state.scopeMessId !== message.messId) return;
@@ -120,6 +131,7 @@ const messagesSlice = createSlice({
           state.loadStatus = "loading";
         }
       })
+      .addCase(cachedMessagesReceived, (state, action) => { if(action.payload.length) state.messages=action.payload; })
       .addCase(loadMessages.fulfilled, (state, action) => {
         if (state.scopeMessId !== action.payload.messId) return;
         if (action.payload.append) {
@@ -161,17 +173,6 @@ const messagesSlice = createSlice({
       .addCase(sendMessage.pending, (state, action) => {
         state.sendStatus = "loading";
         state.error = null;
-        const activeMess = state.scopeMessId;
-        if (activeMess === null) return;
-        state.messages.unshift({
-          id: -Date.now(),
-          messId: activeMess,
-          senderUserId: action.meta.arg.senderUserId,
-          senderName: "You",
-          body: action.meta.arg.body,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
       })
       .addCase(sendMessage.fulfilled, (state, action) => {
         if (state.scopeMessId !== action.payload.messId) return;

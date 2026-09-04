@@ -710,6 +710,7 @@ export const api = {
       { body, messId },
       token,
     ),
+  syncMessage:(clientMutationId:string,messId:number,body:string,token:string)=>req<{message:ApiMessage}>("POST","/mess/messages/sync",{clientMutationId,messId,body},token),
 
   getUnreadMessageCount: (token: string, messId: number) =>
     req<{ unreadCount: number }>(

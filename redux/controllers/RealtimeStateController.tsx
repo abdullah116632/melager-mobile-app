@@ -2,6 +2,8 @@ import { AppState, type AppStateStatus } from "react-native";
 import { useEffect, type ReactNode } from "react";
 
 import { clearApiCache } from "@/lib/api";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { MessageRepository } from "@/offline/features/messages/MessageRepository";
 import {
   connectRealtime,
   disconnectRealtime,
@@ -44,6 +46,7 @@ export const RealtimeStateController = ({
     () =>
       subscribeToRealtimeMessages((message) => {
         clearApiCache();
+        if (user?.id) void getOfflineDatabase().then((db) => new MessageRepository(db).merge(user.id, [message])).catch(() => undefined);
         dispatch(messageReceived(message));
         if (message.senderUserId === user?.id) return;
         if (isMessageConversationActive(message.messId)) {
