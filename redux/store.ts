@@ -6,6 +6,7 @@ import {
 
 import authReducer from "@/redux/slice/authSlice";
 import bazarReducer from "@/redux/slice/bazarSlice";
+import bazarNotificationsReducer from "@/redux/slice/bazarNotificationsSlice";
 import mealMenuReducer from "@/redux/slice/mealMenuSlice";
 import messagesReducer from "@/redux/slice/messagesSlice";
 import depositsReducer from "@/redux/slice/depositsSlice";
@@ -21,6 +22,7 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     bazar: bazarReducer,
+    bazarNotifications: bazarNotificationsReducer,
     mealMenu: mealMenuReducer,
     messages: messagesReducer,
     deposits: depositsReducer,

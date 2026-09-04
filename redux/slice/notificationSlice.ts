@@ -55,6 +55,9 @@ export const markAllNotificationsRead = createAction(
 export const markNotificationRead = createAction<string>(
   "notification/markRead",
 );
+export const markNotificationsByTypeRead = createAction<AppNotification["type"]>(
+  "notification/markTypeRead",
+);
 export const openNotificationPanel = createAction("notification/openPanel");
 export const closeNotificationPanel = createAction("notification/closePanel");
 
@@ -191,7 +194,6 @@ export const refreshNotifications = createAsyncThunk<
       id: `server_${notification.id}`,
       type:
         notification.type === "notice" ||
-        notification.type === "bazar_assignment" ||
         notification.type === "message" ||
         notification.type === "menu"
           ? notification.type
@@ -242,6 +244,11 @@ const notificationSlice = createSlice({
           (item) => item.id === action.payload,
         );
         if (notification) notification.read = true;
+      })
+      .addCase(markNotificationsByTypeRead, (state, action) => {
+        state.notifications.forEach((notification) => {
+          if (notification.type === action.payload) notification.read = true;
+        });
       })
       .addCase(openNotificationPanel, (state) => {
         state.panelVisible = true;

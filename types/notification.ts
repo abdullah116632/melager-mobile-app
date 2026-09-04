@@ -4,7 +4,6 @@ export type AppNotification = {
     | "member_request"
     | "meal_opt_out"
     | "notice"
-    | "bazar_assignment"
     | "message"
     | "menu";
   title: string;

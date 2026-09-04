@@ -555,6 +555,30 @@ export const api = {
       token,
     ),
 
+  notifyAssignedBazarMembers: (weekday: number, token: string, messId: number) =>
+    req<{ notifiedCount: number }>(
+      "POST",
+      "/mess/bazar/assignments/notify",
+      { weekday, messId },
+      token,
+    ),
+
+  getUnreadBazarAssignmentCount: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "GET",
+      `/mess/bazar/assignments/unread-count?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  markBazarAssignmentNotificationsRead: (token: string, messId: number) =>
+    req<{ unreadCount: number }>(
+      "POST",
+      "/mess/bazar/assignments/read",
+      { messId },
+      token,
+    ),
+
   unassignBazarMember: (id: number, token: string, messId: number) =>
     req<{ success: boolean }>(
       "DELETE",

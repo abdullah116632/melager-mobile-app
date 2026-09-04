@@ -37,13 +37,6 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
     );
   }
 
-  if (type === "bazar_assignment") {
-    return (
-      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-orange-100">
-        <Feather name="shopping-cart" size={16} color="#C2410C" />
-      </View>
-    );
-  }
 
   if (type === "notice") {
     return (

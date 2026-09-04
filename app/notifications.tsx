@@ -28,25 +28,19 @@ const formatNotificationTime = (timestamp: number) => {
 
 const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
   const icon =
-    type === "bazar_assignment"
-      ? "shopping-cart"
-      : type === "member_request"
+    type === "member_request"
         ? "user-plus"
         : type === "notice"
           ? "clipboard"
           : "coffee";
   const color =
-    type === "bazar_assignment"
-      ? "#C2410C"
-      : type === "member_request"
+    type === "member_request"
         ? "#1D4ED8"
         : type === "notice"
           ? "#B45309"
           : "#0F766E";
   const background =
-    type === "bazar_assignment"
-      ? "bg-orange-100"
-      : type === "member_request"
+    type === "member_request"
         ? "bg-blue-100"
         : type === "notice"
           ? "bg-amber-100"

@@ -4,12 +4,14 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { useAppSelector, useAuth } from "@/redux/hooks";
 import { selectMessagesState } from "@/redux/slice/messagesSlice";
 import { selectNoticesState } from "@/redux/slice/noticesSlice";
+import { selectBazarNotificationsState } from "@/redux/slice/bazarNotificationsSlice";
 
 export const DashboardQuickNavDrawer = () => {
   const router = useRouter();
   const { exitMess } = useAuth();
   const { unreadCount } = useAppSelector(selectMessagesState);
   const { unreadCount: unreadNoticeCount } = useAppSelector(selectNoticesState);
+  const { unreadCount: unreadBazarCount } = useAppSelector(selectBazarNotificationsState);
 
   const navigate = (
     route:
@@ -79,6 +81,13 @@ export const DashboardQuickNavDrawer = () => {
         >
           <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-orange-50">
             <Feather name="shopping-cart" size={18} color="#C2410C" />
+            {unreadBazarCount > 0 ? (
+              <View className="absolute -right-2 -top-2 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 py-0.5">
+                <Text className="font-inter-bold text-[9px] leading-3 text-white">
+                  {unreadBazarCount > 99 ? "99+" : unreadBazarCount}
+                </Text>
+              </View>
+            ) : null}
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
             Bazar List

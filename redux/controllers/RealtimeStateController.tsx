@@ -21,6 +21,7 @@ import {
   unreadMessageReceived,
 } from "@/redux/slice/messagesSlice";
 import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
+import { loadUnreadBazarAssignmentCount } from "@/redux/slice/bazarNotificationsSlice";
 import { refreshNotifications } from "@/redux/slice/notificationSlice";
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
@@ -62,6 +63,11 @@ export const RealtimeStateController = ({
       clearApiCache();
       void dispatch(loadUnreadMessageCount());
       void dispatch(loadUnreadNoticesCount());
+      void dispatch(loadUnreadBazarAssignmentCount());
+      socket.on("bazar-assignment:created", () => {
+        clearApiCache();
+        void dispatch(loadUnreadBazarAssignmentCount());
+      });
       socket.on("notification:created", () => {
         clearApiCache();
         void dispatch(refreshNotifications());
