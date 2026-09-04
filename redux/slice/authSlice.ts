@@ -23,10 +23,15 @@ import {
 import { clearOfflineQueue } from "@/lib/offlineQueue";
 import { patchCachedConsumerProfile } from "@/lib/cache";
 import { loadGoogleSignInModule } from "@/services/googleSignInService";
-
-const TOKEN_KEY = "@mess_auth_token";
-const AUTH_CACHE_KEY = "@mess_auth_profile";
-const ACTIVE_MESS_KEY = "@mess_active_mess_id";
+import {
+  ACTIVE_MESS_KEY,
+  AUTH_CACHE_KEY,
+} from "@/storage/session/constants";
+import {
+  deleteSessionToken,
+  getSessionToken,
+  setSessionToken,
+} from "@/storage/session/tokenStorage";
 
 export interface AuthState {
   user: ApiUser | null;
@@ -112,9 +117,9 @@ const loadSession = async (
   activeMess: ApiMessWithRole | null = null,
 ): Promise<AuthSessionPayload> => {
   const me = await api.me(token);
-  await AsyncStorage.multiSet([
-    [TOKEN_KEY, token],
-    [AUTH_CACHE_KEY, JSON.stringify(me)],
+  await Promise.all([
+    setSessionToken(token),
+    AsyncStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(me)),
   ]);
   return { me, token, activeMess };
 };
@@ -127,20 +132,21 @@ const clearLocalSession = async () => {
   } catch {
     // Local app logout must still finish without a Google/native session.
   }
-  await AsyncStorage.multiRemove([TOKEN_KEY, AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
+  await Promise.all([
+    deleteSessionToken(),
+    AsyncStorage.multiRemove([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]),
+  ]);
 };
 
 export const initializeAuth = createAuthAsyncThunk<AuthState | null, void>(
   "auth/initialize",
   async (_arg, { dispatch }) => {
-    const values = await AsyncStorage.multiGet([
-      TOKEN_KEY,
-      AUTH_CACHE_KEY,
-      ACTIVE_MESS_KEY,
+    const [token, values] = await Promise.all([
+      getSessionToken(),
+      AsyncStorage.multiGet([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]),
     ]);
-    const token = values[0]?.[1] ?? null;
-    const cachedRaw = values[1]?.[1] ?? null;
-    const activeMessId = Number(values[2]?.[1] ?? 0) || null;
+    const cachedRaw = values[0]?.[1] ?? null;
+    const activeMessId = Number(values[1]?.[1] ?? 0) || null;
 
     if (!token) return createSignedOutState();
 
@@ -180,10 +186,9 @@ export const initializeAuth = createAuthAsyncThunk<AuthState | null, void>(
         error instanceof ApiError &&
         (error.status === 401 || error.status === 403);
       if (!cached || tokenRejected) {
-        await AsyncStorage.multiRemove([
-          TOKEN_KEY,
-          AUTH_CACHE_KEY,
-          ACTIVE_MESS_KEY,
+        await Promise.all([
+          deleteSessionToken(),
+          AsyncStorage.multiRemove([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]),
         ]);
         return createSignedOutState();
       }

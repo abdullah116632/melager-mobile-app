@@ -3,8 +3,10 @@ export {
   OfflineDatabaseProvider,
   useOfflineDatabase,
 } from "./provider/OfflineDatabaseProvider";
+export { OfflineSyncController } from "./controller/OfflineSyncController";
 export { OutboxRepository } from "./repositories/outboxRepository";
 export { SyncStateRepository } from "./repositories/syncStateRepository";
+export { getOfflineRuntime } from "./runtime/getOfflineRuntime";
 export { SyncEngine } from "./sync/SyncEngine";
 export { SyncRegistry } from "./sync/registry";
 export type {

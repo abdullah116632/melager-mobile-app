@@ -22,7 +22,7 @@ import { NotificationPanel } from "@/components/NotificationPanel";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OfflineActionBanner } from "@/components/OfflineActionBanner";
 import { RefreshSuccessToast } from "@/components/RefreshSuccessToast";
-import { OfflineDatabaseProvider } from "@/offline";
+import { OfflineDatabaseProvider, OfflineSyncController } from "@/offline";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { MessStateController } from "@/redux/controllers/MessStateController";
 import { NetworkStateController } from "@/redux/controllers/NetworkStateController";
@@ -166,25 +166,27 @@ export default function RootLayout() {
       <Provider store={store}>
         <OfflineDatabaseProvider>
           <NetworkStateController>
-            <ErrorBoundary>
-              <MessStateController>
-                <PushNotificationStateController>
-                  <RealtimeStateController>
-                    <NotificationStateController>
-                      <NativeWindGestureHandlerRootView className="flex-1">
-                        <KeyboardProvider>
-                          <RootLayoutNav />
-                        </KeyboardProvider>
-                        <RefreshSuccessToast />
-                        <NotificationPanel />
-                        <OfflineBanner />
-                        <OfflineActionBanner />
-                      </NativeWindGestureHandlerRootView>
-                    </NotificationStateController>
-                  </RealtimeStateController>
-                </PushNotificationStateController>
-              </MessStateController>
-            </ErrorBoundary>
+            <OfflineSyncController>
+              <ErrorBoundary>
+                <MessStateController>
+                  <PushNotificationStateController>
+                    <RealtimeStateController>
+                      <NotificationStateController>
+                        <NativeWindGestureHandlerRootView className="flex-1">
+                          <KeyboardProvider>
+                            <RootLayoutNav />
+                          </KeyboardProvider>
+                          <RefreshSuccessToast />
+                          <NotificationPanel />
+                          <OfflineBanner />
+                          <OfflineActionBanner />
+                        </NativeWindGestureHandlerRootView>
+                      </NotificationStateController>
+                    </RealtimeStateController>
+                  </PushNotificationStateController>
+                </MessStateController>
+              </ErrorBoundary>
+            </OfflineSyncController>
           </NetworkStateController>
         </OfflineDatabaseProvider>
       </Provider>

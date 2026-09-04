@@ -15,4 +15,8 @@ if (Platform.OS === "android") {
   enableScreens(false);
 }
 
+// Background tasks must be defined while the JS bundle is evaluated, before
+// any React screen mounts. Metro selects the native/web implementation.
+require("./offline/background/backgroundSync");
+
 require("expo-router/entry");

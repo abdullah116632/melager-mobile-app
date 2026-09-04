@@ -59,7 +59,9 @@
           "iosUrlScheme": "com.googleusercontent.apps.1069153952928-4hvnno2mv84aavglr99mpsfjja5vtkmh"
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": true,

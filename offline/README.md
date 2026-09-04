@@ -16,7 +16,14 @@ UI and Redux
 - `repositories/` is the only layer that should issue feature SQL queries.
 - `outbox/` defines durable local mutations. Authentication tokens must never be persisted here.
 - `sync/` coordinates registered feature processors and incremental pullers.
+- `runtime/` owns the shared registry, outbox and single-flight sync engine.
+- `controller/` triggers sync when the app opens, resumes or reconnects.
+- `background/` defines and registers the OS-managed background sync task.
 - `provider/` initializes SQLite before native application controllers start.
+
+The session token lives in native SecureStore and is injected into a sync run
+only in memory. Existing AsyncStorage tokens are migrated automatically on the
+first launch after this version is installed.
 
 Feature UI must not import `expo-sqlite` directly. Each feature will receive its own normalized tables, repository and sync adapter in a separate migration step.
 
