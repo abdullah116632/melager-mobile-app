@@ -44,5 +44,9 @@ Feature UI must not import `expo-sqlite` directly. Each feature will receive its
   availability and opt-out windows are cached locally; schedule edits made
   offline are stored in the durable outbox and replayed through the existing
   meal-schedule API, preserving compatibility with older app versions.
+- Daily Meals: monthly count snapshots are mirrored in SQLite. A cell update is
+  optimistic and durable offline; multiple edits to one consumer/day collapse
+  into one operation and sync through the existing meal API when connectivity
+  returns.
 
 The existing AsyncStorage cache and legacy offline queue intentionally remain active until their features are migrated and verified one at a time.

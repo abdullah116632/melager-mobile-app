@@ -20,6 +20,8 @@ import {
   saveLocalConsumers,
 } from "@/offline/features/reference/storage";
 import { updateProfileName, type AuthState } from "@/redux/slice/authSlice";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { DailyMealsRepository } from "@/offline/features/dailyMeals/DailyMealsRepository";
 import type { NetworkState } from "@/redux/slice/networkSlice";
 import type { Consumer } from "@/types/mess";
 
@@ -155,6 +157,12 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
       const cached = await loadFromCache(messId, yearMonth);
       if (cached) {
         const cachedMonth = cached as MonthData;
+        try {
+          const localMeals = await new DailyMealsRepository(await getOfflineDatabase()).getMonth(user.id, messId, yearMonth);
+          if (Object.keys(localMeals).length > 0) cachedMonth.meals = localMeals;
+        } catch {
+          // SQLite is native-only; preserve the legacy cache on web.
+        }
         await saveLocalConsumers(user.id, messId, cachedMonth.consumers).catch(
           () => undefined,
         );
@@ -179,6 +187,11 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
 
     const data = await api.getMonthData(yearMonth, token, messId);
     if (data) {
+      try {
+        data.meals = await new DailyMealsRepository(await getOfflineDatabase()).mergeRemote(user.id, messId, yearMonth, data.meals);
+      } catch {
+        // Web and pre-migration builds retain the existing cache path.
+      }
       await Promise.all([
         saveToCache(messId, yearMonth, data),
         saveLocalConsumers(user.id, messId, data.consumers),

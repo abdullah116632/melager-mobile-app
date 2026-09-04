@@ -344,10 +344,6 @@ export const useMeals = () => {
       day: number,
       count: number,
     ) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("entry"));
-        return;
-      }
       void dispatch(
         setMealAction({ yearMonth, consumerId, day, count, isOnline }),
       );

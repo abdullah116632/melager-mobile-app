@@ -1,7 +1,11 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { api, type MonthData } from "@/lib/api";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { DailyMealsRepository } from "@/offline/features/dailyMeals/DailyMealsRepository";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
+import type { NetworkState } from "@/redux/slice/networkSlice";
 import {
   loadMonth,
   monthDataReceived,
@@ -19,6 +23,7 @@ export interface MealsState {
 type MealsRootState = {
   auth: AuthState;
   meals: MealsState;
+  network: NetworkState;
 };
 
 const createInitialState = (scopeMessId: number | null = null): MealsState => ({
@@ -39,14 +44,16 @@ export const setMeal = createAsyncThunk.withTypes<{
 }>()<void, SetMealArgs>(
   "meals/setMeal",
   async ({ yearMonth, consumerId, day, count }, { getState }) => {
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) return;
-    await api
-      .setMeal(consumerId, yearMonth, day, count, token, activeMess.id)
-      .catch(() => undefined);
-  },
-  {
-    condition: ({ isOnline }) => isOnline,
+    const { token, activeMess, user } = getState().auth;
+    if (!activeMess || !user) return;
+    try {
+      const database=await getOfflineDatabase();
+      await new DailyMealsRepository(database).update(user.id,activeMess.id,yearMonth,consumerId,day,count);
+      if (token && getState().network.isOnline) void getOfflineRuntime(database).engine.sync({userId:user.id,messId:activeMess.id,token},{collections:["daily_meals"],force:true});
+      return;
+    } catch {
+      if (token && getState().network.isOnline) await api.setMeal(consumerId,yearMonth,day,count,token,activeMess.id);
+    }
   },
 );
 

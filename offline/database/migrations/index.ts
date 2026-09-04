@@ -6,6 +6,7 @@ import { referenceDataMigration } from "./002-reference-data";
 import { bazarMigration } from "./003-bazar";
 import { noticesMigration } from "./004-notices";
 import { mealScheduleMigration } from "./005-meal-schedule";
+import { dailyMealsMigration } from "./006-daily-meals";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
@@ -14,6 +15,7 @@ const migrations: DatabaseMigration[] = [
   bazarMigration,
   noticesMigration,
   mealScheduleMigration,
+  dailyMealsMigration,
 ];
 
 type UserVersionRow = { user_version: number };
