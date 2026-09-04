@@ -61,6 +61,14 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
     );
   }
 
+  if (type === "menu") {
+    return (
+      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-teal-100">
+        <Feather name="coffee" size={16} color="#0F766E" />
+      </View>
+    );
+  }
+
   return (
     <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-amber-100">
       <Feather name="coffee" size={16} color="#B45309" />
@@ -78,9 +86,9 @@ const NotificationItem = ({ item }: { item: AppNotification }) => {
     if (token && item.id.startsWith("server_")) {
       const notificationId = Number(item.id.slice("server_".length));
       if (Number.isInteger(notificationId)) {
-        void api.markServerNotificationRead(notificationId, token).catch(
-          () => undefined,
-        );
+        void api
+          .markServerNotificationRead(notificationId, token)
+          .catch(() => undefined);
       }
     }
     closePanel();

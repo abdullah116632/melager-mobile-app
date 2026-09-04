@@ -192,7 +192,8 @@ export const refreshNotifications = createAsyncThunk<
       type:
         notification.type === "notice" ||
         notification.type === "bazar_assignment" ||
-        notification.type === "message"
+        notification.type === "message" ||
+        notification.type === "menu"
           ? notification.type
           : "notice",
       title: notification.title,
@@ -204,7 +205,9 @@ export const refreshNotifications = createAsyncThunk<
           ? "/notice-board"
           : notification.type === "message"
             ? "/messages"
-            : "/bazar-list",
+            : notification.type === "menu"
+              ? "/meal-status"
+              : "/bazar-list",
     })) ?? [];
 
   return {

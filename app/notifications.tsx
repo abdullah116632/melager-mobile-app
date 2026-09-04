@@ -53,7 +53,9 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
           : "bg-teal-100";
 
   return (
-    <View className={`h-11 w-11 items-center justify-center rounded-xl ${background}`}>
+    <View
+      className={`h-11 w-11 items-center justify-center rounded-xl ${background}`}
+    >
       <Feather name={icon} size={18} color={color} />
     </View>
   );
@@ -75,9 +77,9 @@ export default function NotificationsRoute() {
       if (token && notification.id.startsWith("server_")) {
         const notificationId = Number(notification.id.slice("server_".length));
         if (Number.isInteger(notificationId)) {
-          void api.markServerNotificationRead(notificationId, token).catch(
-            () => undefined,
-          );
+          void api
+            .markServerNotificationRead(notificationId, token)
+            .catch(() => undefined);
         }
       }
       router.push(notification.route as never);
@@ -97,7 +99,9 @@ export default function NotificationsRoute() {
           <Text className="flex-1 font-inter-semibold text-[15px] leading-5 text-slate-900">
             {item.title}
           </Text>
-          {!item.read ? <View className="mt-1.5 h-2 w-2 rounded-full bg-teal-700" /> : null}
+          {!item.read ? (
+            <View className="mt-1.5 h-2 w-2 rounded-full bg-teal-700" />
+          ) : null}
         </View>
         <Text className="mt-1 font-inter text-[13px] leading-5 text-slate-600">
           {item.body}
@@ -125,9 +129,13 @@ export default function NotificationsRoute() {
           <Feather name="arrow-left" size={21} color="#FFFFFF" />
         </TouchableOpacity>
         <View className="ml-3 flex-1">
-          <Text className="font-inter-bold text-[19px] text-white">Notifications</Text>
+          <Text className="font-inter-bold text-[19px] text-white">
+            Notifications
+          </Text>
           <Text className="mt-0.5 font-inter text-[11px] text-teal-100">
-            {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}` : "All caught up"}
+            {unreadCount > 0
+              ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
+              : "All caught up"}
           </Text>
         </View>
         {unreadCount > 0 ? (
@@ -136,7 +144,9 @@ export default function NotificationsRoute() {
             onPress={markAllRead}
             activeOpacity={0.75}
           >
-            <Text className="font-inter-semibold text-xs text-white">Mark all read</Text>
+            <Text className="font-inter-semibold text-xs text-white">
+              Mark all read
+            </Text>
           </TouchableOpacity>
         ) : null}
       </View>
@@ -147,14 +157,20 @@ export default function NotificationsRoute() {
         renderItem={renderNotification}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={() => void refreshCount()} tintColor="#0F766E" />
+          <RefreshControl
+            refreshing={false}
+            onRefresh={() => void refreshCount()}
+            tintColor="#0F766E"
+          />
         }
         ListEmptyComponent={
           <View className="items-center justify-center px-10 py-24">
             <View className="h-16 w-16 items-center justify-center rounded-2xl bg-teal-100">
               <Feather name="bell-off" size={28} color="#0F766E" />
             </View>
-            <Text className="mt-4 font-inter-bold text-lg text-slate-900">No notifications yet</Text>
+            <Text className="mt-4 font-inter-bold text-lg text-slate-900">
+              No notifications yet
+            </Text>
             <Text className="mt-1 text-center font-inter text-sm leading-5 text-slate-500">
               New updates and assignments will appear here.
             </Text>
