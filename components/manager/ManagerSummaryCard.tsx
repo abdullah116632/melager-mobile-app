@@ -1,5 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useMemo } from "react";
 import { Text, View } from "react-native";
 
 import { useDeposits, useExpenses, useMeals, useMess } from "@/redux/hooks";
@@ -19,24 +20,40 @@ const cardShadow = {
 };
 
 export const ManagerSummaryCard = () => {
-  const { consumers, currentYearMonth, getGrandTotal, getConsumerTotal } =
-    useMeals();
-  const { getMonthExpenseTotal } = useExpenses();
-  const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
+  const {
+    consumers,
+    currentYearMonth,
+    meals,
+    getGrandTotal,
+    getConsumerTotal,
+  } = useMeals();
+  const { expenses, getMonthExpenseTotal } = useExpenses();
+  const { deposits, getGrandDepositTotal, getConsumerDepositTotal } =
+    useDeposits();
   const { currentYearMonth: messYearMonth } = useMess();
   const yearMonth = messYearMonth || currentYearMonth;
 
-  const accounting = calculateDashboardAccounting({
-    consumers,
-    currentYearMonth: yearMonth,
-    appliedRange: null,
-    rangeData: {},
-    getGrandTotal,
-    getMonthExpenseTotal,
-    getGrandDepositTotal,
-    getConsumerTotal,
-    getConsumerDepositTotal,
-  });
+  const accounting = useMemo(
+    () =>
+      calculateDashboardAccounting({
+        consumers,
+        currentYearMonth: yearMonth,
+        appliedRange: null,
+        rangeData: {},
+        getGrandTotal,
+        getMonthExpenseTotal,
+        getGrandDepositTotal,
+        getConsumerTotal,
+        getConsumerDepositTotal,
+      }),
+    [
+      consumers,
+      yearMonth,
+      meals,
+      expenses,
+      deposits,
+    ],
+  );
   const balancePositive = accounting.netBalance >= 0;
   const metrics = [
     {

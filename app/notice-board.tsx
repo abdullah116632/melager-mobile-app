@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import DraggableFlatList, {
   type RenderItemParams,
@@ -10,6 +11,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  RefreshControl,
   Text,
   TextInput,
   TouchableOpacity,
@@ -58,7 +60,7 @@ const getNoticeAccent = (color: string) => {
     "#FFEDD5": { background: "#FB923C", icon: "#FFFFFF" },
     "#F0FDFA": { background: "#14B8A6", icon: "#FFFFFF" },
   };
-  return accents[color.toUpperCase()] ?? accents["#F0FDF"]!;
+  return accents[color.toUpperCase()] ?? accents["#F0FDFA"]!;
 };
 
 const NOTICE_COLORS = [
@@ -96,10 +98,14 @@ export default function NoticeBoardRoute() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [refreshToastVisible, setRefreshToastVisible] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredNotices = notices.filter((notice) => {
-    const query = searchQuery.trim().toLowerCase();
     return (
-      !query || `${notice.title} ${notice.body}`.toLowerCase().includes(query)
+      !normalizedSearchQuery ||
+      `${notice.title} ${notice.body}`
+        .toLowerCase()
+        .includes(normalizedSearchQuery)
     );
   });
   useEffect(() => {
@@ -129,16 +135,27 @@ export default function NoticeBoardRoute() {
 
   const refreshNotices = async () => {
     if (!token || !mess) return;
+    setRefreshToastVisible(false);
+    setRefreshError(null);
     if (!isOnline) {
+      setRefreshError(
+        "Refresh failed. Check your internet connection and try again.",
+      );
       dispatch(offlineActionFailed("refresh"));
       return;
     }
     setRefreshing(true);
     try {
       await dispatch(loadNoticesAction({ force: true })).unwrap();
+      setRefreshError(null);
       setRefreshToastVisible(true);
       setTimeout(() => setRefreshToastVisible(false), 2200);
     } catch (error) {
+      setRefreshError(
+        error instanceof Error
+          ? `Refresh failed. ${error.message}`
+          : "Refresh failed. Please try again.",
+      );
       dispatch(
         apiActionFailed(
           error instanceof Error ? error.message : "Could not refresh notices.",
@@ -256,45 +273,75 @@ export default function NoticeBoardRoute() {
   };
 
   return (
-    <View className="pt-safe flex-1 bg-[#F4F8FC]">
-      <StatusBar style="light" backgroundColor="#075F5B" />
-      <View className="flex-row items-center bg-[#075F5B] px-4 pb-4 pt-2">
-        <TouchableOpacity
-          className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/15"
-          onPress={goBack}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-        >
-          <Feather name="arrow-left" size={21} color="#FFFFFF" />
-        </TouchableOpacity>
-        <View className="ml-3 flex-1">
-          <Text className="font-inter-bold text-[18px] text-white">
-            Notice Board
-          </Text>
-          <Text className="mt-0.5 font-inter text-[11px] text-teal-100">
-            Mess announcements
-          </Text>
-        </View>
-        {isAdmin ? (
+    <View className="pt-safe flex-1 bg-[#F6F8FB]">
+      <StatusBar style="light" backgroundColor="#075E59" />
+      <View className="overflow-hidden bg-[#075E59] px-4 pb-7 pt-2">
+        <View className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-white/5" />
+        <View className="absolute -bottom-16 left-16 h-32 w-32 rounded-full bg-teal-300/10" />
+        <View className="flex-row items-center">
           <TouchableOpacity
-            className="h-10 w-10 items-center justify-center rounded-xl bg-white/15"
-            onPress={() => {
-              if (formOpen) resetForm();
-              else setFormOpen(true);
-            }}
+            className="h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10"
+            onPress={goBack}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel={
-              formOpen ? "Close notice form" : "Create notice"
-            }
+            accessibilityLabel="Back"
           >
-            <Feather name={formOpen ? "x" : "plus"} size={21} color="#FFFFFF" />
+            <Feather name="arrow-left" size={21} color="#FFFFFF" />
           </TouchableOpacity>
-        ) : null}
+          <View className="ml-3 flex-1">
+            <View className="flex-row items-center">
+              <Text className="font-inter-bold text-[20px] text-white">
+                Notice Board
+              </Text>
+              {notices.length > 0 ? (
+                <View className="ml-2 rounded-full bg-white/15 px-2 py-0.5">
+                  <Text className="font-inter-semibold text-[10px] text-teal-50">
+                    {notices.length}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text className="mt-0.5 font-inter text-[11px] text-teal-100/90">
+              Updates and announcements from your mess
+            </Text>
+          </View>
+          {isAdmin ? (
+            <TouchableOpacity
+              className="h-11 flex-row items-center rounded-2xl bg-white px-3.5 shadow-sm"
+              onPress={() => setFormOpen(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Create notice"
+            >
+              <Feather name="plus" size={17} color="#0F766E" />
+              <Text className="ml-1.5 font-inter-bold text-xs text-teal-700">
+                New
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
-      <View className="flex-1 px-4 pt-4">
+      {refreshError ? (
+        <View
+          className="flex-row items-center border-b border-red-200 bg-red-50 px-4 py-2"
+          accessibilityRole="alert"
+        >
+          <Feather name="alert-circle" size={14} color="#DC2626" />
+          <Text className="ml-2 min-w-0 flex-1 font-inter-medium text-[11px] text-red-700">
+            {refreshError}
+          </Text>
+          <TouchableOpacity
+            className="ml-2 h-6 w-6 items-center justify-center rounded-full"
+            onPress={() => setRefreshError(null)}
+            accessibilityLabel="Dismiss refresh error"
+          >
+            <Feather name="x" size={14} color="#B91C1C" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      <View className={`${refreshError ? "pt-3" : "-mt-3"} flex-1 px-4`}>
         {isAdmin && formOpen ? (
           <Modal
             visible={formOpen}
@@ -303,34 +350,66 @@ export default function NoticeBoardRoute() {
             onRequestClose={resetForm}
           >
             <Pressable
-              className="flex-1 items-center justify-center bg-slate-900/35 px-6"
+              className="flex-1 items-center justify-center bg-slate-950/50 px-5"
               onPress={resetForm}
             >
               <Pressable
-                className="w-full max-w-[380px] rounded-2xl border border-teal-200 bg-white p-4 shadow-sm shadow-slate-400/15"
+                className="w-full max-w-[400px] rounded-[28px] bg-white p-5 shadow-lg shadow-slate-950/20"
                 onPress={(event) => event.stopPropagation()}
               >
-                <View className="mb-1 flex-row items-center justify-between">
-                  <Text className="font-inter-bold text-base text-slate-900">
-                    {editingId ? "Edit Notice" : "Create Notice"}
-                  </Text>
+                <View className="flex-row items-start justify-between">
+                  <View className="flex-1 flex-row items-center">
+                    <View className="h-11 w-11 items-center justify-center rounded-2xl bg-teal-50">
+                      {editingId ? (
+                        <Feather name="edit-3" size={19} color="#0F766E" />
+                      ) : (
+                        <MaterialCommunityIcons
+                          name="bullhorn-outline"
+                          size={21}
+                          color="#0F766E"
+                        />
+                      )}
+                    </View>
+                    <View className="ml-3 flex-1">
+                      <Text className="font-inter-bold text-lg text-slate-900">
+                        {editingId ? "Edit notice" : "Create a notice"}
+                      </Text>
+                      <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
+                        {editingId
+                          ? "Update the announcement details"
+                          : "Share an update with every member"}
+                      </Text>
+                    </View>
+                  </View>
                   <TouchableOpacity
+                    className="h-9 w-9 items-center justify-center rounded-xl bg-slate-100"
                     onPress={resetForm}
                     accessibilityLabel="Close notice form"
                   >
-                    <Feather name="x" size={20} color="#64748B" />
+                    <Feather name="x" size={18} color="#475569" />
                   </TouchableOpacity>
                 </View>
+                <Text className="mb-1.5 mt-5 font-inter-semibold text-xs text-slate-700">
+                  Title
+                </Text>
                 <TextInput
-                  className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-inter text-sm text-slate-900"
                   value={title}
                   onChangeText={setTitle}
-                  placeholder="Notice title"
+                  placeholder="What is this announcement about?"
                   placeholderTextColor="#94A3B8"
                   maxLength={160}
                 />
+                <View className="mb-1.5 mt-3 flex-row items-center justify-between">
+                  <Text className="font-inter-semibold text-xs text-slate-700">
+                    Message
+                  </Text>
+                  <Text className="font-inter text-[10px] text-slate-400">
+                    {body.length}/5000
+                  </Text>
+                </View>
                 <TextInput
-                  className="mt-2 min-h-[110px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900"
+                  className="min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-inter text-sm leading-5 text-slate-900"
                   value={body}
                   onChangeText={setBody}
                   placeholder="Write your notice..."
@@ -339,14 +418,14 @@ export default function NoticeBoardRoute() {
                   textAlignVertical="top"
                   maxLength={5000}
                 />
-                <Text className="mt-3 font-inter-semibold text-xs text-slate-600">
-                  Notice color
+                <Text className="mt-4 font-inter-semibold text-xs text-slate-700">
+                  Card color
                 </Text>
-                <View className="mt-2 flex-row flex-wrap gap-2">
+                <View className="mt-2.5 flex-row flex-wrap gap-2.5">
                   {NOTICE_COLORS.map((noticeColor) => (
                     <TouchableOpacity
                       key={noticeColor}
-                      className={`h-9 w-9 items-center justify-center rounded-full border-2 ${color === noticeColor ? "border-slate-700" : "border-transparent"}`}
+                      className={`h-9 w-9 items-center justify-center rounded-xl border-2 ${color === noticeColor ? "border-teal-700" : "border-slate-100"}`}
                       style={{ backgroundColor: noticeColor }}
                       onPress={() => setColor(noticeColor)}
                       accessibilityRole="radio"
@@ -359,9 +438,9 @@ export default function NoticeBoardRoute() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <View className="mt-3 flex-row justify-end gap-2">
+                <View className="mt-5 flex-row gap-2.5">
                   <TouchableOpacity
-                    className="rounded-xl border border-slate-200 px-4 py-2.5"
+                    className="h-12 flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white"
                     onPress={resetForm}
                     disabled={saving}
                   >
@@ -370,16 +449,23 @@ export default function NoticeBoardRoute() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    className="rounded-xl bg-teal-700 px-4 py-2.5"
+                    className="h-12 flex-[1.25] flex-row items-center justify-center rounded-2xl bg-teal-700"
                     onPress={() => void saveNotice()}
                     disabled={saving}
                   >
                     {saving ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <Text className="font-inter-semibold text-sm text-white">
-                        {editingId ? "Update" : "Publish"}
-                      </Text>
+                      <>
+                        <Feather
+                          name={editingId ? "check" : "send"}
+                          size={15}
+                          color="#FFFFFF"
+                        />
+                        <Text className="ml-2 font-inter-semibold text-sm text-white">
+                          {editingId ? "Save changes" : "Publish"}
+                        </Text>
+                      </>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -388,167 +474,230 @@ export default function NoticeBoardRoute() {
           </Modal>
         ) : null}
 
-        <View className="mb-4">
-          <View className="h-14 flex-row items-center rounded-2xl border border-slate-100 bg-white px-4 shadow-sm shadow-slate-300/20">
-            <Feather name="search" size={22} color="#64748B" />
-            <TextInput
-              className="ml-3 min-w-0 flex-1 font-inter text-[15px] text-slate-700"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search notices..."
-              placeholderTextColor="#64748B"
-              returnKeyType="search"
+        <DraggableFlatList
+          containerStyle={{ flex: 1 }}
+          style={{ flex: 1 }}
+          alwaysBounceVertical
+          data={loading ? [] : filteredNotices}
+          keyExtractor={(notice) => String(notice.id)}
+          onDragEnd={({ data }) => {
+            if (searchQuery.trim()) return;
+            const previous = notices;
+            dispatch(setNoticeOrder(data));
+            void persistNoticeOrder(data, previous);
+          }}
+          activationDistance={8}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void refreshNotices()}
+              tintColor="#0e7871"
+              colors={["#0e7871"]}
             />
-            {searchQuery ? (
-              <TouchableOpacity
-                onPress={() => setSearchQuery("")}
-                accessibilityLabel="Clear notice search"
-              >
-                <Feather name="x" size={18} color="#64748B" />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-
-        {loading ? (
-          <View className="items-center py-16">
-            <ActivityIndicator size="large" color="#0F766E" />
-          </View>
-        ) : filteredNotices.length === 0 ? (
-          <View className="items-center rounded-2xl border border-slate-200 bg-white px-6 py-16">
-            <Feather name="clipboard" size={30} color="#B45309" />
-            <Text className="mt-3 font-inter-bold text-base text-slate-900">
-              {notices.length === 0 ? "No notices yet" : "No matching notices"}
-            </Text>
-            <Text className="mt-1 text-center font-inter text-sm text-slate-500">
-              {notices.length === 0 && isAdmin
-                ? "Create the first notice for your mess."
-                : notices.length === 0
-                  ? "New mess announcements will appear here."
-                  : "Try a different search term."}
-            </Text>
-          </View>
-        ) : (
-          <DraggableFlatList
-            data={filteredNotices}
-            keyExtractor={(notice) => String(notice.id)}
-            onDragEnd={({ data }) => {
-              if (searchQuery.trim()) return;
-              const previous = notices;
-              dispatch(setNoticeOrder(data));
-              void persistNoticeOrder(data, previous);
-            }}
-            activationDistance={8}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 32, gap: 12 }}
-            refreshing={refreshing}
-            onRefresh={() => void refreshNotices()}
-            renderItem={({
-              item: notice,
-              drag,
-              isActive,
-            }: RenderItemParams<ApiNotice>) => (
-              <Pressable
-                className={`overflow-hidden rounded-2xl border border-slate-100 bg-white p-4 shadow-sm shadow-slate-300/25 ${isActive ? "border-teal-400 opacity-80" : ""}`}
-                onPress={() => {
-                  if (isAdmin) editNotice(notice);
-                }}
-                disabled={!isAdmin}
-                accessibilityLabel={`Edit notice ${notice.title}`}
-                style={{
-                  borderColor: isActive ? "#2DD4BF" : "#E2E8F0",
-                  position: "relative",
-                }}
-              >
+          }
+          ListHeaderComponent={
+            <>
+              <View className="mb-4 rounded-[20px] border border-slate-100 bg-white p-1.5 shadow-sm shadow-slate-300/30">
+                <View className="h-12 flex-row items-center rounded-2xl bg-slate-50 px-3.5">
+                  <View className="h-8 w-8 items-center justify-center rounded-xl bg-white">
+                    <Feather name="search" size={17} color="#64748B" />
+                  </View>
+                  <TextInput
+                    className="ml-2.5 min-w-0 flex-1 font-inter text-[14px] text-slate-700"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search notices..."
+                    placeholderTextColor="#64748B"
+                    returnKeyType="search"
+                  />
+                  {searchQuery ? (
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-full bg-slate-200/70"
+                      onPress={() => setSearchQuery("")}
+                      accessibilityLabel="Clear notice search"
+                    >
+                      <Feather name="x" size={15} color="#64748B" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+              {!loading && notices.length > 0 ? (
+                <View className="mb-3 flex-row items-center justify-between px-1">
+                  <Text className="font-inter-bold text-sm text-slate-800">
+                    {normalizedSearchQuery
+                      ? "Search results"
+                      : "Latest notices"}
+                  </Text>
+                  <Text className="font-inter text-[11px] text-slate-500">
+                    {filteredNotices.length}{" "}
+                    {filteredNotices.length === 1 ? "notice" : "notices"}
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          }
+          ListEmptyComponent={
+            loading ? (
+              <View className="items-center py-20">
+                <ActivityIndicator size="large" color="#0F766E" />
+                <Text className="mt-3 font-inter text-xs text-slate-500">
+                  Loading announcements...
+                </Text>
+              </View>
+            ) : (
+              <View className="items-center rounded-[24px] border border-slate-100 bg-white px-7 py-14 shadow-sm shadow-slate-200/40">
+                <View className="h-16 w-16 items-center justify-center rounded-[22px] bg-amber-50">
+                  {notices.length === 0 ? (
+                    <MaterialCommunityIcons
+                      name="bullhorn-outline"
+                      size={30}
+                      color="#B45309"
+                    />
+                  ) : (
+                    <Feather name="search" size={28} color="#B45309" />
+                  )}
+                </View>
+                <Text className="mt-4 font-inter-bold text-lg text-slate-900">
+                  {notices.length === 0
+                    ? "No notices yet"
+                    : "No matching notices"}
+                </Text>
+                <Text className="mt-1.5 max-w-[260px] text-center font-inter text-[13px] leading-5 text-slate-500">
+                  {notices.length === 0 && isAdmin
+                    ? "Create the first notice for your mess."
+                    : notices.length === 0
+                      ? "New mess announcements will appear here."
+                      : "Try a different search term."}
+                </Text>
+                {notices.length === 0 && isAdmin ? (
+                  <TouchableOpacity
+                    className="mt-5 flex-row items-center rounded-2xl bg-teal-700 px-5 py-3"
+                    onPress={() => setFormOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={16} color="#FFFFFF" />
+                    <Text className="ml-2 font-inter-semibold text-sm text-white">
+                      Create first notice
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            )
+          }
+          renderItem={({
+            item: notice,
+            drag,
+            isActive,
+          }: RenderItemParams<ApiNotice>) => (
+            <View
+              className={`mb-3.5 overflow-hidden rounded-[18px] border ${isActive ? "opacity-90" : ""}`}
+              style={{
+                backgroundColor: getNoticeSurfaceColor(
+                  notice.color || NOTICE_COLORS[0],
+                ),
+                borderColor: isActive
+                  ? "#0F766E"
+                  : getNoticeAccent(notice.color || NOTICE_COLORS[0])
+                      .background,
+                shadowColor: "#94A3B8",
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: isActive ? 6 : 3,
+              }}
+            >
+              <View className="flex-row items-center gap-2 px-4 py-3">
+                <View className="h-8 w-8 items-center justify-center rounded-lg bg-white/80">
+                  <MaterialCommunityIcons
+                    name="bullhorn-outline"
+                    size={19}
+                    color={
+                      getNoticeAccent(notice.color || NOTICE_COLORS[0])
+                        .background
+                    }
+                  />
+                </View>
+                <Text className="min-w-0 flex-1 font-inter-semibold text-sm text-slate-800">
+                  Notice #{String(notice.serialNo).padStart(2, "0")}
+                </Text>
                 <View className="flex-row items-center">
-                  <View
-                    className="mr-3 h-11 w-11 items-center justify-center rounded-full"
-                    style={{
-                      backgroundColor: getNoticeAccent(
-                        notice.color || NOTICE_COLORS[0],
-                      ).background,
+                  <Feather name="calendar" size={12} color="#64748B" />
+                  <Text className="ml-1.5 font-inter text-[11px] text-slate-500">
+                    {formatNoticeDate(notice.createdAt)}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="px-2 pb-2">
+                <View className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                  <Text className="font-inter-bold text-[15px] leading-5 text-slate-900">
+                    {notice.title}
+                  </Text>
+                  <View className="my-2.5 h-px bg-slate-200/80" />
+                  <Text className="font-inter text-[13px] leading-5 text-slate-600">
+                    {notice.body}
+                  </Text>
+                </View>
+              </View>
+
+              {isAdmin ? (
+                <View className="flex-row items-center px-2 pb-2">
+                  <TouchableOpacity
+                    className="h-9 flex-1 flex-row items-center justify-center rounded-xl bg-white/70 px-2.5"
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      editNotice(notice);
                     }}
+                    disabled={reordering}
+                    accessibilityLabel="Edit notice"
+                  >
+                    <Feather name="edit-2" size={14} color="#475569" />
+                    <Text className="ml-1.5 font-inter-semibold text-[11px] text-slate-600">
+                      Edit
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="ml-2 h-9 flex-1 flex-row items-center justify-center rounded-xl bg-white/70 px-2.5"
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      removeNotice(notice);
+                    }}
+                    disabled={reordering}
+                    accessibilityLabel="Delete notice"
+                  >
+                    <Feather name="trash-2" size={14} color="#DC2626" />
+                    <Text className="ml-1.5 font-inter-semibold text-[11px] text-red-600">
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="ml-2 h-9 flex-1 flex-row items-center justify-center rounded-xl bg-white/70 px-2.5"
+                    onLongPress={(event) => {
+                      event.stopPropagation();
+                      drag();
+                    }}
+                    delayLongPress={150}
+                    disabled={reordering || Boolean(normalizedSearchQuery)}
+                    accessibilityLabel="Drag to reorder notice"
                   >
                     <Feather
-                      name="bell"
-                      size={20}
-                      color={
-                        getNoticeAccent(notice.color || NOTICE_COLORS[0]).icon
-                      }
+                      name="move"
+                      size={15}
+                      color={normalizedSearchQuery ? "#CBD5E1" : "#0F766E"}
                     />
-                  </View>
-                  <View
-                    className="mr-3 h-9 min-w-10 items-center justify-center rounded-xl px-2"
-                    style={{
-                      backgroundColor: getNoticeSurfaceColor(
-                        notice.color || NOTICE_COLORS[0],
-                      ),
-                    }}
-                  >
-                    <Text className="font-inter-bold text-xs text-amber-700">
-                      #{notice.serialNo}
+                    <Text
+                      className={`ml-1.5 font-inter-semibold text-[11px] ${normalizedSearchQuery ? "text-slate-300" : "text-teal-700"}`}
+                    >
+                      Move
                     </Text>
-                  </View>
-                  <View className="min-w-0 flex-1">
-                    <Text className="font-inter-bold text-base text-slate-900">
-                      #{notice.serialNo} {notice.title}
-                    </Text>
-                    <View className="mt-1 flex-row items-center gap-1.5">
-                      <Feather name="calendar" size={12} color="#64748B" />
-                      <Text className="font-inter text-[11px] text-slate-400">
-                        {formatNoticeDate(notice.createdAt)}
-                      </Text>
-                    </View>
-                  </View>
+                  </TouchableOpacity>
                 </View>
-                {isAdmin ? (
-                  <View
-                    className="absolute right-2 top-2 flex-row items-center gap-1"
-                    pointerEvents="box-none"
-                  >
-                    <TouchableOpacity
-                      className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100"
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        editNotice(notice);
-                      }}
-                      disabled={reordering}
-                      accessibilityLabel="Edit notice"
-                    >
-                      <Feather name="edit-2" size={14} color="#475569" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      className="h-8 w-8 items-center justify-center rounded-lg bg-red-50"
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        removeNotice(notice);
-                      }}
-                      disabled={reordering}
-                      accessibilityLabel="Delete notice"
-                    >
-                      <Feather name="trash-2" size={14} color="#DC2626" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      className="h-8 w-8 items-center justify-center rounded-lg bg-teal-50"
-                      onLongPress={(event) => {
-                        event.stopPropagation();
-                        drag();
-                      }}
-                      delayLongPress={150}
-                      disabled={reordering}
-                      accessibilityLabel="Drag to reorder notice"
-                    >
-                      <Feather name="move" size={18} color="#475569" />
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-                <Text className="mt-3 font-inter text-[15px] leading-6 text-slate-700">
-                  {notice.body}
-                </Text>
-              </Pressable>
-            )}
-          />
-        )}
+              ) : null}
+            </View>
+          )}
+        />
       </View>
       {refreshToastVisible ? (
         <View
@@ -558,7 +707,7 @@ export default function NoticeBoardRoute() {
           <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 shadow-md shadow-emerald-900/15">
             <Feather name="check-circle" size={15} color="#059669" />
             <Text className="font-inter-semibold text-xs text-emerald-700">
-              Notices refreshed successfully
+              Refresh successful
             </Text>
           </View>
         </View>

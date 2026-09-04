@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useMemo } from "react";
 import MonthPicker from "@/components/MonthPicker";
 import {
   useAuth,
@@ -27,9 +27,10 @@ export const DashboardAccountingSection = forwardRef<
     dataLoading,
     refreshMonth,
   } = useMess();
-  const { getGrandTotal, getConsumerTotal } = useMeals();
-  const { getMonthExpenseTotal } = useExpenses();
-  const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
+  const { meals, getGrandTotal, getConsumerTotal } = useMeals();
+  const { expenses, getMonthExpenseTotal } = useExpenses();
+  const { deposits, getGrandDepositTotal, getConsumerDepositTotal } =
+    useDeposits();
   const refreshAccounting = useCallback(async () => {
     await refreshMonth();
   }, [refreshMonth]);
@@ -38,17 +39,29 @@ export const DashboardAccountingSection = forwardRef<
     refreshAccounting,
   ]);
 
-  const accounting = calculateDashboardAccounting({
-    consumers,
-    currentYearMonth,
-    appliedRange: null,
-    rangeData: {},
-    getGrandTotal,
-    getMonthExpenseTotal,
-    getGrandDepositTotal,
-    getConsumerTotal,
-    getConsumerDepositTotal,
-  });
+  // This calculation walks every consumer's monthly data. Do not repeat it
+  // for unrelated Redux updates such as connection/banner state changes.
+  const accounting = useMemo(
+    () =>
+      calculateDashboardAccounting({
+        consumers,
+        currentYearMonth,
+        appliedRange: null,
+        rangeData: {},
+        getGrandTotal,
+        getMonthExpenseTotal,
+        getGrandDepositTotal,
+        getConsumerTotal,
+        getConsumerDepositTotal,
+      }),
+    [
+      consumers,
+      currentYearMonth,
+      meals,
+      expenses,
+      deposits,
+    ],
+  );
   const personalConsumer =
     accounting.consumerRows.find((consumer) => consumer.userId === user?.id) ??
     null;

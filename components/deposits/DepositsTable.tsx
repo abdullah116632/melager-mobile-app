@@ -124,6 +124,7 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
           <ScrollView
             className="flex-1"
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={Platform.OS === "android"}
             contentContainerClassName={
               Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"
             }

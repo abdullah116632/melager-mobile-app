@@ -30,7 +30,9 @@ export const DashboardContent = () => {
     <ScrollView
       className="flex-1"
       showsVerticalScrollIndicator={false}
-      removeClippedSubviews={false}
+      // Dashboard has several fairly dense cards. On Android, keeping views
+      // outside the viewport detached reduces layout work during tab switches.
+      removeClippedSubviews={Platform.OS === "android"}
       contentContainerClassName={`pt-2 ${Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"}`}
       refreshControl={
         <RefreshControl

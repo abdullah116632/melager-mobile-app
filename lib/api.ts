@@ -67,7 +67,23 @@ type Method = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 const inFlightGets = new Map<string, Promise<unknown>>();
 const responseCache = new Map<string, { data: unknown; expiresAt: number }>();
 const GET_CACHE_MS = 15_000;
+const MAX_RESPONSE_CACHE_ENTRIES = 60;
 const REQUEST_TIMEOUT_MS = 20_000;
+
+// A different message page, date or filter creates a distinct GET key. Keep
+// this short-lived cache bounded so a long-running session does not retain old
+// API payloads and become progressively heavier.
+function pruneResponseCache(now = Date.now()): void {
+  for (const [key, entry] of responseCache) {
+    if (entry.expiresAt <= now) responseCache.delete(key);
+  }
+
+  while (responseCache.size > MAX_RESPONSE_CACHE_ENTRIES) {
+    const oldestKey = responseCache.keys().next().value;
+    if (!oldestKey) return;
+    responseCache.delete(oldestKey);
+  }
+}
 
 export function clearApiCache(): void {
   responseCache.clear();
@@ -93,6 +109,7 @@ async function req<T>(
   const requestKey = `${url}:${token ?? ""}`;
 
   if (method === "GET") {
+    pruneResponseCache();
     const cached = responseCache.get(requestKey);
     if (cached && cached.expiresAt > Date.now()) return cached.data as T;
     if (cached) responseCache.delete(requestKey);
@@ -127,6 +144,7 @@ async function req<T>(
           data,
           expiresAt: Date.now() + GET_CACHE_MS,
         });
+        pruneResponseCache();
       } else {
         // Any write may affect multiple summary/list endpoints. A small global
         // cache is cheap to clear and avoids serving inconsistent screen data.

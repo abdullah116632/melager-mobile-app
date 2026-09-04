@@ -12,6 +12,7 @@ import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { enableFreeze } from "react-native-screens";
 import { cssInterop } from "nativewind";
 import { Provider } from "react-redux";
 
@@ -40,6 +41,11 @@ import {
 } from "@/services/pendingAdminOtpService";
 
 SplashScreen.preventAutoHideAsync();
+
+// React Navigation's `freezeOnBlur` only takes effect after this native-screen
+// setting is enabled. It keeps an inactive tab's Redux data in memory while
+// stopping its React tree from doing layout and render work.
+enableFreeze(true);
 
 const NativeWindGestureHandlerRootView = cssInterop(GestureHandlerRootView, {
   className: "style",
