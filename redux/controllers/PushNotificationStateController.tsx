@@ -9,6 +9,8 @@ import { api, clearApiCache } from "@/lib/api";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { selectAuthState, selectMess } from "@/redux/slice/authSlice";
 import {
+  ingestServerNotification,
+  markNotificationRead,
   refreshNotifications,
   selectNotificationState,
 } from "@/redux/slice/notificationSlice";
@@ -178,6 +180,32 @@ export const PushNotificationStateController = ({
           void dispatch(loadUnreadNoticesCount());
           return;
         }
+        const data = notification.request.content.data;
+        const notificationId = Number(data?.notificationId);
+        const notificationMessId = Number(data?.messId);
+        if (
+          Number.isInteger(notificationId) &&
+          notificationId > 0 &&
+          Number.isInteger(notificationMessId) &&
+          notificationMessId > 0
+        ) {
+          void dispatch(
+            ingestServerNotification({
+              id: notificationId,
+              messId: notificationMessId,
+              noticeId: null,
+              type: String(type ?? ""),
+              title: notification.request.content.title ?? "Notification",
+              body: notification.request.content.body ?? "",
+              readAt: null,
+              createdAt: new Date(notification.date).toISOString(),
+            }),
+          ).then(() => {
+            clearApiCache();
+            void dispatch(refreshNotifications());
+          });
+          return;
+        }
         clearApiCache();
         void dispatch(refreshNotifications());
       },
@@ -215,13 +243,37 @@ export const PushNotificationStateController = ({
     }
 
     const notificationId = Number(data?.notificationId);
-    if (Number.isInteger(notificationId) && notificationId > 0) {
-      void api
-        .markServerNotificationRead(notificationId, auth.token)
-        .catch(() => undefined);
+    const isGeneralNotification =
+      !isMessage &&
+      !isNotice &&
+      Number.isInteger(notificationId) &&
+      notificationId > 0 &&
+      Number.isInteger(notificationMessId) &&
+      notificationMessId > 0;
+    if (isGeneralNotification) {
+      void dispatch(
+        ingestServerNotification({
+          id: notificationId,
+          messId: notificationMessId,
+          noticeId: null,
+          type: String(data?.type ?? ""),
+          title:
+            lastResponse.notification.request.content.title ?? "Notification",
+          body: lastResponse.notification.request.content.body ?? "",
+          readAt: null,
+          createdAt: new Date(lastResponse.notification.date).toISOString(),
+        }),
+      )
+        .then(() => dispatch(markNotificationRead(`server_${notificationId}`)))
+        .then(() => {
+          clearApiCache();
+          void dispatch(refreshNotifications());
+        });
     }
     clearApiCache();
-    if (!isMessage && !isNotice) void dispatch(refreshNotifications());
+    if (!isMessage && !isNotice && !isGeneralNotification) {
+      void dispatch(refreshNotifications());
+    }
     Notifications.clearLastNotificationResponse();
 
     if (typeof route === "string" && route.startsWith("/")) {

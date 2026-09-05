@@ -16,7 +16,9 @@ import {
 } from "react-native";
 
 import { api, type ApiBazarItem } from "@/lib/api";
-import { enqueue } from "@/lib/offlineQueue";
+import { getOfflineDatabase } from "@/offline/database/connection";
+import { OutboxRepository } from "@/offline/repositories/outboxRepository";
+import { addDashboardDays, getDhakaDate } from "@/utils/dashboard";
 import {
   useAppDispatch,
   useAppSelector,
@@ -38,17 +40,17 @@ import { loadMonth } from "@/redux/slice/messSlice";
 import { markBazarAssignmentsRead } from "@/redux/slice/bazarNotificationsSlice";
 
 const getUpcomingDays = () => {
-  const today = new Date();
+  const today = getDhakaDate();
   return Array.from({ length: 7 }, (_, offset) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + offset);
+    const key = addDashboardDays(today, offset);
+    const date = new Date(`${key}T00:00:00`);
     return {
       name: date.toLocaleDateString("en-US", { weekday: "long" }),
       date: date.toLocaleDateString("en-US", {
         day: "numeric",
         month: "short",
       }),
-      key: date.toISOString().slice(0, 10),
+      key,
       weekday: (date.getDay() + 1) % 7,
     };
   });
@@ -71,7 +73,7 @@ export default function BazarListRoute() {
       source === "manager" ? "/(tabs)/manager" : "/(tabs)/dashboard",
     );
   const dispatch = useAppDispatch();
-  const { mess, role, token } = useAuth();
+  const { mess, role, token, user } = useAuth();
   const { isOnline } = useNetwork();
   const isAdmin = role === "admin";
   const {
@@ -281,19 +283,31 @@ export default function BazarListRoute() {
 
   const addItemsToTodayExpense = () => {
     if (!token || !mess || items.length === 0) return;
-    const today = new Date();
-    const yearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-    const day = today.getDate();
+    const today = getDhakaDate();
+    const yearMonth = today.slice(0, 7);
+    const day = Number(today.slice(8, 10));
     if (!isOnline) {
-      void enqueue({
-        type: "BAZAR_ADD_TO_EXPENSE",
-        key: `bazar:expense:${Date.now()}`,
-        payload: { yearMonth, day, messId: mess.id },
-        token,
-      });
-      Alert.alert(
-        "Saved offline",
-        "This expense update will be added when you are online.",
+      void (async () => {
+        if (!user) return;
+        const database = await getOfflineDatabase();
+        await new OutboxRepository(database).enqueue({
+          userId: user.id,
+          messId: mess.id,
+          entityType: "bazar_expense",
+          entityId: `${mess.id}:${yearMonth}:${day}`,
+          operation: "command",
+          payload: { yearMonth, day },
+          dedupeKey: `bazar:expense:${mess.id}:${yearMonth}:${day}`,
+        });
+        Alert.alert(
+          "Saved offline",
+          "This expense update will be added when you are online.",
+        );
+      })().catch((error) =>
+        Alert.alert(
+          "Could not save offline",
+          error instanceof Error ? error.message : "Please try again.",
+        ),
       );
       return;
     }

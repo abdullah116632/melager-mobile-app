@@ -12,6 +12,9 @@ import { depositsMigration } from "./008-deposits";
 import { expensesMigration } from "./009-expenses";
 import { messagesMigration } from "./010-messages";
 import { notificationsMigration } from "./011-notifications";
+import { expenseMonthStateMigration } from "./012-expense-month-state";
+import { outboxDeadLettersMigration } from "./013-outbox-dead-letters";
+import { mealCalendarMigration } from "./014-meal-calendar";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
@@ -26,6 +29,9 @@ const migrations: DatabaseMigration[] = [
   expensesMigration,
   messagesMigration,
   notificationsMigration,
+  expenseMonthStateMigration,
+  outboxDeadLettersMigration,
+  mealCalendarMigration,
 ];
 
 type UserVersionRow = { user_version: number };

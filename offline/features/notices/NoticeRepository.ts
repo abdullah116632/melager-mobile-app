@@ -290,7 +290,15 @@ export class NoticeRepository {
           entityType: "notice",
           entityId: row.local_id,
           operation: "update",
-          payload: { localId: row.local_id, serverId: row.server_id, ...input },
+          baseVersion: row.server_updated_at
+            ? Date.parse(row.server_updated_at)
+            : null,
+          payload: {
+            localId: row.local_id,
+            serverId: row.server_id,
+            baseUpdatedAt: row.server_updated_at ?? undefined,
+            ...input,
+          },
         });
       }
       await this.ensureSyncState(userId, messId, now);
@@ -333,7 +341,14 @@ export class NoticeRepository {
           entityType: "notice",
           entityId: row.local_id,
           operation: "delete",
-          payload: { localId: row.local_id, serverId: row.server_id },
+          baseVersion: row.server_updated_at
+            ? Date.parse(row.server_updated_at)
+            : null,
+          payload: {
+            localId: row.local_id,
+            serverId: row.server_id,
+            baseUpdatedAt: row.server_updated_at ?? undefined,
+          },
         });
       }
       await this.queueReorderAfterDelete(userId, messId);
@@ -347,6 +362,23 @@ export class NoticeRepository {
     notices: ApiNotice[],
   ): Promise<void> {
     const now = Date.now();
+    const currentOrder = await this.database.getAllAsync<{
+      local_id: string;
+    }>(
+      `SELECT local_id FROM local_notices
+       WHERE mess_id = ? AND is_deleted = 0
+       ORDER BY serial_no ASC, created_at ASC, display_id ASC`,
+      messId,
+    );
+    const pending = await this.database.getFirstAsync<{ payload: string }>(
+      `SELECT payload FROM offline_outbox
+       WHERE user_id = ? AND dedupe_key = ?`,
+      userId,
+      `notice:reorder:${messId}`,
+    );
+    const originalBase = pending
+      ? (JSON.parse(pending.payload) as NoticeMutationPayload).baseLocalIds
+      : undefined;
     const localRows = await Promise.all(
       notices.map((notice) =>
         this.database.getFirstAsync<{ local_id: string }>(
@@ -376,7 +408,10 @@ export class NoticeRepository {
         entityType: "notice_reorder",
         entityId: "order",
         operation: "upsert",
-        payload: { localIds },
+        payload: {
+          localIds,
+          baseLocalIds: originalBase ?? currentOrder.map((row) => row.local_id),
+        },
       });
       await this.ensureSyncState(userId, messId, now);
     });
@@ -384,6 +419,12 @@ export class NoticeRepository {
 
   async markRead(userId: number, messId: number): Promise<void> {
     const now = Date.now();
+    const latest = await this.database.getFirstAsync<{ id: number | null }>(
+      `SELECT MAX(server_id) AS id FROM local_notices
+       WHERE mess_id = ? AND is_deleted = 0 AND server_id IS NOT NULL`,
+      messId,
+    );
+    const lastReadNoticeId = Math.max(0, Number(latest?.id ?? 0));
     await this.database.withTransactionAsync(async () => {
       await this.database.runAsync(
         `INSERT INTO local_notice_read_state
@@ -402,7 +443,7 @@ export class NoticeRepository {
         entityType: "notice_notification",
         entityId: "read",
         operation: "command",
-        payload: {},
+        payload: { lastReadNoticeId },
       });
       await this.ensureSyncState(userId, messId, now);
     });
@@ -420,13 +461,39 @@ export class NoticeRepository {
       operationId,
     );
     if (Number(other?.total ?? 0) > 0) {
-      await this.database.runAsync(
-        "UPDATE local_notices SET server_id = ?, display_id = ?, server_updated_at = ? WHERE local_id = ?",
-        notice.id,
-        notice.id,
-        notice.updatedAt,
-        localId,
-      );
+      await this.database.withTransactionAsync(async () => {
+        await this.database.runAsync(
+          "UPDATE local_notices SET server_id = ?, display_id = ?, server_updated_at = ? WHERE local_id = ?",
+          notice.id,
+          notice.id,
+          notice.updatedAt,
+          localId,
+        );
+        const pending = await this.database.getAllAsync<{
+          id: string;
+          payload: string;
+        }>(
+          `SELECT id,payload FROM offline_outbox
+           WHERE entity_type='notice' AND entity_id=? AND id<>?`,
+          localId,
+          operationId,
+        );
+        for (const row of pending) {
+          const payload = JSON.parse(row.payload) as NoticeMutationPayload;
+          await this.database.runAsync(
+            `UPDATE offline_outbox
+             SET operation='update',payload=?,base_version=?,updated_at=? WHERE id=?`,
+            JSON.stringify({
+              ...payload,
+              serverId: notice.id,
+              baseUpdatedAt: notice.updatedAt,
+            }),
+            Date.parse(notice.updatedAt),
+            Date.now(),
+            row.id,
+          );
+        }
+      });
       return;
     }
     await this.database.runAsync(
@@ -509,9 +576,14 @@ export class NoticeRepository {
     });
   }
 
-  async acknowledgeRead(userId: number, messId: number): Promise<void> {
+  async acknowledgeRead(
+    userId: number,
+    messId: number,
+    unreadCount: number,
+  ): Promise<void> {
     await this.database.runAsync(
-      "UPDATE local_notice_read_state SET unread_count = 0, read_pending = 0, updated_at = ? WHERE user_id = ? AND mess_id = ?",
+      "UPDATE local_notice_read_state SET unread_count = ?, read_pending = 0, updated_at = ? WHERE user_id = ? AND mess_id = ?",
+      Math.max(0, unreadCount),
       Date.now(),
       userId,
       messId,
@@ -552,6 +624,15 @@ export class NoticeRepository {
     userId: number,
     messId: number,
   ): Promise<void> {
+    const pending = await this.database.getFirstAsync<{ payload: string }>(
+      `SELECT payload FROM offline_outbox
+       WHERE user_id = ? AND mess_id = ? AND entity_type = 'notice_reorder'`,
+      userId,
+      messId,
+    );
+    const previousBase = pending
+      ? (JSON.parse(pending.payload) as NoticeMutationPayload).baseLocalIds
+      : undefined;
     await this.database.runAsync(
       "DELETE FROM offline_outbox WHERE user_id = ? AND mess_id = ? AND entity_type = 'notice_reorder'",
       userId,
@@ -564,6 +645,7 @@ export class NoticeRepository {
       messId,
     );
     if (rows.length === 0) return;
+    const remainingIds = new Set(rows.map((row) => row.local_id));
     await this.outbox.enqueue<NoticeMutationPayload>({
       dedupeKey: `notice:reorder:${messId}`,
       userId,
@@ -571,7 +653,14 @@ export class NoticeRepository {
       entityType: "notice_reorder",
       entityId: "order",
       operation: "upsert",
-      payload: { localIds: rows.map((row) => row.local_id) },
+      payload: {
+        localIds: rows.map((row) => row.local_id),
+        // The preceding delete is processed before this reorder, so the
+        // expected server order excludes the deleted local row.
+        baseLocalIds:
+          previousBase?.filter((localId) => remainingIds.has(localId)) ??
+          rows.map((row) => row.local_id),
+      },
     });
   }
 

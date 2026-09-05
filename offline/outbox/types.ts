@@ -32,3 +32,11 @@ export interface EnqueueOperationInput<TPayload = unknown> {
   payload: TPayload;
   baseVersion?: number | null;
 }
+
+export interface DeadLetterOperation<TPayload = unknown> extends Omit<
+  OutboxOperation<TPayload>,
+  "status" | "nextAttemptAt"
+> {
+  httpStatus: number | null;
+  failedAt: number;
+}

@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 
-import type { ApiMessage } from "@/lib/api";
+import type { MessageItem } from "@/offline/features/messages/MessageRepository";
 import {
   enterMessageConversation,
   leaveMessageConversation,
@@ -24,10 +24,7 @@ import {
   useAuth,
   useNetwork,
 } from "@/redux/hooks";
-import {
-  apiActionFailed,
-  offlineActionFailed,
-} from "@/redux/slice/networkSlice";
+import { apiActionFailed } from "@/redux/slice/networkSlice";
 import {
   loadMessages,
   markMessagesRead,
@@ -66,10 +63,16 @@ const MessageBubble = ({
   message,
   own,
 }: {
-  message: ApiMessage;
+  message: MessageItem;
   own: boolean;
 }) => {
   const time = formatMessageTime(message.createdAt);
+  const deliveryLabel =
+    own && message.status === "pending"
+      ? "Sending…"
+      : own && message.status === "failed"
+        ? "Failed"
+        : time;
 
   return (
     <View
@@ -100,7 +103,13 @@ const MessageBubble = ({
         </Text>
         <View className="mt-1.5 flex-row items-center justify-end">
           <Feather
-            name={own ? "check" : "clock"}
+            name={
+              own && message.status === "failed"
+                ? "alert-circle"
+                : own && message.status === "sent"
+                  ? "check"
+                  : "clock"
+            }
             size={11}
             color={own ? "#CCFBF1" : "#94A3B8"}
           />
@@ -109,7 +118,7 @@ const MessageBubble = ({
               own ? "text-teal-100" : "text-slate-400"
             }`}
           >
-            {time}
+            {deliveryLabel}
           </Text>
         </View>
       </View>
@@ -142,7 +151,7 @@ export default function MessagesRoute() {
 
   useEffect(() => {
     if (token && mess) void dispatch(loadMessages(undefined));
-  }, [dispatch, mess?.id, token]);
+  }, [dispatch, isOnline, mess?.id, token]);
 
   useEffect(() => {
     setCanLoadOlder(false);
@@ -152,17 +161,13 @@ export default function MessagesRoute() {
     useCallback(() => {
       if (!mess) return undefined;
       enterMessageConversation(mess.id);
-      if (token && isOnline) void dispatch(markMessagesRead());
+      if (token) void dispatch(markMessagesRead());
       return () => leaveMessageConversation(mess.id);
-    }, [dispatch, isOnline, mess?.id, token]),
+    }, [dispatch, mess?.id, token]),
   );
 
   const refreshMessages = useCallback(async () => {
     if (!token || !mess) return;
-    if (!isOnline) {
-      dispatch(offlineActionFailed("refresh"));
-      return;
-    }
     setRefreshing(true);
     try {
       await dispatch(loadMessages(undefined)).unwrap();
@@ -177,7 +182,7 @@ export default function MessagesRoute() {
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch, isOnline, mess, token]);
+  }, [dispatch, mess, token]);
 
   const loadOlderMessages = () => {
     if (
@@ -199,10 +204,6 @@ export default function MessagesRoute() {
   const submitMessage = async () => {
     const body = draft.trim();
     if (!body || !user || sendStatus === "loading") return;
-    if (!isOnline) {
-      dispatch(offlineActionFailed("entry"));
-      return;
-    }
     setDraft("");
     try {
       await dispatch(sendMessage({ body, senderUserId: user.id })).unwrap();

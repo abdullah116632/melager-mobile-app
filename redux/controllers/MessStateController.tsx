@@ -11,11 +11,13 @@ import {
 } from "@/redux/slice/messSlice";
 import { loadUnreadMessageCount } from "@/redux/slice/messagesSlice";
 import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
+import { selectNetworkState } from "@/redux/slice/networkSlice";
 
 export const MessStateController = ({ children }: { children: ReactNode }) => {
   const dispatch = useAppDispatch();
   const token = useAppSelector(selectAuthToken);
   const activeMess = useAppSelector(selectActiveMess);
+  const { isOnline } = useAppSelector(selectNetworkState);
   const { currentYear, currentMonth } = useAppSelector(selectMessState);
   const yearMonth = formatYearMonth(currentYear, currentMonth);
   const messId = activeMess?.id ?? null;
@@ -26,11 +28,14 @@ export const MessStateController = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (token && messId) {
+      // loadMonth hydrates SQLite and dispatches that snapshot before it asks
+      // the API for the authoritative month. A second parallel hydration here
+      // could otherwise overwrite a newer remote result with stale local data.
       void dispatch(loadMonth({ messId, yearMonth }));
       void dispatch(loadUnreadMessageCount());
       void dispatch(loadUnreadNoticesCount());
     }
-  }, [dispatch, token, messId, yearMonth]);
+  }, [dispatch, isOnline, token, messId, yearMonth]);
 
   useEffect(() => {
     if (!token || !messId) return;

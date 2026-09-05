@@ -14,7 +14,11 @@ export const getMealStatus = async (
     api.getMealOptOuts(messId, date, token),
   ]);
 
-  return { schedule: schedule.schedule, myOptOuts: schedule.myOptOuts, consumers: optOuts.consumers };
+  return {
+    schedule: schedule.schedule,
+    myOptOuts: schedule.myOptOuts,
+    consumers: optOuts.consumers,
+  };
 };
 
 export const getLocalMealStatus = async (
@@ -37,11 +41,27 @@ export const cacheMealStatus = async (
   myOptOuts: string[] = [],
 ) => {
   if (!database || !userId) return;
+  const activeByMeal = consumers.reduce(
+    (totals, consumer) => ({
+      breakfast: totals.breakfast + (consumer.breakfast ? 1 : 0),
+      lunch: totals.lunch + (consumer.lunch ? 1 : 0),
+      dinner: totals.dinner + (consumer.dinner ? 1 : 0),
+    }),
+    { breakfast: 0, lunch: 0, dinner: 0 },
+  );
   await new MealScheduleRepository(database).replaceRemoteSnapshot(
     userId,
     messId,
     date,
-    { date, schedule, myOptOuts, totalConsumers: consumers.length, activeByMeal: { breakfast: 0, lunch: 0, dinner: 0 }, totalActive: 0 },
+    {
+      date,
+      schedule,
+      myOptOuts,
+      totalConsumers: consumers.length,
+      activeByMeal,
+      totalActive:
+        activeByMeal.breakfast + activeByMeal.lunch + activeByMeal.dinner,
+    },
     consumers,
   );
 };
@@ -57,11 +77,22 @@ export const queueMealScheduleUpdate = async (
 ) => {
   if (!database || !userId) return false;
   const repository = new MealScheduleRepository(database);
-  await repository.saveSchedule(userId, data.messId, data.date, schedule, { date: data.date, schedule });
+  await repository.saveSchedule(userId, data.messId, data.date, schedule, {
+    date: data.date,
+    schedule,
+  });
   return true;
 };
 
-export const syncMealScheduleNow = async (database: SQLiteDatabase | null, token: string, userId: number, messId: number) => {
+export const syncMealScheduleNow = async (
+  database: SQLiteDatabase | null,
+  token: string,
+  userId: number,
+  messId: number,
+) => {
   if (!database) return;
-  await getOfflineRuntime(database).engine.sync({ userId, messId, token }, { collections: ["meal_schedule"], force: true });
+  await getOfflineRuntime(database).engine.sync(
+    { userId, messId, token },
+    { collections: ["meal_schedule"], force: true },
+  );
 };

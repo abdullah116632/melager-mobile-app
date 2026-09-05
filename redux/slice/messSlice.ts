@@ -10,6 +10,7 @@ import {
 
 import {
   api,
+  ApiError,
   clearApiCache,
   type ApiConsumer,
   type MonthData,
@@ -21,7 +22,9 @@ import {
 } from "@/offline/features/reference/storage";
 import { updateProfileName, type AuthState } from "@/redux/slice/authSlice";
 import { getOfflineDatabase } from "@/offline/database/connection";
+import { OutboxRepository } from "@/offline/repositories/outboxRepository";
 import { DailyMealsRepository } from "@/offline/features/dailyMeals/DailyMealsRepository";
+import { ExpenseRepository } from "@/offline/features/expenses/ExpenseRepository";
 import type { NetworkState } from "@/redux/slice/networkSlice";
 import type { Consumer } from "@/types/mess";
 
@@ -112,6 +115,12 @@ const createMessAsyncThunk = createAsyncThunk.withTypes<{
   state: MessRootState;
 }>();
 
+const isConnectivityError = (error: unknown): boolean =>
+  error instanceof ApiError
+    ? error.status === 408
+    : error instanceof TypeError &&
+      /network|fetch|connection|load/i.test(error.message);
+
 export const hydrateConsumersFromLocal = createMessAsyncThunk<void, void>(
   "mess/hydrateConsumersFromLocal",
   async (_arg, { dispatch, getState }) => {
@@ -154,31 +163,64 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
     // airplane mode. Never wait for the fetch timeout when NetInfo already
     // knows the device is offline.
     if (!alreadyLoaded && !force) {
-      const cached = await loadFromCache(messId, yearMonth);
-      if (cached) {
-        const cachedMonth = cached as MonthData;
-        try {
-          const repository = new DailyMealsRepository(await getOfflineDatabase());
-          const beforeSeed = await repository.getMonth(user.id, messId, yearMonth);
-          if (Object.keys(beforeSeed).length === 0) {
-            await repository.mergeRemote(user.id, messId, yearMonth, cachedMonth.meals);
-          }
-          const localMeals = await repository.getMonth(user.id, messId, yearMonth);
-          if (Object.keys(localMeals).length > 0) cachedMonth.meals = localMeals;
-        } catch {
-          // SQLite is native-only; preserve the legacy cache on web.
-        }
-        await saveLocalConsumers(user.id, messId, cachedMonth.consumers).catch(
-          () => undefined,
+      const cached = (await loadFromCache(
+        messId,
+        yearMonth,
+      )) as MonthData | null;
+      const localConsumers = await getLocalConsumers(user.id, messId).catch(
+        () => null,
+      );
+      const localMonth: MonthData = {
+        consumers: localConsumers?.consumers ?? cached?.consumers ?? [],
+        meals: cached?.meals ?? {},
+        expenses: cached?.expenses ?? {},
+        deposits: cached?.deposits ?? {},
+      };
+      try {
+        const repository = new DailyMealsRepository(await getOfflineDatabase());
+        const sqliteMeals = await repository.getMonth(
+          user.id,
+          messId,
+          yearMonth,
         );
-        dispatch(
-          monthDataReceived({
+        if (Object.keys(sqliteMeals).length === 0 && cached?.meals) {
+          await repository.mergeRemote(
+            user.id,
             messId,
             yearMonth,
-            data: cachedMonth,
-          }),
+            cached.meals,
+          );
+        }
+        localMonth.meals = await repository.getMonth(
+          user.id,
+          messId,
+          yearMonth,
         );
+      } catch {
+        // SQLite is native-only; preserve the compatibility cache on web.
       }
+      try {
+        const repository = new ExpenseRepository(await getOfflineDatabase());
+        if (
+          !(await repository.hasMonthSnapshot(user.id, messId, yearMonth)) &&
+          cached?.expenses
+        ) {
+          await repository.mergeRemote(
+            user.id,
+            messId,
+            yearMonth,
+            cached.expenses,
+          );
+        }
+        localMonth.expenses = await repository.getMonth(
+          user.id,
+          messId,
+          yearMonth,
+        );
+      } catch {
+        // SQLite is native-only; preserve the compatibility cache on web.
+      }
+      dispatch(monthDataReceived({ messId, yearMonth, data: localMonth }));
     }
 
     if (!getState().network.isOnline) {
@@ -192,13 +234,23 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
 
     const data = await api.getMonthData(yearMonth, token, messId);
     if (data) {
+      const serverExpenses = data.expenses;
       try {
-        data.meals = await new DailyMealsRepository(await getOfflineDatabase()).mergeRemote(user.id, messId, yearMonth, data.meals);
+        data.meals = await new DailyMealsRepository(
+          await getOfflineDatabase(),
+        ).mergeRemote(user.id, messId, yearMonth, data.meals);
+      } catch {
+        // Web and pre-migration builds retain the existing cache path.
+      }
+      try {
+        data.expenses = await new ExpenseRepository(
+          await getOfflineDatabase(),
+        ).mergeRemote(user.id, messId, yearMonth, serverExpenses);
       } catch {
         // Web and pre-migration builds retain the existing cache path.
       }
       await Promise.all([
-        saveToCache(messId, yearMonth, data),
+        saveToCache(messId, yearMonth, { ...data, expenses: serverExpenses }),
         saveLocalConsumers(user.id, messId, data.consumers),
       ]);
     }
@@ -277,18 +329,56 @@ export const addConsumer = createMessAsyncThunk<
 >(
   "mess/addConsumer",
   async ({ name, email, mobileNumber, isOnline }, { getState }) => {
-    if (!isOnline) throw new Error("Internet connection required.");
     const { token, user, activeMess } = getState().auth;
     if (!token || !user || !activeMess) {
       throw new Error("Please select a mess and sign in again.");
     }
-    const result = await api.addConsumer(
-      name,
-      email,
-      mobileNumber,
-      token,
-      activeMess.id,
-    );
+    let result: Awaited<ReturnType<typeof api.addConsumer>> | null = null;
+    if (isOnline) {
+      try {
+        result = await api.addConsumer(
+          name,
+          email,
+          mobileNumber,
+          token,
+          activeMess.id,
+        );
+      } catch (error) {
+        if (!isConnectivityError(error)) throw error;
+      }
+    }
+    if (!result) {
+      const cached = await getLocalConsumers(user.id, activeMess.id);
+      const temporary: ApiConsumer = {
+        id: -Date.now(),
+        name: name.trim(),
+        userId: null,
+        email: email.trim().toLowerCase(),
+        mobileNumber: mobileNumber?.trim() || null,
+        isAdmin: false,
+        accountDeletedAt: null,
+      };
+      const consumers = [...(cached?.consumers ?? []), temporary];
+      await saveLocalConsumers(user.id, activeMess.id, consumers);
+      await new OutboxRepository(await getOfflineDatabase()).enqueue({
+        userId: user.id,
+        messId: activeMess.id,
+        entityType: "reference_consumer",
+        entityId: String(temporary.id),
+        operation: "create",
+        payload: {
+          name: temporary.name,
+          email: temporary.email,
+          mobileNumber: temporary.mobileNumber,
+        },
+      });
+      return {
+        consumer: { id: String(temporary.id), name: temporary.name },
+        invitationSent: false,
+        messId: activeMess.id,
+        consumers: toConsumers(consumers),
+      };
+    }
     clearApiCache();
     const latest = await api.getConsumers(token, activeMess.id);
     await saveLocalConsumers(user.id, activeMess.id, latest.consumers);
@@ -312,12 +402,51 @@ export const removeConsumer = createMessAsyncThunk<
   },
   { id: string; isOnline: boolean }
 >("mess/removeConsumer", async ({ id, isOnline }, { getState }) => {
-  if (!isOnline) throw new Error("Internet connection required.");
   const { token, user, activeMess } = getState().auth;
   if (!token || !user || !activeMess) {
     return { id, removed: false, messId: null, consumers: [] };
   }
-  await api.removeConsumer(parseInt(id, 10), token, activeMess.id);
+  let queued = !isOnline;
+  if (!queued) {
+    try {
+      await api.removeConsumer(parseInt(id, 10), token, activeMess.id);
+    } catch (error) {
+      if (!isConnectivityError(error)) throw error;
+      queued = true;
+    }
+  }
+  if (queued) {
+    const cached = await getLocalConsumers(user.id, activeMess.id);
+    const consumers = (cached?.consumers ?? []).filter(
+      (consumer) => String(consumer.id) !== id,
+    );
+    await saveLocalConsumers(user.id, activeMess.id, consumers);
+    const consumerId = Number(id);
+    if (consumerId > 0) {
+      await new OutboxRepository(await getOfflineDatabase()).enqueue({
+        userId: user.id,
+        messId: activeMess.id,
+        entityType: "reference_consumer",
+        entityId: id,
+        operation: "delete",
+        payload: { consumerId },
+        dedupeKey: `consumer:delete:${activeMess.id}:${id}`,
+      });
+    } else {
+      await new OutboxRepository(await getOfflineDatabase()).removeEntity(
+        user.id,
+        activeMess.id,
+        "reference_consumer",
+        id,
+      );
+    }
+    return {
+      id,
+      removed: true,
+      messId: activeMess.id,
+      consumers: toConsumers(consumers),
+    };
+  }
   clearApiCache();
   const latest = await api.getConsumers(token, activeMess.id);
   await saveLocalConsumers(user.id, activeMess.id, latest.consumers);

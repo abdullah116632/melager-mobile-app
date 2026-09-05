@@ -93,6 +93,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly path?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -132,11 +133,23 @@ async function req<T>(
         body: body != null ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
-      const data = await res.json();
+      // Express returns an HTML 404 page for an endpoint that has not yet
+      // been deployed. Parse it defensively so callers still get an ApiError
+      // with its HTTP status instead of a misleading JSON SyntaxError.
+      const responseText = await res.text();
+      let data: unknown = null;
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = null;
+        }
+      }
       if (!res.ok) {
         throw new ApiError(
           (data as { error?: string }).error ?? "Request failed",
           res.status,
+          path,
         );
       }
       if (method === "GET") {
@@ -263,6 +276,7 @@ export type ApiBazarSyncOperation =
   | "item_status"
   | "item_delete"
   | "assignments_set"
+  | "add_to_expense"
   | "notifications_read"
   | "notify_members";
 
@@ -285,6 +299,8 @@ export interface ApiMessage {
   body: string;
   createdAt: string;
   updatedAt: string;
+  /** Present on acknowledgements/realtime events for offline-created messages. */
+  clientMutationId?: string;
 }
 
 export interface ApiMessageCursor {
@@ -301,7 +317,10 @@ export interface MeAuthResponse {
 export interface MonthData {
   consumers: ApiConsumer[];
   meals: Record<string, Record<string, number>>;
-  expenses: Record<string, { items: DayExpenseItem[] }>;
+  expenses: Record<
+    string,
+    { items: DayExpenseItem[]; conflictMessage?: string | null }
+  >;
   deposits: Record<string, Record<string, number>>;
 }
 
@@ -703,6 +722,14 @@ export const api = {
     );
   },
 
+  getMessageChanges: (token: string, messId: number, afterId: number) =>
+    req<{ messages: ApiMessage[]; nextSyncCursor: number }>(
+      "GET",
+      `/mess/messages?messId=${messId}&afterId=${afterId}`,
+      undefined,
+      token,
+    ),
+
   sendMessage: (body: string, token: string, messId: number) =>
     req<{ message: ApiMessage }>(
       "POST",
@@ -710,7 +737,18 @@ export const api = {
       { body, messId },
       token,
     ),
-  syncMessage:(clientMutationId:string,messId:number,body:string,token:string)=>req<{message:ApiMessage}>("POST","/mess/messages/sync",{clientMutationId,messId,body},token),
+  syncMessage: (
+    clientMutationId: string,
+    messId: number,
+    body: string,
+    token: string,
+  ) =>
+    req<{ message: ApiMessage }>(
+      "POST",
+      "/mess/messages/sync",
+      { clientMutationId, messId, body },
+      token,
+    ),
 
   getUnreadMessageCount: (token: string, messId: number) =>
     req<{ unreadCount: number }>(
@@ -720,11 +758,15 @@ export const api = {
       token,
     ),
 
-  markMessagesRead: (token: string, messId: number) =>
+  markMessagesRead: (
+    token: string,
+    messId: number,
+    lastReadMessageId?: number,
+  ) =>
     req<{ unreadCount: number }>(
       "POST",
       "/mess/messages/read",
-      { messId },
+      { messId, lastReadMessageId },
       token,
     ),
 
@@ -805,12 +847,43 @@ export const api = {
       token,
     ),
 
-  syncDailyMeal: (clientMutationId: string, messId: number, payload: { yearMonth: string; consumerId: string; day: number; count: number; baseCount: number }, token: string) =>
-    req<{ count: number }>("POST", "/mess/daily-meals/sync", { clientMutationId, messId, payload }, token),
+  syncDailyMeal: (
+    clientMutationId: string,
+    messId: number,
+    payload: {
+      yearMonth: string;
+      consumerId: string;
+      day: number;
+      count: number;
+      baseCount: number;
+    },
+    token: string,
+  ) =>
+    req<{ count: number }>(
+      "POST",
+      "/mess/daily-meals/sync",
+      { clientMutationId, messId, payload },
+      token,
+    ),
 
-  getDailyMealChanges: (messId: number, yearMonth: string, cursor: string | null, token: string) =>
-    req<{ changes: Array<{ cursor: string; payload: { consumerId: string; day: number; count: number } }>; cursor: string }>("GET", `/mess/daily-meals/changes?messId=${messId}&yearMonth=${yearMonth}&cursor=${cursor ?? "0"}`, undefined, token),
-
+  getDailyMealChanges: (
+    messId: number,
+    yearMonth: string,
+    cursor: string | null,
+    token: string,
+  ) =>
+    req<{
+      changes: Array<{
+        cursor: string;
+        payload: { consumerId: string; day: number; count: number };
+      }>;
+      cursor: string;
+    }>(
+      "GET",
+      `/mess/daily-meals/changes?messId=${messId}&yearMonth=${yearMonth}&cursor=${cursor ?? "0"}`,
+      undefined,
+      token,
+    ),
 
   setExpense: (
     yearMonth: string,
@@ -825,7 +898,18 @@ export const api = {
       { yearMonth, day, items, messId },
       token,
     ),
-  syncExpenseDay:(clientMutationId:string,messId:number,payload:Record<string,unknown>,token:string)=>req<{success:boolean}>("POST","/mess/expenses/sync",{clientMutationId,messId,payload},token),
+  syncExpenseDay: (
+    clientMutationId: string,
+    messId: number,
+    payload: Record<string, unknown>,
+    token: string,
+  ) =>
+    req<{ success: boolean }>(
+      "POST",
+      "/mess/expenses/sync",
+      { clientMutationId, messId, payload },
+      token,
+    ),
 
   setDeposit: (
     consumerId: string,
@@ -987,11 +1071,17 @@ export const api = {
     mealType: string,
     scope: "day" | "ongoing",
     token: string,
+    isOptedOut?: boolean,
   ) =>
     req<{
       isOptedOut: boolean;
       scope: "day" | "ongoing" | null;
-    }>("POST", "/mess/meal-opt-out", { messId, date, mealType, scope }, token),
+    }>(
+      "POST",
+      "/mess/meal-opt-out",
+      { messId, date, mealType, scope, isOptedOut },
+      token,
+    ),
 
   toggleMealOptOutV2: (
     messId: number,
@@ -999,6 +1089,7 @@ export const api = {
     mealType: string,
     scope: "day" | "ongoing",
     token: string,
+    isOptedOut?: boolean,
   ) =>
     req<{
       isOptedOut: boolean;
@@ -1006,7 +1097,7 @@ export const api = {
     }>(
       "POST",
       "/v2/mess/meal-status/opt-out",
-      { messId, date, mealType, scope },
+      { messId, date, mealType, scope, isOptedOut },
       token,
     ),
 
@@ -1029,8 +1120,19 @@ export const api = {
     token: string,
   ) => req<{ entry: DepositEntry }>("POST", "/mess/deposit-entry", data, token),
 
-  syncDepositMutation: <T>(clientMutationId:string,messId:number,operation:string,payload:Record<string,unknown>,token:string) =>
-    req<T>("POST","/mess/deposits/sync",{clientMutationId,messId,operation,payload},token),
+  syncDepositMutation: <T>(
+    clientMutationId: string,
+    messId: number,
+    operation: string,
+    payload: Record<string, unknown>,
+    token: string,
+  ) =>
+    req<T>(
+      "POST",
+      "/mess/deposits/sync",
+      { clientMutationId, messId, operation, payload },
+      token,
+    ),
 
   updateDepositEntry: (
     id: number,

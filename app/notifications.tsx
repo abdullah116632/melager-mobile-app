@@ -10,8 +10,7 @@ import {
   View,
 } from "react-native";
 
-import { api } from "@/lib/api";
-import { useAuth, useNotifications } from "@/redux/hooks";
+import { useNotifications } from "@/redux/hooks";
 import type { AppNotification } from "@/types/notification";
 
 const formatNotificationTime = (timestamp: number) => {
@@ -29,22 +28,22 @@ const formatNotificationTime = (timestamp: number) => {
 const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
   const icon =
     type === "member_request" || type === "member_request_accepted"
-        ? "user-plus"
-        : type === "notice"
-          ? "clipboard"
-          : "coffee";
+      ? "user-plus"
+      : type === "notice"
+        ? "clipboard"
+        : "coffee";
   const color =
     type === "member_request" || type === "member_request_accepted"
-        ? "#1D4ED8"
-        : type === "notice"
-          ? "#B45309"
-          : "#0F766E";
+      ? "#1D4ED8"
+      : type === "notice"
+        ? "#B45309"
+        : "#0F766E";
   const background =
     type === "member_request" || type === "member_request_accepted"
-        ? "bg-blue-100"
-        : type === "notice"
-          ? "bg-amber-100"
-          : "bg-teal-100";
+      ? "bg-blue-100"
+      : type === "notice"
+        ? "bg-amber-100"
+        : "bg-teal-100";
 
   return (
     <View
@@ -57,7 +56,6 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
 
 export default function NotificationsRoute() {
   const router = useRouter();
-  const { token } = useAuth();
   const { notifications, unreadCount, markAllRead, markRead, refreshCount } =
     useNotifications();
 
@@ -68,17 +66,9 @@ export default function NotificationsRoute() {
   const openNotification = useCallback(
     (notification: AppNotification) => {
       markRead(notification.id);
-      if (token && notification.id.startsWith("server_")) {
-        const notificationId = Number(notification.id.slice("server_".length));
-        if (Number.isInteger(notificationId)) {
-          void api
-            .markServerNotificationRead(notificationId, token)
-            .catch(() => undefined);
-        }
-      }
       router.push(notification.route as never);
     },
-    [markRead, router, token],
+    [markRead, router],
   );
 
   const renderNotification = ({ item }: { item: AppNotification }) => (

@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
 import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
-import { useAuth, useDeposits, useNetwork } from "@/redux/hooks";
+import { useAuth, useDeposits } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
   formatDepositPickerDate,
@@ -38,7 +38,6 @@ export const AddDepositModal = ({
   onClose,
 }: AddDepositModalProps) => {
   const { activeMess } = useAuth();
-  const { isOnline } = useNetwork();
   const { consumers, addEntry, updateEntry } = useDeposits();
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(getCurrentDepositDate());
@@ -119,17 +118,8 @@ export const AddDepositModal = ({
       return;
     }
 
-    if (isEditing && !isOnline) {
-      setError("Internet connection required.");
-      return;
-    }
     setSaving(true);
     setError("");
-    if (!isOnline) {
-      setError("Internet connection required.");
-      setSaving(false);
-      return;
-    }
 
     try {
       if (entry) {

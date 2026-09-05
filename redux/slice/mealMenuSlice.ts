@@ -2,6 +2,7 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type { DashboardMealType, TodaySchedule } from "@/types/dashboard";
 import { getCurrentDate } from "@/utils/dashboard";
+import { syncMessScope } from "@/redux/slice/messSlice";
 
 export interface MealMenuState {
   selectedDate: string;
@@ -73,6 +74,15 @@ const mealMenuSlice = createSlice({
         ? [...new Set([...state.pendingOptOuts, mealType])]
         : state.pendingOptOuts.filter((item) => item !== mealType);
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(syncMessScope, (state) => {
+      state.schedule = null;
+      state.optOuts = [];
+      state.pendingOptOuts = [];
+      state.calendarMarkers = {};
+      state.scheduleRevision += 1;
+    });
   },
 });
 

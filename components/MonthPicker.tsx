@@ -83,8 +83,8 @@ export default function MonthPicker({
   const navigationIconColor = cellNavEnabled ? "#0369A1" : "#3B82F6";
   const refreshFailureLabel =
     dataSource === "none"
-      ? "Refresh failed. Please check your connection and try again."
-      : "Refresh failed. Showing saved data.";
+      ? "Sync unavailable. Default data is shown."
+      : "Sync pending. Showing saved data.";
 
   useEffect(() => {
     if (

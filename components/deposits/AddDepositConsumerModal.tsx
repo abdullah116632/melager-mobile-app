@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 import { useConsumerUserLookup } from "@/hooks/useConsumerUserLookup";
-import { useDeposits } from "@/redux/hooks";
+import { useDeposits, useNetwork } from "@/redux/hooks";
 import { isValidEmail } from "@/utils/email";
 
 interface AddDepositConsumerModalProps {
@@ -27,6 +27,7 @@ export const AddDepositConsumerModal = ({
   onClose,
 }: AddDepositConsumerModalProps) => {
   const { addConsumer } = useDeposits();
+  const { isOnline } = useNetwork();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -79,6 +80,10 @@ export const AddDepositConsumerModal = ({
 
   const close = () => {
     if (submitting) return;
+    if (!isOnline) {
+      setError("Internet connection is required to add a member.");
+      return;
+    }
     resetAndClose();
   };
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { useAuth, useNotifications } from "@/redux/hooks";
+import { useAuth, useNetwork, useNotifications } from "@/redux/hooks";
 import { getMemberRequests } from "@/services/memberRequestService";
 import type { MemberRequest } from "@/types/memberRequest";
 import { MemberRequestList } from "./MemberRequestList";
@@ -17,6 +17,7 @@ export const MemberRequestsContent = ({
 }: MemberRequestsContentProps) => {
   const { token, activeMess } = useAuth();
   const { refreshCount } = useNotifications();
+  const { isOnline } = useNetwork();
   const [requests, setRequests] = useState<MemberRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -33,7 +34,7 @@ export const MemberRequestsContent = ({
     } finally {
       setLoading(false);
     }
-  }, [token, activeMess?.id, refreshCount]);
+  }, [token, activeMess?.id, isOnline, refreshCount]);
 
   useEffect(() => {
     void fetchRequests();

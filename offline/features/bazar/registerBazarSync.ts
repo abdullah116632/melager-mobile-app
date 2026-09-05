@@ -29,6 +29,11 @@ export function registerBazarSync(
     const payload = getPayload(operation);
     const localId = payload.localId;
     if (!localId) throw new Error("Bazar outbox item has no local id.");
+    if (operation.operation !== "create" && !payload.baseUpdatedAt) {
+      const local = await repository.getItemByLocalId(localId);
+      if (local?.server_updated_at)
+        payload.baseUpdatedAt = local.server_updated_at;
+    }
 
     let syncOperation: BazarSyncOperation;
     if (operation.operation === "create") syncOperation = "item_create";
@@ -107,6 +112,20 @@ export function registerBazarSync(
       }
     },
   );
+
+  registry.registerProcessor("bazar_expense", async (operation, context) => {
+    const payload = getPayload(operation);
+    if (!payload.yearMonth || payload.day === undefined) {
+      throw new Error("Bazar expense outbox data is invalid.");
+    }
+    await api.syncBazarMutation<BazarSyncResponse>(
+      operation.id,
+      "add_to_expense",
+      payload as Record<string, unknown>,
+      context.token,
+      context.messId!,
+    );
+  });
 
   registry.registerPuller("bazar", async (_cursor, context) => {
     if (context.messId === null) return { cursor: null };

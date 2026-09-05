@@ -56,7 +56,7 @@ export const DashboardHeader = () => {
     [flipValue],
   );
   const statusText = lastRefreshError
-    ? "Refresh failed. Showing saved data."
+    ? "Sync pending • saved data"
     : dataSource === "cache"
       ? "Offline/cached data"
       : null;

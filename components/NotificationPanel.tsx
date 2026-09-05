@@ -11,11 +11,7 @@ import {
   View,
 } from "react-native";
 
-import { useAuth, useNotifications } from "@/redux/hooks";
-import { api } from "@/lib/api";
-import { getOfflineDatabase } from "@/offline/database/connection";
-import { NotificationRepository } from "@/offline/features/notifications/NotificationRepository";
-import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
+import { useNotifications } from "@/redux/hooks";
 import type { AppNotification } from "@/types/notification";
 
 const timeAgo = (timestamp: number): string => {
@@ -39,7 +35,6 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
       </View>
     );
   }
-
 
   if (type === "notice") {
     return (
@@ -75,19 +70,12 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
 const NotificationItem = ({ item }: { item: AppNotification }) => {
   const router = useRouter();
   const { markRead, closePanel } = useNotifications();
-  const { token, user, mess } = useAuth();
 
   const handlePress = useCallback(() => {
     markRead(item.id);
-    if (token && item.id.startsWith("server_")) {
-      const notificationId = Number(item.id.slice("server_".length));
-      if (Number.isInteger(notificationId)) {
-        if (user?.id && mess?.id) void getOfflineDatabase().then(async(db)=>{await new NotificationRepository(db).markRead(user.id,mess.id,notificationId);await getOfflineRuntime(db).engine.sync({userId:user.id,messId:mess.id,token},{force:true});}).catch(()=>api.markServerNotificationRead(notificationId,token).catch(()=>undefined));
-      }
-    }
     closePanel();
     router.push(item.route as never);
-  }, [closePanel, item, markRead, router, token]);
+  }, [closePanel, item, markRead, router]);
 
   return (
     <TouchableOpacity

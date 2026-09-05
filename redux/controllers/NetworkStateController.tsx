@@ -32,16 +32,14 @@ export const NetworkStateController = ({
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const isCheckingReachability =
-        state.isConnected === null ||
-        (state.isConnected === true && state.isInternetReachable === null);
+      const isCheckingReachability = state.isConnected === null;
       if (isCheckingReachability) {
         dispatch(networkStatusChanged(null));
         return;
       }
 
       const isOnline =
-        state.isConnected === true && state.isInternetReachable === true;
+        state.isConnected === true && state.isInternetReachable !== false;
       dispatch(networkStatusChanged(isOnline));
       if (isOnline && (!didInitialSyncRef.current || wasOfflineRef.current)) {
         didInitialSyncRef.current = true;

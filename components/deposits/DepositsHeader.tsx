@@ -2,13 +2,14 @@ import Feather from "@expo/vector-icons/Feather";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
 import {
+  Alert,
   Text,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
 import { NotificationBell } from "@/components/NotificationBell";
-import { useAuth, useDrawer } from "@/redux/hooks";
+import { useAuth, useDrawer, useNetwork } from "@/redux/hooks";
 import { formatDepositAmount } from "@/utils/deposit";
 import { AddDepositConsumerModal } from "./AddDepositConsumerModal";
 
@@ -18,6 +19,7 @@ interface DepositsHeaderProps {
 
 export const DepositsHeader = ({ grandTotal }: DepositsHeaderProps) => {
   const { role } = useAuth();
+  const { isOnline } = useNetwork();
   const { openDrawer } = useDrawer();
   const [showAddConsumer, setShowAddConsumer] = useState(false);
   const { width } = useWindowDimensions();
@@ -69,7 +71,16 @@ export const DepositsHeader = ({ grandTotal }: DepositsHeaderProps) => {
           {isAdmin ? (
             <TouchableOpacity
               className={`${isCompact ? "h-[34px] w-[34px]" : "h-[38px] w-[38px]"} items-center justify-center rounded-[11px] border border-white/10 bg-white/15`}
-              onPress={() => setShowAddConsumer(true)}
+              onPress={() => {
+                if (!isOnline) {
+                  Alert.alert(
+                    "Internet connection required",
+                    "Adding a member requires an internet connection.",
+                  );
+                  return;
+                }
+                setShowAddConsumer(true);
+              }}
               activeOpacity={0.75}
               accessibilityLabel="Add consumer"
             >

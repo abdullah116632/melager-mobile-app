@@ -1,12 +1,12 @@
 import { createAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
-import { api, type MonthData } from "@/lib/api";
-import { getOfflineDatabase } from "@/offline/database/connection";
-import { DepositRepository } from "@/offline/features/deposits/DepositRepository";
+import { api, clearApiCache, type MonthData } from "@/lib/api";
 import {
-  loadDepositEntriesFromCache,
-  saveDepositEntriesToCache,
-} from "@/lib/cache";
+  getOfflineDatabase,
+  isOfflineDatabaseSupported,
+} from "@/offline/database/connection";
+import { DepositRepository } from "@/offline/features/deposits/DepositRepository";
+import { saveDepositEntriesToCache } from "@/lib/cache";
 import type { AuthState } from "@/redux/slice/authSlice";
 import type { NetworkState } from "@/redux/slice/networkSlice";
 import {
@@ -124,35 +124,50 @@ export const loadDepositEntries = createDepositsAsyncThunk<
     if (!token || !activeMess || !user || activeMess.id !== messId) {
       throw new Error("Please select a mess and sign in again.");
     }
-    if (!force) {
-      const cachedEntries = await loadDepositEntriesFromCache(
-        messId,
-        yearMonth,
-      );
-      if (cachedEntries) {
+    let repository: DepositRepository | null = null;
+    if (isOfflineDatabaseSupported()) {
+      try {
+        repository = new DepositRepository(await getOfflineDatabase());
+        const localEntries = await repository.list(user.id, messId, yearMonth);
         dispatch(
           depositEntriesCacheReceived({
             messId,
             yearMonth,
-            entries: cachedEntries as DepositEntry[],
+            entries: localEntries,
           }),
         );
+      } catch {
+        repository = null;
       }
     }
+
+    // A missing SQLite snapshot is still a valid local-first result: render
+    // the empty/default deposits state immediately instead of waiting for HTTP.
+    if (!repository) {
+      dispatch(depositEntriesCacheReceived({ messId, yearMonth, entries: [] }));
+    }
+
     if (!getState().network.isOnline) {
-      if (!getState().deposits.loadedEntryMonths[yearMonth]) {
-        throw new Error("No internet connection and no cached deposits are available.");
-      }
       return {
         messId,
         yearMonth,
         entries: getState().deposits.entriesByMonth[yearMonth] ?? [],
       };
     }
+    clearApiCache();
     const entries = await getDepositEntriesRequest(messId, yearMonth, token);
-    try { await new DepositRepository(await getOfflineDatabase()).replace(user.id,messId,entries); } catch {}
-    void saveDepositEntriesToCache(messId, yearMonth, entries);
-    return { messId, yearMonth, entries };
+    let mergedEntries = entries;
+    if (repository) {
+      try {
+        await repository.replace(user.id, messId, yearMonth, entries);
+        mergedEntries = await repository.list(user.id, messId, yearMonth);
+      } catch {}
+    }
+    // Web keeps the compatibility cache; native SQLite is the source of truth.
+    if (!isOfflineDatabaseSupported()) {
+      void saveDepositEntriesToCache(messId, yearMonth, entries);
+    }
+    return { messId, yearMonth, entries: mergedEntries };
   },
   {
     condition: ({ messId, yearMonth, force = false }, { getState }) => {
@@ -163,6 +178,22 @@ export const loadDepositEntries = createDepositsAsyncThunk<
       if (state.deposits.loadingEntryMonths[yearMonth]) return false;
       return force || !state.deposits.loadedEntryMonths[yearMonth];
     },
+  },
+);
+
+export const hydrateDepositEntriesFromLocal = createDepositsAsyncThunk<
+  { messId: number; yearMonth: string; entries: DepositEntry[] } | null,
+  { messId: number; yearMonth: string }
+>(
+  "deposits/hydrateEntriesFromLocal",
+  async ({ messId, yearMonth }, { getState }) => {
+    const { user, activeMess } = getState().auth;
+    if (!user || activeMess?.id !== messId || !isOfflineDatabaseSupported())
+      return null;
+    const entries = await new DepositRepository(
+      await getOfflineDatabase(),
+    ).list(user.id, messId, yearMonth);
+    return { messId, yearMonth, entries };
   },
 );
 
@@ -179,11 +210,20 @@ export const addDepositEntry = createDepositsAsyncThunk<
   if (!activeMess || !user || activeMess.id !== data.messId) {
     throw new Error("Please select a mess and sign in again.");
   }
-  try {
-    const entry=await new DepositRepository(await getOfflineDatabase()).create(user.id,data);
-    if(token&&getState().network.isOnline) void import("@/offline/runtime/getOfflineRuntime").then(async({getOfflineRuntime})=>getOfflineRuntime(await getOfflineDatabase()).engine.sync({userId:user.id,messId:activeMess.id,token},{collections:["deposits"],force:true}));
-    return {messId:activeMess.id,yearMonth,entry};
-  } catch { if(!token) throw new Error("Local deposit storage is unavailable."); }
+  if (isOfflineDatabaseSupported()) {
+    const database = await getOfflineDatabase();
+    const entry = await new DepositRepository(database).create(user.id, data);
+    if (token && getState().network.isOnline)
+      void import("@/offline/runtime/getOfflineRuntime").then(
+        ({ getOfflineRuntime }) =>
+          getOfflineRuntime(database).engine.sync(
+            { userId: user.id, messId: activeMess.id, token },
+            { collections: ["deposits"], force: true },
+          ),
+      );
+    return { messId: activeMess.id, yearMonth, entry };
+  }
+  if (!token) throw new Error("Local deposit storage is unavailable.");
   const entry = await createDepositEntryRequest(data, token);
   const existingEntries = getState().deposits.entriesByMonth[yearMonth] ?? [];
   const nextEntries =
@@ -210,7 +250,25 @@ export const updateDepositEntry = createDepositsAsyncThunk<
     if (!activeMess || !user || activeMess.id !== data.messId) {
       throw new Error("Please select a mess and sign in again.");
     }
-    try { const database=await getOfflineDatabase(); const entry=await new DepositRepository(database).updateById(user.id,activeMess.id,entryId,data); if(token&&getState().network.isOnline) void import("@/offline/runtime/getOfflineRuntime").then(({getOfflineRuntime})=>getOfflineRuntime(database).engine.sync({userId:user.id,messId:activeMess.id,token},{collections:["deposits"],force:true})); return {messId:activeMess.id,yearMonth,entry}; } catch { if(!token) throw new Error("Local deposit storage is unavailable."); }
+    if (isOfflineDatabaseSupported()) {
+      const database = await getOfflineDatabase();
+      const entry = await new DepositRepository(database).updateById(
+        user.id,
+        activeMess.id,
+        entryId,
+        data,
+      );
+      if (token && getState().network.isOnline)
+        void import("@/offline/runtime/getOfflineRuntime").then(
+          ({ getOfflineRuntime }) =>
+            getOfflineRuntime(database).engine.sync(
+              { userId: user.id, messId: activeMess.id, token },
+              { collections: ["deposits"], force: true },
+            ),
+        );
+      return { messId: activeMess.id, yearMonth, entry };
+    }
+    if (!token) throw new Error("Local deposit storage is unavailable.");
     const entry = await updateDepositEntryRequest(entryId, data, token);
     const existingEntries = getState().deposits.entriesByMonth[yearMonth] ?? [];
     const withoutUpdatedEntry = existingEntries.filter(
@@ -238,7 +296,24 @@ export const deleteDepositEntry = createDepositsAsyncThunk<
   if (!activeMess || !user) {
     throw new Error("Please select a mess and sign in again.");
   }
-  try { const database=await getOfflineDatabase(); await new DepositRepository(database).deleteById(user.id,activeMess.id,entryId); if(token&&getState().network.isOnline) void import("@/offline/runtime/getOfflineRuntime").then(({getOfflineRuntime})=>getOfflineRuntime(database).engine.sync({userId:user.id,messId:activeMess.id,token},{collections:["deposits"],force:true})); return {messId:activeMess.id,yearMonth,entryId}; } catch { if(!token) throw new Error("Local deposit storage is unavailable."); }
+  if (isOfflineDatabaseSupported()) {
+    const database = await getOfflineDatabase();
+    await new DepositRepository(database).deleteById(
+      user.id,
+      activeMess.id,
+      entryId,
+    );
+    if (token && getState().network.isOnline)
+      void import("@/offline/runtime/getOfflineRuntime").then(
+        ({ getOfflineRuntime }) =>
+          getOfflineRuntime(database).engine.sync(
+            { userId: user.id, messId: activeMess.id, token },
+            { collections: ["deposits"], force: true },
+          ),
+      );
+    return { messId: activeMess.id, yearMonth, entryId };
+  }
+  if (!token) throw new Error("Local deposit storage is unavailable.");
   await deleteDepositEntryRequest(entryId, activeMess.id, token);
   const nextEntries = (
     getState().deposits.entriesByMonth[yearMonth] ?? []
@@ -318,6 +393,14 @@ const depositsSlice = createSlice({
         state.entriesByMonth[yearMonth] = entries;
         state.loadedEntryMonths[yearMonth] = true;
         delete state.entryErrors[yearMonth];
+        rebuildMonthlyDeposits(state, yearMonth);
+      })
+      .addCase(hydrateDepositEntriesFromLocal.fulfilled, (state, action) => {
+        if (!action.payload) return;
+        const { messId, yearMonth, entries } = action.payload;
+        if (state.scopeMessId !== messId) return;
+        state.entriesByMonth[yearMonth] = entries;
+        state.loadedEntryMonths[yearMonth] = true;
         rebuildMonthlyDeposits(state, yearMonth);
       })
       .addCase(loadDepositEntries.rejected, (state, action) => {

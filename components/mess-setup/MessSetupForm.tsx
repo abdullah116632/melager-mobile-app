@@ -21,7 +21,9 @@ export const MessSetupForm = ({ mode, onBack }: MessSetupFormProps) => {
   const [value, setValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [offlineNotice, setOfflineNotice] = useState("");
   const [joinSuccess, setJoinSuccess] = useState(false);
+  const [joinQueued, setJoinQueued] = useState(false);
   const isCreate = mode === "create";
 
   const handleCreate = async () => {
@@ -31,9 +33,15 @@ export const MessSetupForm = ({ mode, onBack }: MessSetupFormProps) => {
     }
 
     setError("");
+    setOfflineNotice("");
     setLoading(true);
     try {
-      await createMess(value.trim());
+      const result = await createMess(value.trim());
+      if (result.queued) {
+        setOfflineNotice(
+          "Saved offline. The mess will be created after you reconnect.",
+        );
+      }
     } catch (createError) {
       setError(
         createError instanceof Error
@@ -54,7 +62,8 @@ export const MessSetupForm = ({ mode, onBack }: MessSetupFormProps) => {
     setError("");
     setLoading(true);
     try {
-      await joinMess(value.trim().toUpperCase());
+      const result = await joinMess(value.trim().toUpperCase());
+      setJoinQueued(result === null);
       setJoinSuccess(true);
     } catch (joinError) {
       setError(
@@ -71,7 +80,7 @@ export const MessSetupForm = ({ mode, onBack }: MessSetupFormProps) => {
     void (isCreate ? handleCreate() : handleJoin());
   };
 
-  if (joinSuccess) return <JoinRequestSuccess />;
+  if (joinSuccess) return <JoinRequestSuccess queued={joinQueued} />;
 
   return (
     <View className="items-center rounded-3xl bg-white p-6 shadow-xl shadow-black/15">
@@ -116,6 +125,15 @@ export const MessSetupForm = ({ mode, onBack }: MessSetupFormProps) => {
           <Feather name="alert-circle" size={14} color="#DC2626" />
           <Text className="flex-1 font-inter text-[13px] leading-[18px] text-red-600">
             {error}
+          </Text>
+        </View>
+      ) : null}
+
+      {offlineNotice ? (
+        <View className="mb-3.5 w-full flex-row items-center gap-2 rounded-[10px] border border-teal-200 bg-teal-50 px-[13px] py-[11px]">
+          <Feather name="clock" size={14} color="#0F766E" />
+          <Text className="flex-1 font-inter text-[13px] leading-[18px] text-teal-700">
+            {offlineNotice}
           </Text>
         </View>
       ) : null}

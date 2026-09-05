@@ -14,6 +14,7 @@ export type BazarSyncOperation =
   | "item_status"
   | "item_delete"
   | "assignments_set"
+  | "add_to_expense"
   | "notifications_read"
   | "notify_members";
 
@@ -25,6 +26,10 @@ export interface BazarMutationPayload {
   price?: number;
   completed?: boolean;
   consumerIds?: number[];
+  baseUpdatedAt?: string;
+  baseConsumerIds?: number[];
+  yearMonth?: string;
+  day?: number;
 }
 
 export interface BazarSyncResponse {

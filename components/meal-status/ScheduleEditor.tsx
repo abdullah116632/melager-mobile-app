@@ -158,27 +158,27 @@ export const ScheduleEditor = ({
           ? draft[type]
           : createDraftFromSchedule(schedule)[type];
       const update = {
-          messId: mess.id,
-          date: selectedDate,
-          breakfastEnabled: getMeal("breakfast").enabled,
-          breakfastMenu: getMeal("breakfast").menu.trim() || null,
-          breakfastOptOutStart: getMeal("breakfast").start.trim() || null,
-          breakfastOptOutEnd: getMeal("breakfast").end.trim() || null,
-          lunchEnabled: getMeal("lunch").enabled,
-          lunchMenu: getMeal("lunch").menu.trim() || null,
-          lunchOptOutStart: getMeal("lunch").start.trim() || null,
-          lunchOptOutEnd: getMeal("lunch").end.trim() || null,
-          dinnerEnabled: getMeal("dinner").enabled,
-          dinnerMenu: getMeal("dinner").menu.trim() || null,
-          dinnerOptOutStart: getMeal("dinner").start.trim() || null,
-          dinnerOptOutEnd: getMeal("dinner").end.trim() || null,
-          mealControls: Object.entries(controlsBeingSaved).map(
-            ([mealType, control]) => ({
-              mealType: mealType as MealType,
-              ...control!,
-            }),
-          ),
-        };
+        messId: mess.id,
+        date: selectedDate,
+        breakfastEnabled: getMeal("breakfast").enabled,
+        breakfastMenu: getMeal("breakfast").menu.trim() || null,
+        breakfastOptOutStart: getMeal("breakfast").start.trim() || null,
+        breakfastOptOutEnd: getMeal("breakfast").end.trim() || null,
+        lunchEnabled: getMeal("lunch").enabled,
+        lunchMenu: getMeal("lunch").menu.trim() || null,
+        lunchOptOutStart: getMeal("lunch").start.trim() || null,
+        lunchOptOutEnd: getMeal("lunch").end.trim() || null,
+        dinnerEnabled: getMeal("dinner").enabled,
+        dinnerMenu: getMeal("dinner").menu.trim() || null,
+        dinnerOptOutStart: getMeal("dinner").start.trim() || null,
+        dinnerOptOutEnd: getMeal("dinner").end.trim() || null,
+        mealControls: Object.entries(controlsBeingSaved).map(
+          ([mealType, control]) => ({
+            mealType: mealType as MealType,
+            ...control!,
+          }),
+        ),
+      };
       const nextSchedule = {
         breakfastEnabled: getMeal("breakfast").enabled,
         breakfastMenu: getMeal("breakfast").menu.trim() || null,
@@ -196,10 +196,15 @@ export const ScheduleEditor = ({
       try {
         await updateMealSchedule(update, token);
       } catch (remoteError) {
-        if (remoteError instanceof ApiError) throw remoteError;
-        const queued = await queueMealScheduleUpdate(database, user?.id ?? null, update, nextSchedule).catch(() => false);
+        if (remoteError instanceof ApiError && remoteError.status !== 408)
+          throw remoteError;
+        const queued = await queueMealScheduleUpdate(
+          database,
+          user?.id ?? null,
+          update,
+          nextSchedule,
+        ).catch(() => false);
         if (!queued) throw remoteError;
-        dispatch(setSchedule({ date: selectedDate, schedule: nextSchedule, myOptOuts: [], totalConsumers: 0, activeByMeal: { breakfast: 0, lunch: 0, dinner: 0 }, totalActive: 0 }));
         Alert.alert("Saved offline", "Schedule will sync when you are online.");
         return;
       }

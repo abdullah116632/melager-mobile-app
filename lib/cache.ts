@@ -1,5 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ApiBazarAssignment, ApiBazarItem, ApiConsumer, ApiNotice, MonthData } from "@/lib/api";
+import type {
+  ApiBazarAssignment,
+  ApiBazarItem,
+  ApiConsumer,
+  ApiNotice,
+  MonthData,
+} from "@/lib/api";
 import type { DashboardDateRange } from "@/types/dashboard";
 import type { Consumer } from "@/types/mess";
 
@@ -9,6 +15,26 @@ const CONSUMER_BREAKDOWN_PREFIX = "@mess_consumer_breakdown:";
 const NOTICES_PREFIX = "@mess_notices:";
 const BAZAR_PREFIX = "@mess_bazar:";
 const memoryCache = new Map<string, unknown>();
+const persistedCachePrefixes = [
+  PREFIX,
+  DEPOSIT_ENTRIES_PREFIX,
+  CONSUMER_BREAKDOWN_PREFIX,
+  NOTICES_PREFIX,
+  BAZAR_PREFIX,
+] as const;
+
+/** Removes every account/mess-scoped legacy cache on logout or account swap. */
+export async function clearPersistedAppCaches(): Promise<void> {
+  memoryCache.clear();
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) =>
+      persistedCachePrefixes.some((prefix) => key.startsWith(prefix)),
+    );
+    if (keys.length > 0) await AsyncStorage.multiRemove(keys);
+  } catch {
+    // SQLite/session cleanup must still complete if legacy storage is broken.
+  }
+}
 
 export interface ConsumerBreakdownCacheData {
   appliedRange: DashboardDateRange | null;
@@ -42,15 +68,23 @@ function bazarCacheKey(messId: number): string {
   return `${BAZAR_PREFIX}${messId}`;
 }
 
-export async function saveBazarToCache(messId: number, data: BazarCacheData): Promise<void> {
+export async function saveBazarToCache(
+  messId: number,
+  data: BazarCacheData,
+): Promise<void> {
   const key = bazarCacheKey(messId);
   memoryCache.set(key, data);
   try {
-    await AsyncStorage.setItem(key, JSON.stringify({ data, savedAt: Date.now() }));
+    await AsyncStorage.setItem(
+      key,
+      JSON.stringify({ data, savedAt: Date.now() }),
+    );
   } catch {}
 }
 
-export async function loadBazarFromCache(messId: number): Promise<BazarCacheData | null> {
+export async function loadBazarFromCache(
+  messId: number,
+): Promise<BazarCacheData | null> {
   const key = bazarCacheKey(messId);
   const inMemory = memoryCache.get(key);
   if (inMemory) return inMemory as BazarCacheData;
@@ -58,7 +92,13 @@ export async function loadBazarFromCache(messId: number): Promise<BazarCacheData
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
     const data = (JSON.parse(raw) as { data?: Partial<BazarCacheData> }).data;
-    if (!data || !Array.isArray(data.items) || !Array.isArray(data.assignments) || !Array.isArray(data.consumers)) return null;
+    if (
+      !data ||
+      !Array.isArray(data.items) ||
+      !Array.isArray(data.assignments) ||
+      !Array.isArray(data.consumers)
+    )
+      return null;
     const cached = data as BazarCacheData;
     memoryCache.set(key, cached);
     return cached;

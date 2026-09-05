@@ -338,7 +338,15 @@ export class BazarRepository {
           entityType: "bazar_item",
           entityId: row.local_id,
           operation: "update",
-          payload: { localId: row.local_id, serverId: row.server_id, ...input },
+          baseVersion: row.server_updated_at
+            ? Date.parse(row.server_updated_at)
+            : null,
+          payload: {
+            localId: row.local_id,
+            serverId: row.server_id,
+            baseUpdatedAt: row.server_updated_at ?? undefined,
+            ...input,
+          },
         });
       }
       await this.ensureSyncState(userId, messId, now);
@@ -378,9 +386,13 @@ export class BazarRepository {
           entityType: "bazar_item",
           entityId: row.local_id,
           operation: "command",
+          baseVersion: row.server_updated_at
+            ? Date.parse(row.server_updated_at)
+            : null,
           payload: {
             localId: row.local_id,
             serverId: row.server_id,
+            baseUpdatedAt: row.server_updated_at ?? undefined,
             completed,
           },
         });
@@ -433,7 +445,14 @@ export class BazarRepository {
           entityType: "bazar_item",
           entityId: row.local_id,
           operation: "delete",
-          payload: { localId: row.local_id, serverId: row.server_id },
+          baseVersion: row.server_updated_at
+            ? Date.parse(row.server_updated_at)
+            : null,
+          payload: {
+            localId: row.local_id,
+            serverId: row.server_id,
+            baseUpdatedAt: row.server_updated_at ?? undefined,
+          },
         });
       }
       await this.ensureSyncState(userId, messId, Date.now());
@@ -469,6 +488,15 @@ export class BazarRepository {
       input.weekday,
     );
     const byConsumer = new Map(existing.map((row) => [row.consumer_id, row]));
+    const pending = await this.database.getFirstAsync<{ payload: string }>(
+      `SELECT payload FROM offline_outbox
+       WHERE user_id = ? AND dedupe_key = ?`,
+      userId,
+      `bazar:assignments:${messId}:${input.weekday}`,
+    );
+    const pendingBase = pending
+      ? (JSON.parse(pending.payload) as BazarMutationPayload).baseConsumerIds
+      : undefined;
     await this.database.withTransactionAsync(async () => {
       await this.database.runAsync(
         "DELETE FROM local_bazar_assignments WHERE mess_id = ? AND weekday = ?",
@@ -504,7 +532,13 @@ export class BazarRepository {
         entityType: "bazar_assignments",
         entityId: String(input.weekday),
         operation: "upsert",
-        payload: { weekday: input.weekday, consumerIds: [...selected] },
+        payload: {
+          weekday: input.weekday,
+          consumerIds: [...selected],
+          baseConsumerIds:
+            pendingBase ??
+            existing.map((row) => row.consumer_id).sort((a, b) => a - b),
+        },
       });
       await this.ensureSyncState(userId, messId, now);
     });
@@ -583,15 +617,40 @@ export class BazarRepository {
       operationId,
     );
     if (Number(other?.total ?? 0) > 0) {
-      await this.database.runAsync(
-        `UPDATE local_bazar_items
-         SET server_id = ?, display_id = ?, server_updated_at = ?
-         WHERE local_id = ?`,
-        item.id,
-        item.id,
-        item.updatedAt,
-        localId,
-      );
+      await this.database.withTransactionAsync(async () => {
+        await this.database.runAsync(
+          `UPDATE local_bazar_items
+           SET server_id = ?, display_id = ?, server_updated_at = ?
+           WHERE local_id = ?`,
+          item.id,
+          item.id,
+          item.updatedAt,
+          localId,
+        );
+        const pending = await this.database.getAllAsync<{
+          id: string;
+          payload: string;
+        }>(
+          `SELECT id, payload FROM offline_outbox
+           WHERE entity_type = 'bazar_item' AND entity_id = ? AND id <> ?`,
+          localId,
+          operationId,
+        );
+        for (const row of pending) {
+          const payload = JSON.parse(row.payload) as BazarMutationPayload;
+          await this.database.runAsync(
+            "UPDATE offline_outbox SET operation='update', payload = ?, base_version = ?, updated_at = ? WHERE id = ?",
+            JSON.stringify({
+              ...payload,
+              serverId: item.id,
+              baseUpdatedAt: item.updatedAt,
+            }),
+            Date.parse(item.updatedAt),
+            Date.now(),
+            row.id,
+          );
+        }
+      });
       return;
     }
     await this.database.runAsync(

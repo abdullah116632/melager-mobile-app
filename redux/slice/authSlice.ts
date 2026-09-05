@@ -23,6 +23,7 @@ import { clearOfflineQueue } from "@/lib/offlineQueue";
 import { patchCachedConsumerProfile } from "@/lib/cache";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import { OutboxRepository } from "@/offline/repositories/outboxRepository";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import {
   clearLocalReferenceData,
   getLocalAuthSnapshot,
@@ -74,6 +75,26 @@ const initialState: AuthState = {
   initializationStarted: false,
   requestStatus: "idle",
   requestError: null,
+};
+
+// HTTP responses are authoritative rejections and must remain visible to the
+// user. Only a fetch connectivity failure (or our client-side timeout) is safe
+// to treat as an offline mutation.
+const isQueueableConnectivityError = (error: unknown): boolean =>
+  error instanceof ApiError
+    ? error.status === 408
+    : error instanceof TypeError &&
+      /network|fetch|connection|load/i.test(error.message);
+
+const startQueuedSettingsSync = (
+  database: Awaited<ReturnType<typeof getOfflineDatabase>>,
+  context: { token: string; userId: number; messId: number | null },
+): void => {
+  void getOfflineRuntime(database)
+    .engine.sync(context, {
+      force: true,
+    })
+    .catch(() => undefined);
 };
 
 const createSignedOutState = (): AuthState => ({
@@ -278,27 +299,61 @@ export const createMess = createAuthAsyncThunk<
     messes: ApiMessWithRole[];
     requests: ApiMyRequest[];
     activeMess: ApiMessWithRole | null;
+    queued: boolean;
   },
   string
 >("auth/createMess", async (name, { getState }) => {
-  const { token } = getState().auth;
+  const { token, user, messes, requests, activeMess } = getState().auth;
   if (!token) throw new Error("Not authenticated");
-  const { mess: newMess } = await api.createMess(name, token);
+  let newMess: ApiMess;
+  try {
+    ({ mess: newMess } = await api.createMess(name, token));
+  } catch (error) {
+    if (!user || !isQueueableConnectivityError(error)) throw error;
+    await new OutboxRepository(await getOfflineDatabase()).enqueue({
+      userId: user.id,
+      messId: null,
+      entityType: "mess_command",
+      entityId: name.trim(),
+      operation: "create",
+      payload: {
+        name: name.trim(),
+        existingMessIds: messes.map((mess) => mess.id),
+      },
+    });
+    return { messes, requests, activeMess, queued: true };
+  }
   const me = await api.me(token);
   await saveLocalAuthSnapshot(me, newMess.id);
   return {
     messes: me.messes,
     requests: me.requests,
     activeMess: me.messes.find((mess) => mess.id === newMess.id) ?? null,
+    queued: false,
   };
 });
 
-export const joinMess = createAuthAsyncThunk<ApiMyRequest, string>(
+export const joinMess = createAuthAsyncThunk<ApiMyRequest | null, string>(
   "auth/joinMess",
   async (messKey, { getState }) => {
     const { token, user, messes, requests, activeMess } = getState().auth;
     if (!token || !user) throw new Error("Not authenticated");
-    const { pendingRequest } = await api.joinMess(messKey, token);
+    let pendingRequest: ApiMyRequest;
+    try {
+      ({ pendingRequest } = await api.joinMess(messKey, token));
+    } catch (error) {
+      if (!isQueueableConnectivityError(error)) throw error;
+      await new OutboxRepository(await getOfflineDatabase()).enqueue({
+        userId: user.id,
+        messId: null,
+        entityType: "mess_command",
+        entityId: messKey.trim().toUpperCase(),
+        operation: "command",
+        payload: { action: "join", messKey: messKey.trim().toUpperCase() },
+        dedupeKey: `mess:join:${messKey.trim().toUpperCase()}`,
+      });
+      return null;
+    }
     await saveLocalAuthSnapshot(
       {
         user,
@@ -321,7 +376,24 @@ export const retryJoin = createAuthAsyncThunk<ApiMyRequest, number>(
   async (requestId, { getState }) => {
     const { token, user, messes, requests, activeMess } = getState().auth;
     if (!token || !user) throw new Error("Not authenticated");
-    const { request } = await api.retryJoin(requestId, token);
+    let request: ApiMyRequest;
+    try {
+      ({ request } = await api.retryJoin(requestId, token));
+    } catch (error) {
+      if (!isQueueableConnectivityError(error)) throw error;
+      await new OutboxRepository(await getOfflineDatabase()).enqueue({
+        userId: user.id,
+        messId: null,
+        entityType: "mess_command",
+        entityId: String(requestId),
+        operation: "command",
+        payload: { action: "retry_join", requestId },
+        dedupeKey: `mess:retry-join:${requestId}`,
+      });
+      const existing = requests.find((item) => item.id === requestId);
+      if (!existing) throw new Error("Join request is no longer available.");
+      request = { ...existing, status: "pending" };
+    }
     await saveLocalAuthSnapshot(
       {
         user,
@@ -354,11 +426,29 @@ export const updateProfileName = createAuthAsyncThunk<
   { userId: number; email: string; name: string },
   string
 >("auth/updateProfileName", async (name, { getState }) => {
-  const { token, user } = getState().auth;
+  const { token, user, activeMess } = getState().auth;
   if (!token || !user) throw new Error("Not authenticated");
-  const result = await api.updateProfile(name, token).catch(async () => {
-    const db=await getOfflineDatabase();await new OutboxRepository(db).enqueue({userId:user.id,entityType:"profile_setting",entityId:"name",operation:"update",dedupeKey:"profile:name",payload:{kind:"name",value:name}});return {name};
-  });
+  let result: { name: string };
+  try {
+    result = await api.updateProfile(name, token);
+  } catch (error) {
+    if (!isQueueableConnectivityError(error)) throw error;
+    const database = await getOfflineDatabase();
+    await new OutboxRepository(database).enqueue({
+      userId: user.id,
+      entityType: "profile_setting",
+      entityId: "name",
+      operation: "update",
+      dedupeKey: "profile:name",
+      payload: { kind: "name", value: name },
+    });
+    startQueuedSettingsSync(database, {
+      token,
+      userId: user.id,
+      messId: activeMess?.id ?? null,
+    });
+    result = { name };
+  }
   await patchLocalUser(user.id, { name: result.name });
   await patchCachedConsumerProfile({
     userId: user.id,
@@ -371,9 +461,29 @@ export const updateProfileName = createAuthAsyncThunk<
 export const updatePhone = createAuthAsyncThunk<string | null, string | null>(
   "auth/updatePhone",
   async (phone, { getState }) => {
-    const { token, user } = getState().auth;
+    const { token, user, activeMess } = getState().auth;
     if (!token || !user) throw new Error("Not authenticated");
-  const result = await api.updatePhone(phone, token).catch(async () => {const db=await getOfflineDatabase();await new OutboxRepository(db).enqueue({userId:user.id,entityType:"profile_setting",entityId:"phone",operation:"update",dedupeKey:"profile:phone",payload:{kind:"phone",value:phone}});return {mobileNumber:phone};});
+    let result: { mobileNumber: string | null };
+    try {
+      result = await api.updatePhone(phone, token);
+    } catch (error) {
+      if (!isQueueableConnectivityError(error)) throw error;
+      const database = await getOfflineDatabase();
+      await new OutboxRepository(database).enqueue({
+        userId: user.id,
+        entityType: "profile_setting",
+        entityId: "phone",
+        operation: "update",
+        dedupeKey: "profile:phone",
+        payload: { kind: "phone", value: phone },
+      });
+      startQueuedSettingsSync(database, {
+        token,
+        userId: user.id,
+        messId: activeMess?.id ?? null,
+      });
+      result = { mobileNumber: phone };
+    }
     await patchLocalUser(user.id, { mobileNumber: result.mobileNumber });
     return result.mobileNumber;
   },
@@ -382,9 +492,30 @@ export const updatePhone = createAuthAsyncThunk<string | null, string | null>(
 export const updateMessName = createAuthAsyncThunk<string, string>(
   "auth/updateMessName",
   async (name, { getState }) => {
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) throw new Error("No active mess");
-  const result = await api.updateMessName(name, token, activeMess.id).catch(async () => {const db=await getOfflineDatabase();await new OutboxRepository(db).enqueue({userId:getState().auth.user!.id,messId:activeMess.id,entityType:"profile_setting",entityId:"mess",operation:"update",dedupeKey:`mess:name:${activeMess.id}`,payload:{kind:"mess",value:name}});return {name};});
+    const { token, activeMess, user } = getState().auth;
+    if (!token || !activeMess || !user) throw new Error("No active mess");
+    let result: { name: string };
+    try {
+      result = await api.updateMessName(name, token, activeMess.id);
+    } catch (error) {
+      if (!isQueueableConnectivityError(error)) throw error;
+      const database = await getOfflineDatabase();
+      await new OutboxRepository(database).enqueue({
+        userId: user.id,
+        messId: activeMess.id,
+        entityType: "profile_setting",
+        entityId: "mess",
+        operation: "update",
+        dedupeKey: `mess:name:${activeMess.id}`,
+        payload: { kind: "mess", value: name },
+      });
+      startQueuedSettingsSync(database, {
+        token,
+        userId: user.id,
+        messId: activeMess.id,
+      });
+      result = { name };
+    }
     await patchLocalMess(activeMess.id, { name: result.name });
     return result.name;
   },
@@ -428,10 +559,23 @@ const authSlice = createSlice({
       .addCase(localAuthSnapshotReceived, (state, action) => {
         if (!state.token || state.user?.id !== action.payload.me.user.id)
           return;
+
+        // A SQLite hydration can finish after the user has selected a mess.
+        // Do not let that older snapshot clear the live selection; doing so
+        // makes the root route guard send the user back to Mess Hub.
+        const selectedMess = state.activeMess;
         state.user = action.payload.me.user;
         state.messes = action.payload.me.messes;
         state.requests = action.payload.me.requests;
-        state.activeMess = action.payload.activeMess;
+        if (selectedMess) {
+          const refreshedSelection = state.messes.find(
+            (mess) => mess.id === selectedMess.id,
+          );
+          state.activeMess = refreshedSelection ?? selectedMess;
+          if (!refreshedSelection) state.messes.push(selectedMess);
+        } else {
+          state.activeMess = action.payload.activeMess;
+        }
       })
       .addCase(setActiveMess, (state, action) => {
         state.activeMess = action.payload;
@@ -476,11 +620,13 @@ const authSlice = createSlice({
         state.activeMess = action.payload.activeMess;
       })
       .addCase(joinMess.fulfilled, (state, action) => {
+        const pendingRequest = action.payload;
+        if (!pendingRequest) return;
         state.requests = [
           ...state.requests.filter(
-            (request) => request.messId !== action.payload.messId,
+            (request) => request.messId !== pendingRequest.messId,
           ),
-          action.payload,
+          pendingRequest,
         ];
       })
       .addCase(retryJoin.fulfilled, (state, action) => {

@@ -1,4 +1,4 @@
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector, useStore } from "react-redux";
 
 import {
   createMess,
@@ -71,12 +71,13 @@ import {
   refreshNotifications,
   selectNotificationState,
 } from "@/redux/slice/notificationSlice";
-import type { AppDispatch, RootState } from "@/redux/store";
+import type { AppDispatch, AppStore, RootState } from "@/redux/store";
 import type { DepositEntryInput } from "@/types/deposit";
 import type { DayExpenseItem } from "@/types/mess";
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
 export const useAppSelector = useSelector.withTypes<RootState>();
+export const useAppStore = useStore.withTypes<AppStore>();
 
 type UnwrappableResult<Result> = {
   unwrap: () => Promise<Result>;
@@ -253,17 +254,9 @@ export const useMess = () => {
     lastLiveSyncAt: state.lastLiveSyncAt,
     lastRefreshError: state.lastRefreshError,
     refreshMonth: async () => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("refresh"));
-        throw new Error("No internet connection.");
-      }
       await unwrapAsyncResult(dispatch(refreshMessMonth()));
     },
     refreshConsumers: async () => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("refresh"));
-        throw new Error("No internet connection.");
-      }
       await unwrapAsyncResult(dispatch(refreshMessConsumers()));
     },
     goToPrevMonth: () => dispatch(goToPreviousMonth()),
@@ -277,10 +270,6 @@ export const useMess = () => {
       );
     },
     addConsumer: async (name: string, email: string, mobileNumber?: string) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("entry"));
-        throw new Error("No internet connection.");
-      }
       const result = await unwrapAsyncResult(
         dispatch(
           addMessConsumer({
@@ -294,10 +283,6 @@ export const useMess = () => {
       return { invitationSent: result.invitationSent };
     },
     removeConsumer: async (id: string) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("update"));
-        throw new Error("No internet connection.");
-      }
       await unwrapAsyncResult(dispatch(removeMessConsumer({ id, isOnline })));
     },
     getDaysInMonth,
@@ -358,9 +343,11 @@ export const useExpenses = () => {
   const state = useAppSelector(selectExpenseState);
 
   const getExpense = (yearMonth: string, day: number) => {
-    const items = state.months[yearMonth]?.[day.toString()]?.items ?? [];
+    const expense = state.months[yearMonth]?.[day.toString()];
+    const items = expense?.items ?? [];
     return {
       items,
+      conflictMessage: expense?.conflictMessage ?? null,
       total: items.reduce((sum, item) => sum + item.amount, 0),
     };
   };
@@ -374,6 +361,11 @@ export const useExpenses = () => {
 
   return {
     ...shared,
+    currentMonthLoaded:
+      Boolean(state.loadedMonths[shared.currentYearMonth]) ||
+      shared.currentMonthLoaded,
+    dataLoading:
+      !state.loadedMonths[shared.currentYearMonth] && shared.dataLoading,
     expenses: state.months,
     expenseRequestStatus: state.requestStatus,
     expenseRequestError: state.requestError,

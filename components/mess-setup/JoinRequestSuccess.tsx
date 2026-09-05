@@ -2,7 +2,11 @@ import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
 
-export const JoinRequestSuccess = () => {
+export const JoinRequestSuccess = ({
+  queued = false,
+}: {
+  queued?: boolean;
+}) => {
   const router = useRouter();
 
   return (
@@ -11,11 +15,13 @@ export const JoinRequestSuccess = () => {
         <Feather name="check-circle" size={32} color="#059669" />
       </View>
       <Text className="mb-1.5 text-center font-inter-bold text-[21px] text-gray-900">
-        Request Sent!
+        {queued ? "Request saved" : "Request Sent!"}
       </Text>
       <Text className="mb-[22px] text-center font-inter text-[13px] leading-5 text-gray-500">
-        Your request has been sent to the admin for approval.{"\n"}
-        You can check the status in the Hub.
+        {queued
+          ? "Your request will be sent to the admin after you reconnect."
+          : "Your request has been sent to the admin for approval."}
+        {"\n"}You can check the status in the Hub.
       </Text>
       <TouchableOpacity
         className="mt-2 h-[54px] w-full flex-row items-center justify-center gap-2 rounded-[14px] bg-teal-700 shadow-lg shadow-teal-700/35"

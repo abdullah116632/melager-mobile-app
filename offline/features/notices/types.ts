@@ -22,4 +22,7 @@ export interface NoticeMutationPayload {
   color?: string;
   noticeIds?: number[];
   localIds?: string[];
+  baseUpdatedAt?: string;
+  baseLocalIds?: string[];
+  lastReadNoticeId?: number;
 }

@@ -20,6 +20,12 @@ export function registerNoticeSync(
     const payload = getPayload(operation);
     const localId = payload.localId;
     if (!localId) throw new Error("Notice outbox item has no local id.");
+    if (operation.operation !== "create" && !payload.baseUpdatedAt) {
+      const local = await repository.getByLocalId(localId);
+      if (local?.server_updated_at) {
+        payload.baseUpdatedAt = local.server_updated_at;
+      }
+    }
     const syncOperation: NoticeSyncOperation =
       operation.operation === "create"
         ? "notice_create"
@@ -29,6 +35,8 @@ export function registerNoticeSync(
     try {
       const response = await api.syncNoticeMutation<{
         notice?: ApiNotice;
+        success?: boolean;
+        serverId?: number;
       }>(
         operation.id,
         syncOperation,
@@ -36,6 +44,13 @@ export function registerNoticeSync(
         context.token,
         context.messId!,
       );
+      if (operation.operation === "delete") {
+        if (!response.success) {
+          throw new Error("Server did not confirm notice deletion.");
+        }
+        await repository.acknowledgeDelete(localId);
+        return;
+      }
       if (!response.notice) throw new Error("Server returned no notice.");
       await repository.acknowledge(localId, response.notice, operation.id);
     } catch (error) {
@@ -64,13 +79,21 @@ export function registerNoticeSync(
       }
       serverIds.push(row.server_id);
     }
+    const baseServerIds: number[] = [];
+    for (const localId of payload.baseLocalIds ?? []) {
+      const row = await repository.getByLocalId(localId);
+      if (!row || row.server_id === null || row.is_deleted === 1) {
+        throw new Error("Notice order base is waiting for item sync.");
+      }
+      baseServerIds.push(row.server_id);
+    }
     try {
       const response = await api.syncNoticeMutation<{
         notices?: ApiNotice[];
       }>(
         operation.id,
         "notice_reorder",
-        { noticeIds: serverIds },
+        { noticeIds: serverIds, baseNoticeIds: baseServerIds },
         context.token,
         context.messId!,
       );
@@ -103,14 +126,18 @@ export function registerNoticeSync(
   registry.registerProcessor(
     "notice_notification",
     async (operation, context) => {
-      await api.syncNoticeMutation(
+      const response = await api.syncNoticeMutation<{ unreadCount: number }>(
         operation.id,
         "notifications_read",
-        {},
+        getPayload(operation) as Record<string, unknown>,
         context.token,
         context.messId!,
       );
-      await repository.acknowledgeRead(context.userId, context.messId!);
+      await repository.acknowledgeRead(
+        context.userId,
+        context.messId!,
+        response.unreadCount,
+      );
     },
   );
 

@@ -1,9 +1,10 @@
 import { AppState, type AppStateStatus } from "react-native";
 import { useEffect, type ReactNode } from "react";
 
-import { clearApiCache } from "@/lib/api";
+import { clearApiCache, type ApiServerNotification } from "@/lib/api";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import { MessageRepository } from "@/offline/features/messages/MessageRepository";
+import { subscribeToMessageLifecycle } from "@/offline/features/messages/messageLifecycle";
 import {
   connectRealtime,
   disconnectRealtime,
@@ -19,7 +20,9 @@ import {
 import {
   loadUnreadMessageCount,
   markMessagesRead,
+  messageAcknowledged,
   messageReceived,
+  messageStatusChanged,
   unreadMessageReceived,
 } from "@/redux/slice/messagesSlice";
 import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
@@ -28,7 +31,10 @@ import { loadUnreadConsumerBreakdownCount } from "@/redux/slice/consumerBreakdow
 import { loadMonth } from "@/redux/slice/messSlice";
 import { loadDepositEntries } from "@/redux/slice/depositsSlice";
 import { invalidateSchedule } from "@/redux/slice/mealMenuSlice";
-import { refreshNotifications } from "@/redux/slice/notificationSlice";
+import {
+  ingestServerNotification,
+  refreshNotifications,
+} from "@/redux/slice/notificationSlice";
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
 export const RealtimeStateController = ({
@@ -44,9 +50,24 @@ export const RealtimeStateController = ({
 
   useEffect(
     () =>
+      subscribeToMessageLifecycle((event) => {
+        if (event.type === "acknowledged") {
+          dispatch(messageAcknowledged(event));
+        } else {
+          dispatch(messageStatusChanged(event));
+        }
+      }),
+    [dispatch],
+  );
+
+  useEffect(
+    () =>
       subscribeToRealtimeMessages((message) => {
         clearApiCache();
-        if (user?.id) void getOfflineDatabase().then((db) => new MessageRepository(db).merge(user.id, [message])).catch(() => undefined);
+        if (user?.id)
+          void getOfflineDatabase()
+            .then((db) => new MessageRepository(db).merge(user.id, [message]))
+            .catch(() => undefined);
         dispatch(messageReceived(message));
         if (message.senderUserId === user?.id) return;
         if (isMessageConversationActive(message.messId)) {
@@ -127,8 +148,11 @@ export const RealtimeStateController = ({
         clearApiCache();
         void dispatch(loadUnreadConsumerBreakdownCount());
       });
-      socket.on("notification:created", () => {
+      socket.on("notification:created", (notification: unknown) => {
         clearApiCache();
+        void dispatch(
+          ingestServerNotification(notification as ApiServerNotification),
+        );
         void dispatch(refreshNotifications());
       });
       socket.on("meals:updated", refreshMonthFromEvent);

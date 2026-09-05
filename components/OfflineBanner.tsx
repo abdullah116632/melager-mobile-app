@@ -15,7 +15,11 @@ export function OfflineBanner() {
   const [justSynced, setJustSynced] = useState(false);
   const justSyncedRef = useRef(false);
 
-  const showBanner = isSyncing || (isOnline && pendingCount > 0) || justSynced;
+  // This banner is for reconnect/sync feedback only. In particular, do not
+  // leave a stale "You're offline" frame on screen while the connection is
+  // coming back and the success banner is about to be shown.
+  const showBanner =
+    isOnline && (isSyncing || pendingCount > 0 || justSynced);
   const topInset = Platform.OS === "web" ? 0 : insets.top;
   const bannerHeight = BANNER_BODY_HEIGHT + topInset;
   const hiddenOffset = -(bannerHeight + SLIDE_BUFFER);
@@ -39,6 +43,12 @@ export function OfflineBanner() {
       return () => clearTimeout(timeout);
     }
   }, [isOnline, isSyncing, pendingCount]);
+
+  useEffect(() => {
+    if (isOnline) return;
+    setJustSynced(false);
+    justSyncedRef.current = false;
+  }, [isOnline]);
 
   useEffect(() => {
     if (isSyncing) {

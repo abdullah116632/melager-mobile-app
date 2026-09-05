@@ -17,10 +17,10 @@ export const DashboardContent = () => {
   const refreshDashboard = useCallback(async () => {
     setRefreshing(true);
     try {
-      await accountingRef.current?.refresh();
-      await mealSectionRef.current?.refresh();
-    } catch {
-      // Keep the last successfully loaded figures visible.
+      await Promise.allSettled([
+        accountingRef.current?.refresh() ?? Promise.resolve(),
+        mealSectionRef.current?.refresh() ?? Promise.resolve(),
+      ]);
     } finally {
       setRefreshing(false);
     }

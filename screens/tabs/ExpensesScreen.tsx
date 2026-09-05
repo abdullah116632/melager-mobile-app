@@ -28,6 +28,7 @@ export const ExpensesScreen = () => {
         accentColor={EXPENSE_PRIMARY}
         variant="dashboard"
         monthDataLoading={dataLoading}
+        showSyncStatus={false}
       />
       <ExpensesTable />
     </View>

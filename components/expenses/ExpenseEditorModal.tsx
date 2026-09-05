@@ -48,6 +48,8 @@ export const ExpenseEditorModal = ({
   const visible = day !== null;
   const total = getExpenseDraftTotal(drafts);
   const firstDraftId = drafts[0]?.id;
+  const conflictMessage =
+    day === null ? null : getExpense(currentYearMonth, day).conflictMessage;
 
   useEffect(() => {
     if (day === null) {
@@ -204,6 +206,17 @@ export const ExpenseEditorModal = ({
               </View>
             </View>
 
+            {conflictMessage ? (
+              <View className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <Text className="font-inter-semibold text-xs text-amber-800">
+                  This expense changed on another device.
+                </Text>
+                <Text className="mt-0.5 font-inter text-xs text-amber-700">
+                  Review the items, then save again to keep this version.
+                </Text>
+              </View>
+            ) : null}
+
             <View className="mb-1 flex-row items-center border-b border-slate-200 pb-2">
               <Text className="flex-1 font-inter-semibold text-[11px] text-slate-500">
                 Item Name
@@ -299,7 +312,11 @@ export const ExpenseEditorModal = ({
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : null}
               <Text className="font-inter-bold text-base text-white">
-                {saving ? "Saving..." : "Save"}
+                {saving
+                  ? "Saving..."
+                  : conflictMessage
+                    ? "Keep This Version"
+                    : "Save"}
               </Text>
             </TouchableOpacity>
           </View>

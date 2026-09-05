@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth, useNotifications } from "@/redux/hooks";
+import { useAuth, useNetwork, useNotifications } from "@/redux/hooks";
 import {
   acceptMemberRequest,
   rejectMemberRequest,
@@ -34,7 +34,8 @@ export const MemberRequestCard = ({
   request,
   onResolved,
 }: MemberRequestCardProps) => {
-  const { token, refreshMe } = useAuth();
+  const { token, user, activeMess, refreshMe } = useAuth();
+  const { isOnline } = useNetwork();
   const { refreshCount } = useNotifications();
   const [pendingAction, setPendingAction] = useState<
     "accept" | "reject" | null
@@ -44,13 +45,20 @@ export const MemberRequestCard = ({
     AVATAR_CLASS_BY_COLOR[getAvatarColor(request.name)] ?? "bg-teal-600";
 
   const handleAccept = async () => {
-    if (!token) return;
+    if (!token || !user || !activeMess) return;
     setPendingAction("accept");
     try {
-      await acceptMemberRequest(request.id, token);
+      await acceptMemberRequest(request.id, {
+        token,
+        userId: user.id,
+        messId: activeMess.id,
+        isOnline,
+      });
       onResolved(request.id);
-      await refreshMe();
-      await refreshCount();
+      if (isOnline) {
+        await refreshMe();
+        await refreshCount();
+      }
       if (Platform.OS !== "web") {
         void Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,
@@ -64,12 +72,17 @@ export const MemberRequestCard = ({
   };
 
   const handleReject = async () => {
-    if (!token) return;
+    if (!token || !user || !activeMess) return;
     setPendingAction("reject");
     try {
-      await rejectMemberRequest(request.id, token);
+      await rejectMemberRequest(request.id, {
+        token,
+        userId: user.id,
+        messId: activeMess.id,
+        isOnline,
+      });
       onResolved(request.id);
-      await refreshCount();
+      if (isOnline) await refreshCount();
     } catch {
       // Keep the existing silent failure behavior.
     } finally {

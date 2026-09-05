@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth, useDeposits, useNetwork } from "@/redux/hooks";
+import { useAuth, useDeposits } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
   formatDepositAmount,
@@ -32,7 +32,6 @@ export const DepositHistoryModal = ({
   onClose,
 }: DepositHistoryModalProps) => {
   const { role } = useAuth();
-  const { isOnline } = useNetwork();
   const { consumers, entries, deleteEntry: removeEntry } = useDeposits();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const isAdmin = role === "admin";
@@ -49,13 +48,6 @@ export const DepositHistoryModal = ({
     : [];
 
   const deleteEntry = (entryId: number) => {
-    if (!isOnline) {
-      Alert.alert(
-        "Offline",
-        "Cannot delete while offline. Please try again when connected.",
-      );
-      return;
-    }
     Alert.alert("Delete Deposit", "Remove this deposit entry?", [
       { text: "Cancel", style: "cancel" },
       {

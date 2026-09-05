@@ -24,7 +24,23 @@ export const localDateString = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-export const getCurrentDate = (): string => localDateString(new Date());
+const DHAKA_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Dhaka",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Calendar date used by the server's Bangladesh business day. */
+export const getDhakaDate = (date = new Date()): string => {
+  const parts = DHAKA_DATE_FORMATTER.formatToParts(date);
+  const value = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return `${value.year}-${value.month}-${value.day}`;
+};
+
+export const getCurrentDate = (): string => getDhakaDate();
 
 export const addDashboardDays = (dateString: string, days: number): string => {
   const [year, month, day] = dateString.split("-").map(Number);

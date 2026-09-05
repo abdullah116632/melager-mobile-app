@@ -34,12 +34,20 @@ export const toggleDashboardMeal = (
   mealType: string,
   scope: "day" | "ongoing",
   token: string,
+  isOptedOut: boolean,
 ) =>
   api
-    .toggleMealOptOutV2(messId, date, mealType, scope, token)
+    .toggleMealOptOutV2(messId, date, mealType, scope, token, isOptedOut)
     .catch((error: unknown) => {
       if (isMissingV2Route(error)) {
-        return api.toggleMealOptOut(messId, date, mealType, scope, token);
+        return api.toggleMealOptOut(
+          messId,
+          date,
+          mealType,
+          scope,
+          token,
+          isOptedOut,
+        );
       }
       throw error;
     });

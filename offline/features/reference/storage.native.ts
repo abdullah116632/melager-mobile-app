@@ -7,8 +7,10 @@ import type {
   MeAuthResponse,
 } from "@/lib/api";
 import { ACTIVE_MESS_KEY, AUTH_CACHE_KEY } from "@/storage/session/constants";
+import { clearPersistedAppCaches } from "@/lib/cache";
 
 import { getOfflineDatabase } from "../../database/connection";
+import { getOfflineRuntime } from "../../runtime/getOfflineRuntime";
 import { ReferenceDataRepository } from "./ReferenceDataRepository";
 import type { LocalAuthSnapshot, LocalConsumerSnapshot } from "./types";
 
@@ -42,15 +44,23 @@ export async function saveLocalAuthSnapshot(
   me: MeAuthResponse,
   activeMessId?: number | null,
 ): Promise<LocalAuthSnapshot> {
-  const repository = await getRepository();
-  const current = await repository.getAuthSnapshot();
-  if (current && current.me.user.id !== me.user.id) {
-    // A shared device must never expose the previous account's cached data.
-    await repository.clear();
+  const database = await getOfflineDatabase();
+  const runtime = getOfflineRuntime(database);
+  await runtime.engine.suspendAndDrain();
+  try {
+    const repository = new ReferenceDataRepository(database);
+    const current = await repository.getAuthSnapshot();
+    if (current && current.me.user.id !== me.user.id) {
+      // A shared device must never expose the previous account's cached data.
+      await repository.clear();
+      await clearPersistedAppCaches();
+    }
+    const snapshot = await repository.replaceAuthSnapshot(me, activeMessId);
+    await AsyncStorage.multiRemove([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
+    return snapshot;
+  } finally {
+    runtime.engine.resume();
   }
-  const snapshot = await repository.replaceAuthSnapshot(me, activeMessId);
-  await AsyncStorage.multiRemove([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
-  return snapshot;
 }
 
 export async function setLocalActiveMess(
@@ -90,6 +100,11 @@ export async function patchLocalMess(
 }
 
 export async function clearLocalReferenceData(): Promise<void> {
-  await (await getRepository()).clear();
-  await AsyncStorage.multiRemove([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]);
+  const database = await getOfflineDatabase();
+  await getOfflineRuntime(database).engine.suspendAndDrain();
+  await Promise.all([
+    new ReferenceDataRepository(database).clear(),
+    clearPersistedAppCaches(),
+    AsyncStorage.multiRemove([AUTH_CACHE_KEY, ACTIVE_MESS_KEY]),
+  ]);
 }

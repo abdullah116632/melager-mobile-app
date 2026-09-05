@@ -7,6 +7,7 @@ import type {
   MeAuthResponse,
 } from "@/lib/api";
 import { ACTIVE_MESS_KEY, AUTH_CACHE_KEY } from "@/storage/session/constants";
+import { clearPersistedAppCaches } from "@/lib/cache";
 
 import type { LocalAuthSnapshot, LocalConsumerSnapshot } from "./types";
 
@@ -123,9 +124,12 @@ export async function clearLocalReferenceData(): Promise<void> {
   const consumerKeys = (await AsyncStorage.getAllKeys()).filter((key) =>
     key.startsWith(CONSUMERS_PREFIX),
   );
-  await AsyncStorage.multiRemove([
-    AUTH_CACHE_KEY,
-    ACTIVE_MESS_KEY,
-    ...consumerKeys,
+  await Promise.all([
+    AsyncStorage.multiRemove([
+      AUTH_CACHE_KEY,
+      ACTIVE_MESS_KEY,
+      ...consumerKeys,
+    ]),
+    clearPersistedAppCaches(),
   ]);
 }

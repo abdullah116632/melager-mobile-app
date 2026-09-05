@@ -8,11 +8,17 @@ import {
   useRef,
 } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { ApiError } from "@/lib/api";
 import {
   DASHBOARD_MEAL_LABELS,
   DASHBOARD_MEAL_TYPES,
 } from "@/constants/dashboard";
-import { useAppDispatch, useAppSelector, useAuth } from "@/redux/hooks";
+import {
+  useAppDispatch,
+  useAppSelector,
+  useAuth,
+  useNetwork,
+} from "@/redux/hooks";
 import {
   selectMealMenuState,
   setCalendarMarkers,
@@ -37,6 +43,9 @@ import {
 } from "@/utils/dashboard";
 import { DashboardMealCard } from "@/components/dashboard/DashboardMealCard";
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
+import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
+import { MealScheduleRepository } from "@/offline/features/meals/MealScheduleRepository";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 
 const menuCardShadow = {
   shadowColor: "#94A3B8",
@@ -56,7 +65,10 @@ export const DashboardMealSection = forwardRef<
 >((_props, ref) => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { mess, role, token } = useAuth();
+  const { mess, role, token, user } = useAuth();
+  const { isOnline } = useNetwork();
+  const { database } = useOfflineDatabase();
+  const userId = user?.id ?? null;
   const today = getCurrentDate();
   const {
     selectedDate,
@@ -90,15 +102,29 @@ export const DashboardMealSection = forwardRef<
   const fetchSchedule = useCallback(
     async (date: string) => {
       if (!token || !mess) return;
+      const repository =
+        database && userId ? new MealScheduleRepository(database) : null;
+      if (repository) {
+        const local = await repository
+          .getSnapshot(userId!, mess.id, date)
+          .catch(() => null);
+        if (local && mountedRef.current) dispatch(setSchedule(local.schedule));
+      }
       try {
         const data = await getDashboardSchedule(mess.id, token, date);
         if (!mountedRef.current) return;
-        dispatch(setSchedule(data));
+        if (repository) {
+          await repository.replaceRemoteSchedule(userId!, mess.id, date, data);
+          const latest = await repository.getSnapshot(userId!, mess.id, date);
+          dispatch(setSchedule(latest?.schedule ?? data));
+        } else {
+          dispatch(setSchedule(data));
+        }
       } catch {
         // Preserve the last successfully loaded schedule.
       }
     },
-    [token, mess?.id],
+    [database, dispatch, mess?.id, token, userId],
   );
 
   const fetchCalendarMarkers = useCallback(
@@ -106,6 +132,22 @@ export const DashboardMealSection = forwardRef<
       if (!token || !mess) return;
       const requestId = ++calendarRequestId.current;
       dispatch(setCalendarMarkersLoading(true));
+      const repository =
+        database && userId ? new MealScheduleRepository(database) : null;
+      if (repository) {
+        const localMarkers = await repository
+          .getCalendarMarkers(userId!, mess.id, yearMonth)
+          .catch(() => ({}));
+        if (mountedRef.current && calendarRequestId.current === requestId) {
+          dispatch(setCalendarMarkers(localMarkers));
+        }
+      }
+      if (!isOnline) {
+        if (mountedRef.current && calendarRequestId.current === requestId) {
+          dispatch(setCalendarMarkersLoading(false));
+        }
+        return;
+      }
       try {
         const data = await getDashboardMealCalendar(mess.id, token, yearMonth);
         if (!mountedRef.current || calendarRequestId.current !== requestId)
@@ -116,10 +158,18 @@ export const DashboardMealSection = forwardRef<
             mealType === "breakfast" ? "B" : mealType === "lunch" ? "L" : "D",
           );
         }
+        if (repository) {
+          await repository.replaceCalendarMarkers(
+            userId!,
+            mess.id,
+            yearMonth,
+            markers,
+          );
+        }
         dispatch(setCalendarMarkers(markers));
       } catch {
         if (mountedRef.current && calendarRequestId.current === requestId) {
-          dispatch(setCalendarMarkers({}));
+          // The local calendar remains usable when the refresh fails.
         }
       } finally {
         if (mountedRef.current && calendarRequestId.current === requestId) {
@@ -127,7 +177,7 @@ export const DashboardMealSection = forwardRef<
         }
       }
     },
-    [mess?.id, token],
+    [database, dispatch, isOnline, mess?.id, token, userId],
   );
 
   useEffect(() => {
@@ -141,7 +191,7 @@ export const DashboardMealSection = forwardRef<
   useEffect(() => {
     dispatch(setSchedule(null));
     void fetchSchedule(selectedDate);
-  }, [dispatch, fetchSchedule, scheduleRevision, selectedDate]);
+  }, [dispatch, fetchSchedule, isOnline, scheduleRevision, selectedDate]);
 
   useEffect(() => {
     if (datePickerVisible) void fetchCalendarMarkers(calendarYearMonth);
@@ -159,6 +209,7 @@ export const DashboardMealSection = forwardRef<
   ) => {
     if (!token || !mess) return;
     const wasOptedOut = optOuts.has(mealType);
+    const isOptedOut = !wasOptedOut;
     dispatch(setPendingOptOut({ mealType, pending: true }));
     dispatch(
       setOptOuts(
@@ -168,8 +219,50 @@ export const DashboardMealSection = forwardRef<
       ),
     );
     try {
-      await toggleDashboardMeal(mess.id, selectedDate, mealType, scope, token);
-      await fetchSchedule(selectedDate);
+      let queued = !isOnline;
+      if (!queued) {
+        try {
+          await toggleDashboardMeal(
+            mess.id,
+            selectedDate,
+            mealType,
+            scope,
+            token,
+            isOptedOut,
+          );
+        } catch (error) {
+          queued =
+            error instanceof TypeError ||
+            (error instanceof ApiError && error.status === 408);
+          if (!queued) throw error;
+        }
+      }
+
+      if (queued) {
+        if (!database || !user || !schedule) {
+          throw new Error("Offline meal storage is unavailable.");
+        }
+        const repository = new MealScheduleRepository(database);
+        await repository.saveOptOut(
+          user.id,
+          mess.id,
+          selectedDate,
+          mealType,
+          scope,
+          isOptedOut,
+          schedule,
+        );
+        if (isOnline) {
+          void getOfflineRuntime(database)
+            .engine.sync(
+              { userId: user.id, messId: mess.id, token },
+              { collections: ["meal_schedule"], force: true },
+            )
+            .catch(() => undefined);
+        }
+      } else {
+        await fetchSchedule(selectedDate);
+      }
     } catch (error) {
       if (!mountedRef.current) return;
       dispatch(

@@ -28,9 +28,25 @@ export const ExpenseDetailModal = ({
   const { currentYearMonth, getExpense, setExpense } = useExpenses();
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [resolvingConflict, setResolvingConflict] = useState(false);
   const isAdmin = role === "admin";
   const expense = day === null ? null : getExpense(currentYearMonth, day);
   const deletionInProgress = deletingAll || deletingItemId !== null;
+
+  const keepLocalVersion = async () => {
+    if (!isAdmin || day === null || !expense || resolvingConflict) return;
+    setResolvingConflict(true);
+    try {
+      await setExpense(currentYearMonth, day, expense.items);
+    } catch (error) {
+      Alert.alert(
+        "Conflict resolution failed",
+        error instanceof Error ? error.message : "Failed to keep this version.",
+      );
+    } finally {
+      setResolvingConflict(false);
+    }
+  };
 
   const deleteExpenseItem = (itemId: string) => {
     if (!isAdmin || day === null || deletionInProgress) return;
@@ -147,6 +163,30 @@ export const ExpenseDetailModal = ({
               </TouchableOpacity>
             </View>
           </View>
+
+          {expense?.conflictMessage ? (
+            <View className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <Text className="font-inter-semibold text-xs text-amber-800">
+                Sync conflict
+              </Text>
+              <Text className="mt-0.5 font-inter text-xs text-amber-700">
+                Another device changed this day. Review the version shown here,
+                then confirm if you want to keep it.
+              </Text>
+              {isAdmin ? (
+                <TouchableOpacity
+                  className="mt-2 self-start rounded-lg bg-amber-700 px-3 py-2"
+                  onPress={() => void keepLocalVersion()}
+                  disabled={resolvingConflict}
+                  accessibilityLabel="Keep this expense version"
+                >
+                  <Text className="font-inter-semibold text-xs text-white">
+                    {resolvingConflict ? "Resolving..." : "Keep This Version"}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
 
           {expense?.items.length ? (
             <ScrollView

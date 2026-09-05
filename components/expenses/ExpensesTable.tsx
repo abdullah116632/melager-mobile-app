@@ -14,13 +14,16 @@ import {
   EXPENSE_DAY_COLUMN_WIDTH,
   EXPENSE_PRIMARY,
 } from "@/constants/expense";
-import { useAuth, useExpenses } from "@/redux/hooks";
+import { useAppDispatch, useAuth, useExpenses, useNetwork } from "@/redux/hooks";
+import { offlineActionFailed } from "@/redux/slice/networkSlice";
 import { formatExpenseAmount, isExpenseDayToday } from "@/utils/expense";
 import { ExpenseDetailModal } from "./ExpenseDetailModal";
 import { ExpenseEditorModal } from "./ExpenseEditorModal";
 
 export const ExpensesTable = () => {
+  const dispatch = useAppDispatch();
   const { role } = useAuth();
+  const { isOnline } = useNetwork();
   const {
     currentYearMonth,
     currentMonthLoaded,
@@ -50,8 +53,17 @@ export const ExpensesTable = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refreshMonth().catch(() => {});
-    setRefreshing(false);
+    try {
+      if (!isOnline) {
+        dispatch(offlineActionFailed("refresh"));
+        return;
+      }
+      await refreshMonth();
+    } catch {
+      // The shared month state retains saved data and reports API errors.
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const openEditor = (day: number) => {
@@ -176,8 +188,26 @@ export const ExpensesTable = () => {
                 >
                   {!isMonthReady ? (
                     <View className="h-2.5 w-24 rounded-full bg-slate-200" />
+                  ) : expense.conflictMessage && !hasData ? (
+                    <View className="flex-row items-center gap-1.5">
+                      <Feather
+                        name="alert-triangle"
+                        size={14}
+                        color="#D97706"
+                      />
+                      <Text className="font-inter-semibold text-xs text-amber-700">
+                        Sync conflict
+                      </Text>
+                    </View>
                   ) : hasData ? (
                     <View className="flex-row items-center gap-1.5">
+                      {expense.conflictMessage ? (
+                        <Feather
+                          name="alert-triangle"
+                          size={14}
+                          color="#D97706"
+                        />
+                      ) : null}
                       <Text
                         className="flex-1 font-inter text-[13px] text-slate-900"
                         numberOfLines={1}

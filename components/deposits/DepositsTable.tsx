@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   RefreshControl,
@@ -56,6 +56,24 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
   const isAdmin = role === "admin";
   const ready = entriesReady;
   const grandTotal = ready ? getDepositTotal(entries) : 0;
+  // A consumer row's serial id is assigned when that person joins the mess.
+  // Do not rely on the incidental order returned by SQLite, a cache, or an
+  // API query: that made rows jump around after a refresh. Temporary offline
+  // consumers are always kept after confirmed members, in creation order.
+  const orderedConsumers = useMemo(
+    () =>
+      [...consumers].sort((left, right) => {
+        const leftId = Number(left.id);
+        const rightId = Number(right.id);
+        const leftConfirmed = leftId > 0;
+        const rightConfirmed = rightId > 0;
+        if (leftConfirmed && rightConfirmed) return leftId - rightId;
+        if (leftConfirmed) return -1;
+        if (rightConfirmed) return 1;
+        return rightId - leftId;
+      }),
+    [consumers],
+  );
 
   const refresh = async () => {
     setRefreshing(true);
@@ -91,7 +109,7 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
 
   return (
     <>
-      {ready && consumers.length === 0 ? (
+      {ready && orderedConsumers.length === 0 ? (
         <View className="flex-1 items-center justify-center gap-3 pb-20">
           <Feather name="users" size={48} color="#64748B" />
           <Text className="font-inter-bold text-lg text-slate-900">
@@ -106,7 +124,7 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
           <View className="h-[38px] flex-row items-center border-b border-slate-200 bg-[#0A5954]">
             <View className="w-[120px] justify-center border-r border-white/20">
               <Text className="px-2.5 font-inter-semibold text-xs text-white">
-                Consumers{ready ? ` (${consumers.length})` : ""}
+                Consumers{ready ? ` (${orderedConsumers.length})` : ""}
               </Text>
             </View>
             <View className="w-[118px] justify-center border-r px-2.5">
@@ -164,7 +182,7 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
               ))}
 
             {ready &&
-              consumers.map((consumer, index) => {
+              orderedConsumers.map((consumer, index) => {
                 const consumerEntries = getConsumerDepositEntries(
                   entries,
                   consumer.id,

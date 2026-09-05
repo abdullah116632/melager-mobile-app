@@ -2,6 +2,7 @@ import * as Crypto from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import type {
+  DeadLetterOperation,
   EnqueueOperationInput,
   OutboxOperation,
   OutboxOperationKind,
@@ -26,6 +27,11 @@ interface OutboxRow {
   updated_at: number;
 }
 
+interface DeadLetterRow extends Omit<OutboxRow, "status" | "next_attempt_at"> {
+  http_status: number | null;
+  failed_at: number;
+}
+
 const toOperation = (row: OutboxRow): OutboxOperation => ({
   id: row.id,
   dedupeKey: row.dedupe_key,
@@ -42,6 +48,24 @@ const toOperation = (row: OutboxRow): OutboxOperation => ({
   lastError: row.last_error,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+});
+
+const toDeadLetter = (row: DeadLetterRow): DeadLetterOperation => ({
+  id: row.id,
+  dedupeKey: row.dedupe_key,
+  userId: row.user_id,
+  messId: row.mess_id,
+  entityType: row.entity_type,
+  entityId: row.entity_id,
+  operation: row.operation,
+  payload: JSON.parse(row.payload) as unknown,
+  baseVersion: row.base_version,
+  attemptCount: row.attempt_count,
+  lastError: row.last_error ?? "Permanent sync failure",
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  httpStatus: row.http_status,
+  failedAt: row.failed_at,
 });
 
 export class OutboxRepository {
@@ -62,6 +86,7 @@ export class OutboxRepository {
         next_attempt_at, last_error, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0, NULL, ?, ?)
       ON CONFLICT(user_id, dedupe_key) DO UPDATE SET
+        id = excluded.id,
         entity_type = excluded.entity_type,
         entity_id = excluded.entity_id,
         operation = excluded.operation,
@@ -71,6 +96,7 @@ export class OutboxRepository {
         attempt_count = 0,
         next_attempt_at = 0,
         last_error = NULL,
+        created_at = excluded.created_at,
         updated_at = excluded.updated_at`,
       id,
       dedupeKey,
@@ -85,6 +111,15 @@ export class OutboxRepository {
       now,
     );
 
+    // A new edit with the same dedupe key is the user's resolution of an old
+    // quarantined mutation; keep only the new active operation.
+    await this.database.runAsync(
+      `DELETE FROM offline_outbox_dead_letters
+       WHERE user_id = ? AND dedupe_key = ?`,
+      input.userId,
+      dedupeKey,
+    );
+
     const saved = await this.database.getFirstAsync<OutboxRow>(
       `SELECT * FROM offline_outbox
        WHERE user_id = ? AND dedupe_key = ?`,
@@ -95,6 +130,22 @@ export class OutboxRepository {
     return toOperation(saved) as OutboxOperation<TPayload>;
   }
 
+  async removeEntity(
+    userId: number,
+    messId: number | null,
+    entityType: string,
+    entityId: string,
+  ): Promise<void> {
+    await this.database.runAsync(
+      `DELETE FROM offline_outbox
+       WHERE user_id = ? AND mess_id IS ? AND entity_type = ? AND entity_id = ?`,
+      userId,
+      messId,
+      entityType,
+      entityId,
+    );
+  }
+
   async listReady(
     userId: number,
     messId: number | null,
@@ -102,28 +153,33 @@ export class OutboxRepository {
     now = Date.now(),
   ): Promise<OutboxOperation[]> {
     const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
+    const scopeClause =
+      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
+    const parameters =
+      messId === null
+        ? [userId, now, safeLimit]
+        : [userId, messId, now, safeLimit];
     const rows = await this.database.getAllAsync<OutboxRow>(
       `SELECT * FROM offline_outbox
        WHERE user_id = ?
-         AND mess_id IS ?
+         AND ${scopeClause}
          AND status IN ('pending', 'failed')
          AND next_attempt_at <= ?
        ORDER BY created_at ASC
        LIMIT ?`,
-      userId,
-      messId,
-      now,
-      safeLimit,
+      ...parameters,
     );
     return rows.map(toOperation);
   }
 
   async countPending(userId: number, messId: number | null): Promise<number> {
+    const scopeClause =
+      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
+    const parameters = messId === null ? [userId] : [userId, messId];
     const row = await this.database.getFirstAsync<{ total: number }>(
       `SELECT COUNT(*) AS total FROM offline_outbox
-       WHERE user_id = ? AND mess_id IS ?`,
-      userId,
-      messId,
+       WHERE user_id = ? AND ${scopeClause}`,
+      ...parameters,
     );
     return Number(row?.total ?? 0);
   }
@@ -158,6 +214,110 @@ export class OutboxRepository {
       nextAttemptAt,
       error,
       Date.now(),
+      id,
+    );
+  }
+
+  async getNextAttemptAt(
+    userId: number,
+    messId: number | null,
+  ): Promise<number | null> {
+    const scopeClause =
+      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
+    const parameters = messId === null ? [userId] : [userId, messId];
+    const row = await this.database.getFirstAsync<{
+      next_attempt_at: number | null;
+    }>(
+      `SELECT MIN(next_attempt_at) AS next_attempt_at
+       FROM offline_outbox
+       WHERE user_id = ?
+         AND ${scopeClause}
+         AND status IN ('pending', 'failed')`,
+      ...parameters,
+    );
+    return row?.next_attempt_at == null ? null : Number(row.next_attempt_at);
+  }
+
+  async moveToDeadLetter(
+    id: string,
+    error: string,
+    httpStatus: number | null,
+  ): Promise<void> {
+    const now = Date.now();
+    await this.database.withTransactionAsync(async () => {
+      await this.database.runAsync(
+        `INSERT OR REPLACE INTO offline_outbox_dead_letters (
+          id, dedupe_key, user_id, mess_id, entity_type, entity_id,
+          operation, payload, base_version, attempt_count, last_error,
+          http_status, created_at, updated_at, failed_at
+        )
+        SELECT id, dedupe_key, user_id, mess_id, entity_type, entity_id,
+          operation, payload, base_version, attempt_count + 1, ?, ?,
+          created_at, ?, ?
+        FROM offline_outbox WHERE id = ?`,
+        error,
+        httpStatus,
+        now,
+        now,
+        id,
+      );
+      await this.database.runAsync(
+        "DELETE FROM offline_outbox WHERE id = ?",
+        id,
+      );
+    });
+  }
+
+  async listDeadLetters(
+    userId: number,
+    messId: number | null,
+  ): Promise<DeadLetterOperation[]> {
+    const scopeClause =
+      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
+    const parameters = messId === null ? [userId] : [userId, messId];
+    const rows = await this.database.getAllAsync<DeadLetterRow>(
+      `SELECT * FROM offline_outbox_dead_letters
+       WHERE user_id = ? AND ${scopeClause}
+       ORDER BY failed_at DESC`,
+      ...parameters,
+    );
+    return rows.map(toDeadLetter);
+  }
+
+  async retryDeadLetter(id: string): Promise<void> {
+    const now = Date.now();
+    await this.database.withTransactionAsync(async () => {
+      await this.database.runAsync(
+        `INSERT INTO offline_outbox (
+          id, dedupe_key, user_id, mess_id, entity_type, entity_id,
+          operation, payload, base_version, status, attempt_count,
+          next_attempt_at, last_error, created_at, updated_at
+        )
+        SELECT id, dedupe_key, user_id, mess_id, entity_type, entity_id,
+          operation, payload, base_version, 'pending', 0, 0, NULL,
+          created_at, ?
+        FROM offline_outbox_dead_letters WHERE id = ?
+        ON CONFLICT(user_id, dedupe_key) DO UPDATE SET
+          payload = excluded.payload,
+          base_version = excluded.base_version,
+          status = 'pending',
+          attempt_count = 0,
+          next_attempt_at = 0,
+          last_error = NULL,
+          updated_at = excluded.updated_at`,
+        now,
+        id,
+      );
+      await this.database.runAsync(
+        "DELETE FROM offline_outbox_dead_letters WHERE id = ?",
+        id,
+      );
+    });
+  }
+
+  async discardDeadLetter(id: string): Promise<void> {
+    await this.database.runAsync(
+      "DELETE FROM offline_outbox_dead_letters WHERE id = ?",
       id,
     );
   }
