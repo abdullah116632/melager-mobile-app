@@ -22,13 +22,20 @@ export class DailyMealsRepository {
     messId: number,
     yearMonth: string,
     meals: MealData[string],
+    remoteRequestStartedAt = Number.POSITIVE_INFINITY,
+    confirmAcknowledged = false,
   ): Promise<MealData[string]> {
-    const dirty = await this.db.getAllAsync<{
+    const localRows = await this.db.getAllAsync<{
       consumer_id: string;
       day: number;
       count: number;
+      is_dirty: number;
+      sync_state: number;
+      updated_at: number;
     }>(
-      "SELECT consumer_id, day, count FROM local_daily_meals WHERE user_id=? AND mess_id=? AND year_month=? AND is_dirty=1",
+      `SELECT consumer_id, day, count, is_dirty, sync_state, updated_at
+       FROM local_daily_meals
+       WHERE user_id=? AND mess_id=? AND year_month=?`,
       userId,
       messId,
       yearMonth,
@@ -36,22 +43,55 @@ export class DailyMealsRepository {
     await this.db.withTransactionAsync(async () => {
       for (const [consumerId, days] of Object.entries(meals))
         for (const [day, count] of Object.entries(days)) {
-          const local = dirty.find(
+          const numericDay = Number(day);
+          const local = localRows.find(
             (row) => row.consumer_id === consumerId && row.day === Number(day),
           );
-          if (local) continue;
+          // This response may have started before a local mutation was
+          // acknowledged. In that case it is stale even if the row is no
+          // longer marked dirty, and must not erase the newer local value.
+          if (
+            local &&
+            ((local.is_dirty === 1 &&
+              (!confirmAcknowledged || local.sync_state !== 2)) ||
+              local.updated_at > remoteRequestStartedAt)
+          ) {
+            continue;
+          }
           await this.db.runAsync(
-            `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,updated_at) VALUES (?,?,?,?,?,?,?,0,?) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,base_count=excluded.base_count,is_dirty=0,updated_at=excluded.updated_at`,
+            `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,sync_state,updated_at) VALUES (?,?,?,?,?,?,?,0,0,?) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,base_count=excluded.base_count,is_dirty=0,sync_state=0,updated_at=excluded.updated_at`,
             userId,
             messId,
             yearMonth,
             consumerId,
-            Number(day),
+            numericDay,
             count,
             count,
             Date.now(),
           );
         }
+      // Some legacy servers omit zero-valued rows. A successfully pushed
+      // removal is nevertheless confirmed by that absence; preserve its 0 in
+      // SQLite and make it clean only after this fresh post-push snapshot.
+      if (confirmAcknowledged) {
+        for (const local of localRows) {
+          if (local.sync_state !== 2) continue;
+          const serverHasCell = meals[local.consumer_id]?.[String(local.day)];
+          if (serverHasCell !== undefined) continue;
+          await this.db.runAsync(
+            `UPDATE local_daily_meals
+             SET base_count=count, is_dirty=0, sync_state=0, updated_at=?
+             WHERE user_id=? AND mess_id=? AND year_month=?
+               AND consumer_id=? AND day=? AND sync_state=2`,
+            Date.now(),
+            userId,
+            messId,
+            yearMonth,
+            local.consumer_id,
+            local.day,
+          );
+        }
+      }
       await this.db.runAsync(
         `INSERT INTO local_daily_meal_months (user_id,mess_id,year_month,cursor,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,mess_id,year_month) DO UPDATE SET updated_at=excluded.updated_at`,
         userId,
@@ -159,7 +199,7 @@ export class DailyMealsRepository {
     const baseCount = Number(existing?.base_count ?? existing?.count ?? 0);
     await this.db.withTransactionAsync(async () => {
       await this.db.runAsync(
-        `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,updated_at,conflict_message) VALUES (?,?,?,?,?,?,?,?,?,NULL) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,is_dirty=1,updated_at=excluded.updated_at,conflict_message=NULL`,
+        `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,sync_state,updated_at,conflict_message) VALUES (?,?,?,?,?,?,?,?,?,?,NULL) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,is_dirty=1,sync_state=1,updated_at=excluded.updated_at,conflict_message=NULL`,
         userId,
         messId,
         yearMonth,
@@ -167,6 +207,7 @@ export class DailyMealsRepository {
         day,
         count,
         baseCount,
+        1,
         1,
         Date.now(),
       );
@@ -179,6 +220,20 @@ export class DailyMealsRepository {
         dedupeKey: `daily-meal:${messId}:${yearMonth}:${consumerId}:${day}`,
         payload: { yearMonth, consumerId, day, count, baseCount },
       });
+      // A month created entirely offline still needs a reconnect pull. Without
+      // this marker it was absent from the daily-meal puller's tracked months.
+      await this.db.runAsync(
+        `INSERT INTO local_daily_meal_months
+           (user_id,mess_id,year_month,cursor,updated_at)
+         VALUES (?,?,?,?,?)
+         ON CONFLICT(user_id,mess_id,year_month) DO UPDATE SET
+           updated_at=excluded.updated_at`,
+        userId,
+        messId,
+        yearMonth,
+        null,
+        Date.now(),
+      );
     });
   }
   async acknowledge(
@@ -200,7 +255,7 @@ export class DailyMealsRepository {
     if (pending.length > 0) {
       await this.db.withTransactionAsync(async () => {
         await this.db.runAsync(
-          "UPDATE local_daily_meals SET base_count=?,is_dirty=1,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+          "UPDATE local_daily_meals SET base_count=?,is_dirty=1,sync_state=1,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
           p.count,
           Date.now(),
           userId,
@@ -222,7 +277,7 @@ export class DailyMealsRepository {
       return;
     }
     await this.db.runAsync(
-      "UPDATE local_daily_meals SET count=?,base_count=?,is_dirty=0,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+      "UPDATE local_daily_meals SET count=?,base_count=?,is_dirty=1,sync_state=2,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
       p.count,
       p.count,
       Date.now(),
@@ -241,7 +296,7 @@ export class DailyMealsRepository {
     serverCount: number,
   ): Promise<void> {
     await this.db.runAsync(
-      "UPDATE local_daily_meals SET conflict_message=?,base_count=?,is_dirty=1 WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+      "UPDATE local_daily_meals SET conflict_message=?,base_count=?,is_dirty=1,sync_state=1 WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
       message,
       serverCount,
       userId,
@@ -312,7 +367,7 @@ export class DailyMealsRepository {
     }
     await this.db.withTransactionAsync(async () => {
       await this.db.runAsync(
-        "UPDATE local_daily_meals SET count=base_count,is_dirty=0,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+        "UPDATE local_daily_meals SET count=base_count,is_dirty=0,sync_state=0,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
         Date.now(),
         userId,
         messId,

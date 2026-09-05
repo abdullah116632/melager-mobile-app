@@ -67,7 +67,7 @@ export const setMeal = createAsyncThunk.withTypes<{
   state: MealsRootState;
 }>()<void, SetMealArgs>(
   "meals/setMeal",
-  async ({ yearMonth, consumerId, day, count }, { getState }) => {
+  async ({ yearMonth, consumerId, day, count }, { dispatch, getState }) => {
     const { token, activeMess, user } = getState().auth;
     if (!activeMess || !user) return;
     try {
@@ -80,11 +80,22 @@ export const setMeal = createAsyncThunk.withTypes<{
         day,
         count,
       );
-      if (token && getState().network.isOnline)
-        void getOfflineRuntime(database).engine.sync(
-          { userId: user.id, messId: activeMess.id, token },
-          { collections: ["daily_meals"], force: true },
-        );
+      if (token && getState().network.isOnline) {
+        void getOfflineRuntime(database)
+          .engine.sync(
+            { userId: user.id, messId: activeMess.id, token },
+            { collections: ["daily_meals"], force: true },
+          )
+          .then(() =>
+            dispatch(
+              hydrateDailyMealMonthFromLocal({
+                messId: activeMess.id,
+                yearMonth,
+              }),
+            ),
+          )
+          .catch(() => undefined);
+      }
       return;
     } catch {
       if (token && getState().network.isOnline)

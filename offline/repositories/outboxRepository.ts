@@ -172,6 +172,27 @@ export class OutboxRepository {
     return rows.map(toOperation);
   }
 
+  /**
+   * A process can be suspended or killed after markSyncing() but before the
+   * HTTP result is persisted. Such a row must be retried on the next runtime
+   * instead of being permanently invisible to listReady().
+   */
+  async recoverInterruptedSyncs(
+    userId: number,
+    messId: number | null,
+  ): Promise<void> {
+    const scopeClause =
+      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
+    const parameters = messId === null ? [userId] : [userId, messId];
+    await this.database.runAsync(
+      `UPDATE offline_outbox
+       SET status = 'pending', next_attempt_at = 0, updated_at = ?
+       WHERE user_id = ? AND ${scopeClause} AND status = 'syncing'`,
+      Date.now(),
+      ...parameters,
+    );
+  }
+
   async countPending(userId: number, messId: number | null): Promise<number> {
     const scopeClause =
       messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";

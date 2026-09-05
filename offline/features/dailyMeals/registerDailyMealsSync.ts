@@ -16,42 +16,24 @@ export const registerDailyMealsSync = (
       count: number;
       baseCount: number;
     };
-    try {
-      const result = await api.syncDailyMeal(
-        operation.id,
-        context.messId!,
-        payload,
-        context.token,
-      );
-      await repository.acknowledge(
-        operation.id,
-        context.userId,
-        context.messId!,
-        {
-          ...payload,
-          count: result.count,
-        },
-      );
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        const month = await api.getMonthData(
-          payload.yearMonth,
-          context.token,
-          context.messId!,
-        );
-        const serverCount =
-          month.meals[payload.consumerId]?.[String(payload.day)] ?? 0;
-        await repository.markConflict(
-          context.userId,
-          context.messId!,
-          payload,
-          error.message,
-          serverCount,
-        );
-        return;
-      }
-      throw error;
-    }
+    // Meals use explicit last-write-wins semantics: the device whose request
+    // reaches the server last owns the final cell value. The queued payload is
+    // already deduplicated per cell, so this sends exactly the last local
+    // value instead of rejecting it for a stale base count.
+    await api.setMeal(
+      payload.consumerId,
+      payload.yearMonth,
+      payload.day,
+      payload.count,
+      context.token,
+      context.messId!,
+    );
+    await repository.acknowledge(
+      operation.id,
+      context.userId,
+      context.messId!,
+      payload,
+    );
   });
   registry.registerPuller("daily_meals", async (_cursor, context) => {
     if (context.messId === null) return { cursor: null };
@@ -60,7 +42,8 @@ export const registerDailyMealsSync = (
       context.messId,
     );
     for (const month of months) {
-      if (month.cursor === null) {
+      if (month.cursor === null || month.cursor === "legacy") {
+        const remoteRequestStartedAt = Date.now();
         const data = await api.getMonthData(
           month.yearMonth,
           context.token,
@@ -71,21 +54,45 @@ export const registerDailyMealsSync = (
           context.messId,
           month.yearMonth,
           data.meals,
+          remoteRequestStartedAt,
+          true,
         );
+        if (month.cursor === "legacy") continue;
       }
-      const result = await api.getDailyMealChanges(
-        context.messId,
-        month.yearMonth,
-        month.cursor,
-        context.token,
-      );
-      await repository.applyChanges(
-        context.userId,
-        context.messId,
-        month.yearMonth,
-        result.changes.map((change) => change.payload),
-        result.cursor,
-      );
+      try {
+        const result = await api.getDailyMealChanges(
+          context.messId,
+          month.yearMonth,
+          month.cursor,
+          context.token,
+        );
+        await repository.applyChanges(
+          context.userId,
+          context.messId,
+          month.yearMonth,
+          result.changes.map((change) => change.payload),
+          result.cursor,
+        );
+      } catch (error) {
+        // Legacy deployments have no incremental changes endpoint. The full
+        // snapshot above is enough and is safer than treating the pull as a
+        // failed sync forever.
+        if (
+          error instanceof ApiError &&
+          error.status === 404 &&
+          error.path?.startsWith("/mess/daily-meals/changes")
+        ) {
+          await repository.applyChanges(
+            context.userId,
+            context.messId,
+            month.yearMonth,
+            [],
+            "legacy",
+          );
+          continue;
+        }
+        throw error;
+      }
     }
     return { cursor: null };
   });

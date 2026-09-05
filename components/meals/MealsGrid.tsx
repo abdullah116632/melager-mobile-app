@@ -26,8 +26,8 @@ import {
   NAME_COL_W,
   TOTAL_COL_W,
 } from "@/constants/meal";
-import { useAuth } from "@/redux/hooks";
-import { useMeals } from "@/redux/hooks";
+import { useAppDispatch, useAuth, useMeals, useNetwork } from "@/redux/hooks";
+import { offlineActionFailed } from "@/redux/slice/networkSlice";
 import type { ActiveMealCell } from "@/types/meal";
 import { formatMealValue, isMealDayToday } from "@/utils/meal";
 import { MealGridRow } from "./MealGridRow";
@@ -53,7 +53,9 @@ const PLACEHOLDER_ROWS = Array.from(
 export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
   ({ selectedCell, onCellPress }, ref) => {
     const { width: windowWidth } = useWindowDimensions();
+    const dispatch = useAppDispatch();
     const { role } = useAuth();
+    const { isOnline } = useNetwork();
     const {
       consumers,
       currentYearMonth: yearMonth,
@@ -164,9 +166,18 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
 
     const handleRefresh = useCallback(async () => {
       setRefreshing(true);
-      await refreshMonth().catch(() => {});
-      setRefreshing(false);
-    }, [refreshMonth]);
+      try {
+        if (!isOnline) {
+          dispatch(offlineActionFailed("refresh"));
+          return;
+        }
+        await refreshMonth();
+      } catch {
+        // Saved SQLite data remains visible if the remote refresh fails.
+      } finally {
+        setRefreshing(false);
+      }
+    }, [dispatch, isOnline, refreshMonth]);
 
     useEffect(() => {
       const showSubscription = Keyboard.addListener(

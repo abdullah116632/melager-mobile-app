@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useConsumerUserLookup } from "@/hooks/useConsumerUserLookup";
-import { useMeals } from "@/redux/hooks";
+import { useMeals, useNetwork } from "@/redux/hooks";
 import { isValidEmail } from "@/utils/email";
 
 interface AddMealConsumerModalProps {
@@ -31,6 +31,7 @@ export const AddMealConsumerModal = ({
 }: AddMealConsumerModalProps) => {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const { addConsumer } = useMeals();
+  const { isOnline } = useNetwork();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -82,6 +83,10 @@ export const AddMealConsumerModal = ({
     const normalizedName = (lookup.name ?? name).trim();
     const normalizedPhone = phone.trim() || undefined;
     setError("");
+    if (!isOnline) {
+      setError("Adding a member requires an internet connection.");
+      return;
+    }
     if (!isValidEmail(normalizedEmail)) {
       setError("Enter a valid email address.");
       return;

@@ -157,6 +157,7 @@ export const MealsTableSection = () => {
       <MonthPicker
         variant="dashboard"
         monthDataLoading={dataLoading}
+        showSyncStatus={false}
         onCellLeft={isAdmin ? () => copyAndMove("left") : undefined}
         onCellRight={isAdmin ? () => copyAndMove("right") : undefined}
         onCellUp={isAdmin ? () => copyAndMove("up") : undefined}

@@ -125,6 +125,7 @@ export class SyncEngine {
       skipped: 0,
       pending: 0,
     };
+    await this.outbox.recoverInterruptedSyncs(context.userId, context.messId);
     // Keep taking bounded SQLite batches until every currently-ready mutation
     // has been handled. Failed transient rows get a future next_attempt_at and
     // therefore cannot make this loop spin.

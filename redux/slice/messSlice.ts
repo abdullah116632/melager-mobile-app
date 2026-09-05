@@ -25,6 +25,7 @@ import { getOfflineDatabase } from "@/offline/database/connection";
 import { OutboxRepository } from "@/offline/repositories/outboxRepository";
 import { DailyMealsRepository } from "@/offline/features/dailyMeals/DailyMealsRepository";
 import { ExpenseRepository } from "@/offline/features/expenses/ExpenseRepository";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { NetworkState } from "@/redux/slice/networkSlice";
 import type { Consumer } from "@/types/mess";
 
@@ -232,13 +233,36 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
       return { messId, yearMonth, force, data: null };
     }
 
+    // Do not start the authoritative month GET while this device still has
+    // queued meal writes. Otherwise a GET that reaches the server before the
+    // queued PUTs can return later and overwrite the just-synced local cells.
+    // The UI already received its SQLite snapshot above, so waiting here never
+    // delays first render.
+    try {
+      const database = await getOfflineDatabase();
+      await getOfflineRuntime(database).engine.sync(
+        { userId: user.id, messId, token },
+        { collections: ["daily_meals"], force: true },
+      );
+    } catch {
+      // The regular API request below remains the online source of truth. A
+      // failed queue drain leaves local dirty rows protected during merge.
+    }
+
+    const remoteRequestStartedAt = Date.now();
     const data = await api.getMonthData(yearMonth, token, messId);
     if (data) {
       const serverExpenses = data.expenses;
       try {
         data.meals = await new DailyMealsRepository(
           await getOfflineDatabase(),
-        ).mergeRemote(user.id, messId, yearMonth, data.meals);
+        ).mergeRemote(
+          user.id,
+          messId,
+          yearMonth,
+          data.meals,
+          remoteRequestStartedAt,
+        );
       } catch {
         // Web and pre-migration builds retain the existing cache path.
       }
