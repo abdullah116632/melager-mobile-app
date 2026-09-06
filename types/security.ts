@@ -1,10 +1,10 @@
 export type SecurityModalType =
-  | "changePassword"
-  | "updateEmail"
   | "transferAdmin"
   | "addCoAdmin"
   | "leaveAdmin"
   | null;
+
+export type ProfileSecurityModalType = "changePassword" | "updateEmail" | null;
 
 export type SecurityAction =
   | "change_password"

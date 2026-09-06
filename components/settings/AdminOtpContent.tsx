@@ -18,6 +18,11 @@ import type { PendingAdminOtpFlow } from "@/types/security";
 import { AdminOtpHeader } from "./AdminOtpHeader";
 import { AdminOtpVerificationCard } from "./AdminOtpVerificationCard";
 
+const flowOrigin = (flow: PendingAdminOtpFlow | null) =>
+  flow?.action === "change_password" || flow?.action === "update_email"
+    ? "/(tabs)/profile"
+    : "/settings/security";
+
 export const AdminOtpContent = () => {
   const router = useRouter();
   const { user } = useAuth();
@@ -31,7 +36,7 @@ export const AdminOtpContent = () => {
       if (cancelled) return;
       if (!pendingFlow || pendingFlow.userId !== user?.id) {
         if (pendingFlow) await clearPendingAdminOtp();
-        router.replace("/settings/security");
+        router.replace(flowOrigin(pendingFlow) as never);
         return;
       }
       setFlow(pendingFlow);
@@ -43,14 +48,14 @@ export const AdminOtpContent = () => {
     };
   }, [router, user?.id]);
 
-  const returnToSecurity = useCallback(() => {
-    router.dismissTo("/settings/security");
-  }, [router]);
+  const returnToOrigin = useCallback(() => {
+    router.dismissTo(flowOrigin(flow) as never);
+  }, [flow, router]);
 
   const leavePage = useCallback(async () => {
     await clearPendingAdminOtp();
-    returnToSecurity();
-  }, [returnToSecurity]);
+    returnToOrigin();
+  }, [returnToOrigin]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -85,7 +90,7 @@ export const AdminOtpContent = () => {
             ) : (
               <AdminOtpVerificationCard
                 flow={flow}
-                onFinish={returnToSecurity}
+                onFinish={returnToOrigin}
               />
             )}
           </View>

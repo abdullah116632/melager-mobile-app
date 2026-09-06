@@ -79,6 +79,7 @@ function NativeTabLayout() {
         <Icon sf={{ default: "banknote", selected: "banknote.fill" }} />
         <Label>Deposits</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile" hidden />
     </NativeTabs>
   );
 }

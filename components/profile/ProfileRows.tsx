@@ -82,6 +82,44 @@ export const ProfileDestructiveRow = ({
   </TouchableOpacity>
 );
 
+interface ProfileActionRowProps {
+  icon: FeatherIconName;
+  label: string;
+  description: string;
+  onPress: () => void;
+  showDivider?: boolean;
+}
+
+export const ProfileActionRow = ({
+  icon,
+  label,
+  description,
+  onPress,
+  showDivider,
+}: ProfileActionRowProps) => (
+  <TouchableOpacity
+    className={`flex-row items-center gap-3 px-3.5 py-[13px] ${showDivider ? "border-b-[0.5px] border-slate-200" : ""}`}
+    onPress={onPress}
+    activeOpacity={0.7}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+  >
+    <RowIcon icon={icon} />
+    <View className="min-w-0 flex-1">
+      <Text className="font-inter-semibold text-sm text-slate-900">
+        {label}
+      </Text>
+      <Text
+        className="mt-px font-inter text-[11px] text-slate-500"
+        numberOfLines={1}
+      >
+        {description}
+      </Text>
+    </View>
+    <Feather name="chevron-right" size={17} color="#94A3B8" />
+  </TouchableOpacity>
+);
+
 interface ProfileEditableRowProps extends ProfileRowProps {
   onEdit?: () => void;
 }

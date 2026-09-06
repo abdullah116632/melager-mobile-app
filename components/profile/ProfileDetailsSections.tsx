@@ -2,12 +2,15 @@ import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Platform } from "react-native";
 
+import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
+import { SecurityBottomSheet } from "@/components/settings/SecurityBottomSheet";
+import { UpdateEmailForm } from "@/components/settings/UpdateEmailForm";
 import { useAuth, useMess } from "@/redux/hooks";
-import type { ProfileEditField } from "@/types/profile";
+import type { ProfileSecurityModalType } from "@/types/security";
 
 import { DeleteAccountModal } from "./DeleteAccountModal";
-import { MessKeyRow } from "./MessKeyRow";
 import {
+  ProfileActionRow,
   ProfileEditableRow,
   ProfileDestructiveRow,
   ProfileEditRow,
@@ -16,81 +19,78 @@ import {
 import { ProfileSectionCard } from "./ProfileSectionCard";
 
 export const ProfileDetailsSections = () => {
-  const { user, mess, role, updateProfileName, updateMessName } = useAuth();
+  const { user, mess, role, updateProfileName } = useAuth();
   const { refreshConsumers } = useMess();
-  const [editing, setEditing] = useState<ProfileEditField | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [activeModal, setActiveModal] = useState<ProfileSecurityModalType>(null);
+  const closeModal = () => setActiveModal(null);
   const displayName = user?.name ?? "User";
   const displayEmail = user?.email ?? "";
   const isAdmin = role === "admin";
 
-  const startEdit = (field: ProfileEditField) => {
-    setEditValue(field === "name" ? displayName : (mess?.name ?? ""));
-    setEditError("");
-    setEditing(field);
+  const startEditName = () => {
+    setNameValue(displayName);
+    setNameError("");
+    setEditingName(true);
   };
 
-  const cancelEdit = () => {
-    setEditing(null);
-    setEditValue("");
-    setEditError("");
+  const cancelEditName = () => {
+    setEditingName(false);
+    setNameValue("");
+    setNameError("");
   };
 
-  const saveEdit = async () => {
-    if (!editing) return;
-    const value = editValue.trim();
+  const saveNameEdit = async () => {
+    const value = nameValue.trim();
     if (!value) {
-      setEditError("This field cannot be empty.");
+      setNameError("This field cannot be empty.");
       return;
     }
     if (value.length > 100) {
-      setEditError("Too long (max 100 characters).");
+      setNameError("Too long (max 100 characters).");
       return;
     }
 
-    setEditSaving(true);
-    setEditError("");
+    setNameSaving(true);
+    setNameError("");
     try {
-      if (editing === "name") {
-        await updateProfileName(value);
-        await refreshConsumers().catch(() => undefined);
-      } else {
-        await updateMessName(value);
-      }
+      await updateProfileName(value);
+      await refreshConsumers().catch(() => undefined);
       if (Platform.OS !== "web") {
         void Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success,
         );
       }
-      setEditing(null);
-      setEditValue("");
+      setEditingName(false);
+      setNameValue("");
     } catch (caughtError) {
-      setEditError(
+      setNameError(
         caughtError instanceof Error
           ? caughtError.message
           : "Failed to save. Please try again.",
       );
     } finally {
-      setEditSaving(false);
+      setNameSaving(false);
     }
   };
 
   return (
     <>
       <ProfileSectionCard title="Account">
-        {editing === "name" ? (
+        {editingName ? (
           <ProfileEditRow
             icon="user"
             label="Name"
-            value={editValue}
-            onChange={setEditValue}
-            onSave={() => void saveEdit()}
-            onCancel={cancelEdit}
-            saving={editSaving}
-            error={editError}
+            value={nameValue}
+            onChange={setNameValue}
+            onSave={() => void saveNameEdit()}
+            onCancel={cancelEditName}
+            saving={nameSaving}
+            error={nameError}
             showDivider
           />
         ) : (
@@ -98,7 +98,18 @@ export const ProfileDetailsSections = () => {
             icon="user"
             label="Name"
             value={displayName}
-            onEdit={() => startEdit("name")}
+            onEdit={startEditName}
+            showDivider
+          />
+        )}
+        {mess && (
+          <ProfileRow
+            icon="shield"
+            label="Your Role"
+            value={
+              isAdmin ? "Admin (can edit data)" : "Member (view only)"
+            }
+            valueClassName={isAdmin ? "text-emerald-600" : "text-slate-500"}
             showDivider
           />
         )}
@@ -106,6 +117,20 @@ export const ProfileDetailsSections = () => {
           icon="mail"
           label="Email"
           value={displayEmail}
+          showDivider
+        />
+        <ProfileActionRow
+          icon="lock"
+          label="Change Password"
+          description="Update your account password"
+          onPress={() => setActiveModal("changePassword")}
+          showDivider
+        />
+        <ProfileActionRow
+          icon="at-sign"
+          label="Update Email"
+          description="Change your login email address"
+          onPress={() => setActiveModal("updateEmail")}
           showDivider
         />
         <ProfileDestructiveRow
@@ -116,44 +141,21 @@ export const ProfileDetailsSections = () => {
         />
       </ProfileSectionCard>
 
-      {mess && (
-        <ProfileSectionCard title="Mess">
-          {editing === "mess" ? (
-            <ProfileEditRow
-              icon="home"
-              label="Mess Name"
-              value={editValue}
-              onChange={setEditValue}
-              onSave={() => void saveEdit()}
-              onCancel={cancelEdit}
-              saving={editSaving}
-              error={editError}
-              showDivider
-            />
-          ) : (
-            <ProfileEditableRow
-              icon="home"
-              label="Mess Name"
-              value={mess.name}
-              onEdit={isAdmin ? () => startEdit("mess") : undefined}
-              showDivider
-            />
-          )}
-          <MessKeyRow />
-          <ProfileRow
-            icon="shield"
-            label="Your Role"
-            value={
-              isAdmin ? "Admin \u2014 can edit data" : "Member \u2014 view only"
-            }
-            valueClassName={isAdmin ? "text-emerald-600" : "text-slate-500"}
-          />
-        </ProfileSectionCard>
-      )}
       <DeleteAccountModal
         visible={deleteModalVisible}
         onClose={() => setDeleteModalVisible(false)}
       />
+      <SecurityBottomSheet
+        visible={activeModal !== null}
+        canClose
+        onClose={closeModal}
+      >
+        {activeModal === "changePassword" ? (
+          <ChangePasswordForm onClose={closeModal} />
+        ) : activeModal === "updateEmail" ? (
+          <UpdateEmailForm onClose={closeModal} />
+        ) : null}
+      </SecurityBottomSheet>
     </>
   );
 };

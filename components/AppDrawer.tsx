@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -18,8 +19,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import appConfig from "@/app.json";
 import { useAuth } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
+
+const SHARE_MESSAGE = `Check out ${appConfig.expo.name} — the easiest way to track meals, deposits, and shared expenses with your mess!`;
 
 const ANIMATION_DURATION = 240;
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
@@ -95,6 +99,14 @@ export function AppDrawer() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     setTimeout(() => setKeyCopied(false), 2000);
+  };
+
+  const handleShareApp = async () => {
+    try {
+      await Share.share({ message: SHARE_MESSAGE });
+    } catch {
+      // Ignore share sheet dismissal errors.
+    }
   };
 
   const navigateTo = (path: string) => {
@@ -263,15 +275,6 @@ export function AppDrawer() {
 
           <SectionLabel label="MENU" />
           <View className="mx-4 overflow-hidden rounded-[16px] border border-slate-200 bg-white">
-            {isAdmin && (
-              <DrawerRow
-                icon="users"
-                label="Member Requests"
-                sublabel="Review join requests"
-                onPress={() => navigateTo("/member-requests")}
-                showChevron
-              />
-            )}
             <DrawerRow
               icon="list"
               label="All Members"
@@ -299,10 +302,24 @@ export function AppDrawer() {
               />
             )}
             <DrawerRow
-              icon="shield"
-              label="Security"
-              sublabel="Password, email & admin"
-              onPress={() => navigateTo("/settings/security")}
+              icon="help-circle"
+              label="Help & FAQ"
+              sublabel="Common questions & support"
+              onPress={() => navigateTo("/help-faq")}
+              showChevron
+            />
+            <DrawerRow
+              icon="info"
+              label="About App"
+              sublabel="App info & version"
+              onPress={() => navigateTo("/about")}
+              showChevron
+            />
+            <DrawerRow
+              icon="share-2"
+              label="Share App"
+              sublabel="Invite others to Mealager"
+              onPress={() => void handleShareApp()}
               showChevron
               isLast
             />

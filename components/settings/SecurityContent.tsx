@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { AddCoAdminForm } from "./AddCoAdminForm";
-import { ChangePasswordForm } from "./ChangePasswordForm";
 import { LeaveAdminRoleForm } from "./LeaveAdminRoleForm";
 import { SecurityActionList } from "./SecurityActionList";
 import { SecurityBottomSheet } from "./SecurityBottomSheet";
 import { SecurityHeader } from "./SecurityHeader";
 import { TransferAdminForm } from "./TransferAdminForm";
-import { UpdateEmailForm } from "./UpdateEmailForm";
 import type { SecurityModalType } from "@/types/security";
 
 export const SecurityContent = ({
@@ -18,11 +16,7 @@ export const SecurityContent = ({
   const closeModal = () => setActiveModal(null);
 
   const modalContent =
-    activeModal === "changePassword" ? (
-      <ChangePasswordForm onClose={closeModal} />
-    ) : activeModal === "updateEmail" ? (
-      <UpdateEmailForm onClose={closeModal} />
-    ) : activeModal === "transferAdmin" ? (
+    activeModal === "transferAdmin" ? (
       <TransferAdminForm onClose={closeModal} />
     ) : activeModal === "addCoAdmin" ? (
       <AddCoAdminForm onClose={closeModal} />

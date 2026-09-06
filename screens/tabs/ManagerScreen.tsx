@@ -182,7 +182,7 @@ export function ManagerScreen() {
             onPress: () => router.push("/consumers?returnTo=manager"),
           },
           {
-            label: "Security",
+            label: "Mess Settings",
             icon: "shield-checkmark-outline",
             tintClassName: "bg-amber-50",
             iconColor: "#B45309",

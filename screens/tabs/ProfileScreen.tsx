@@ -1,6 +1,5 @@
 import { Platform, ScrollView, StatusBar, View } from "react-native";
 
-import { ProfileAboutSection } from "@/components/profile/ProfileAboutSection";
 import { ProfileActions } from "@/components/profile/ProfileActions";
 import { ProfileDetailsSections } from "@/components/profile/ProfileDetailsSections";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
@@ -11,7 +10,7 @@ export const ProfileScreen = ({ hubMode = false }: { hubMode?: boolean }) => (
   >
     <StatusBar barStyle="light-content" backgroundColor="#0F766E" />
     <View className="flex-1 bg-slate-50">
-      <ProfileHeader />
+      <ProfileHeader hubMode={hubMode} />
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -19,7 +18,6 @@ export const ProfileScreen = ({ hubMode = false }: { hubMode?: boolean }) => (
         keyboardShouldPersistTaps="handled"
       >
         <ProfileDetailsSections />
-        <ProfileAboutSection />
         <ProfileActions showSwitchMess={!hubMode} />
       </ScrollView>
     </View>

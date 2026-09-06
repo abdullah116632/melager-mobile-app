@@ -41,9 +41,11 @@ export const SecurityHeader = ({
           <Feather name="arrow-left" size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <View className="ml-3 flex-1">
-          <Text className="font-inter-bold text-xl text-white">Security</Text>
+          <Text className="font-inter-bold text-xl text-white">
+            Mess Settings
+          </Text>
           <Text className="mt-0.5 font-inter text-xs text-teal-100/75">
-            {mess ? "Protect your account and mess" : "Protect your account"}
+            {mess ? "Manage admins and mess controls" : "Protect your account"}
           </Text>
         </View>
         <View className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10">

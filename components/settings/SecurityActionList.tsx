@@ -1,7 +1,15 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as Haptics from "expo-haptics";
 import type { ComponentProps } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 
+import { MessKeyRow } from "@/components/profile/MessKeyRow";
+import {
+  ProfileEditableRow,
+  ProfileEditRow,
+} from "@/components/profile/ProfileRows";
+import { ProfileSectionCard } from "@/components/profile/ProfileSectionCard";
 import { useAuth } from "@/redux/hooks";
 import type { SecurityModalType } from "@/types/security";
 
@@ -54,37 +62,109 @@ const SecurityAction = ({
 );
 
 export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
-  const { role } = useAuth();
+  const { mess, role, updateMessName } = useAuth();
+  const isAdmin = role === "admin";
+
+  const [editingMessName, setEditingMessName] = useState(false);
+  const [messNameValue, setMessNameValue] = useState("");
+  const [savingMessName, setSavingMessName] = useState(false);
+  const [messNameError, setMessNameError] = useState("");
+
+  const startEditMessName = () => {
+    setMessNameValue(mess?.name ?? "");
+    setMessNameError("");
+    setEditingMessName(true);
+  };
+
+  const cancelEditMessName = () => {
+    setEditingMessName(false);
+    setMessNameValue("");
+    setMessNameError("");
+  };
+
+  const saveMessName = async () => {
+    const value = messNameValue.trim();
+    if (!value) {
+      setMessNameError("This field cannot be empty.");
+      return;
+    }
+    if (value.length > 100) {
+      setMessNameError("Too long (max 100 characters).");
+      return;
+    }
+
+    setSavingMessName(true);
+    setMessNameError("");
+    try {
+      await updateMessName(value);
+      if (Platform.OS !== "web") {
+        void Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        );
+      }
+      setEditingMessName(false);
+      setMessNameValue("");
+    } catch (caughtError) {
+      setMessNameError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Failed to save. Please try again.",
+      );
+    } finally {
+      setSavingMessName(false);
+    }
+  };
+
+  if (!mess) {
+    return (
+      <View className="flex-1 items-center justify-center px-8">
+        <View className="h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+          <Feather name="home" size={24} color="#94A3B8" />
+        </View>
+        <Text className="mt-4 text-center font-inter-semibold text-[15px] text-slate-700">
+          No mess selected
+        </Text>
+        <Text className="mt-1.5 text-center font-inter text-xs leading-5 text-slate-500">
+          Join or select a mess to see its settings here.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
       className="flex-1"
       showsVerticalScrollIndicator={false}
-      contentContainerClassName="p-4 pb-safe-offset-6"
+      contentContainerClassName="gap-5 p-4 pb-safe-offset-6"
     >
-      <Text className="mb-2.5 ml-1 font-inter-semibold text-[11px] tracking-[1px] text-slate-500">
-        ACCOUNT SECURITY
-      </Text>
-      <SecurityAction
-        icon="lock"
-        iconClassName="bg-blue-50"
-        iconColor="#2563EB"
-        title="Change Password"
-        description="Update your account password"
-        onPress={() => onOpen("changePassword")}
-      />
-      <SecurityAction
-        icon="at-sign"
-        iconClassName="bg-teal-50"
-        iconColor="#0D9488"
-        title="Update Email"
-        description="Change your login email address"
-        onPress={() => onOpen("updateEmail")}
-      />
+      <ProfileSectionCard title="Mess">
+        {editingMessName ? (
+          <ProfileEditRow
+            icon="home"
+            label="Mess Name"
+            value={messNameValue}
+            onChange={setMessNameValue}
+            onSave={() => void saveMessName()}
+            onCancel={cancelEditMessName}
+            saving={savingMessName}
+            error={messNameError}
+            showDivider
+          />
+        ) : (
+          <ProfileEditableRow
+            icon="home"
+            label="Mess Name"
+            value={mess.name}
+            onEdit={isAdmin ? startEditMessName : undefined}
+            showDivider
+          />
+        )}
+        <MessKeyRow />
+      </ProfileSectionCard>
 
-      {role === "admin" && (
-        <>
-          <Text className="mb-2.5 ml-1 mt-3 font-inter-semibold text-[11px] tracking-[1px] text-slate-500">
+      {isAdmin && (
+        <View>
+          <Text className="mb-2.5 ml-1 font-inter-semibold text-[11px] tracking-[1px] text-slate-500">
             ADMIN CONTROLS
           </Text>
           <SecurityAction
@@ -113,7 +193,7 @@ export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
             danger
             onPress={() => onOpen("leaveAdmin")}
           />
-        </>
+        </View>
       )}
     </ScrollView>
   );
