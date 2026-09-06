@@ -64,79 +64,111 @@ export const DashboardPersonalSummary = ({
     : "—";
   const items = [
     {
-      label: "Meals You Takes",
+      label: "Meals Taken",
       value: consumer ? formatDashboardQuantity(consumer.meals) : "—",
       icon: "restaurant" as const,
       color: "#059669",
     },
     {
-      label: "Your Total Deposits",
+      label: "Your Deposits",
       value: consumer ? `৳${formatDashboardAmount(consumer.deposits)}` : "—",
       icon: "card" as const,
       color: "#2563EB",
     },
     {
-      label: "Your Total Cost",
+      label: "Your Cost",
       value: consumer ? `৳${formatDashboardAmount(consumer.cost)}` : "—",
       icon: "cash" as const,
       color: "#EA580C",
     },
-    {
-      label: "Remaining Balance",
-      value: remainingBalance,
-      icon: "card" as const,
-      color: balancePositive ? "#0F766E" : "#DC2626",
-    },
   ];
 
   return (
-    <>
-      <View
-        className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-[#B7D9BE] bg-[#E8F5E9]"
-        style={cardShadow}
-      >
-        <View className="flex-row items-center gap-2 px-4 py-3">
-          <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
-            <Feather name="user" size={17} color="#475569" />
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="font-inter-semibold text-sm text-slate-800">
-              My Monthly Summary
-            </Text>
-            <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
-              Your personal figures for this month
-            </Text>
-          </View>
+    <View
+      className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-[#B7D9BE] bg-[#E8F5E9]"
+      style={cardShadow}
+    >
+      <View className="flex-row items-center gap-2 px-4 py-3">
+        <View className="h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+          <Feather name="user" size={16} color="#16A34A" />
         </View>
-        <View className="flex-row flex-wrap gap-2 p-2">
-          {items.map((item) => (
-            <View
-              key={item.label}
-              className="w-full flex-row items-center rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2"
-            >
-              <View className="h-7 w-7 items-center justify-center rounded-lg bg-white">
-                <Ionicons name={item.icon} size={16} color={item.color} />
-              </View>
-              <View className="ml-2 min-w-0 flex-1 flex-row items-center justify-between gap-1">
-                <Text
-                  className="min-w-0 flex-1 font-inter text-[10px] text-slate-500"
-                  numberOfLines={1}
-                >
-                  {item.label}
-                </Text>
-                <Text
-                  className={`font-inter-bold text-[13px] ${item.label === "Remaining Balance" ? (balancePositive ? "text-teal-800" : "text-red-700") : "text-slate-950"}`}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
-                  {item.value}
-                </Text>
-              </View>
-            </View>
-          ))}
+        <View className="min-w-0 flex-1">
+          <Text className="font-inter-semibold text-base text-slate-800">
+            My Monthly Summary
+          </Text>
+          <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
+            Your personal figures for this month
+          </Text>
         </View>
       </View>
-    </>
+
+      <View className="gap-2 p-2">
+        {items.map((item) => (
+          <View
+            key={item.label}
+            className="w-full flex-row items-center justify-between rounded-xl border border-[#B7D9BE] bg-white p-3"
+          >
+            <View className="flex-row items-center gap-2">
+              <View
+                className="h-9 w-9 items-center justify-center rounded-full"
+                style={{ backgroundColor: `${item.color}1A` }}
+              >
+                <Ionicons name={item.icon} size={17} color={item.color} />
+              </View>
+              <Text className="font-inter-semibold text-sm text-slate-700">
+                {item.label}
+              </Text>
+            </View>
+            <Text
+              className="ml-3 font-inter-bold text-[14px] text-slate-900"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {item.value}
+            </Text>
+          </View>
+        ))}
+
+        <View
+          className={`w-full flex-row items-center justify-between rounded-xl border p-3.5 ${
+            balancePositive
+              ? "border-teal-200 bg-teal-50"
+              : "border-orange-200 bg-orange-50"
+          }`}
+        >
+          <View className="flex-row items-center gap-2.5">
+            <View
+              className={`h-9 w-9 items-center justify-center rounded-full ${
+                balancePositive ? "bg-teal-100" : "bg-orange-100"
+              }`}
+            >
+              <Feather
+                name="credit-card"
+                size={17}
+                color={balancePositive ? "#0F766E" : "#C2410C"}
+              />
+            </View>
+            <Text
+              className={`font-inter-semibold text-sm ${
+                balancePositive ? "text-teal-800" : "text-orange-800"
+              }`}
+            >
+              Remaining Balance
+            </Text>
+          </View>
+          <Text
+            className={`ml-3 font-inter-bold text-[16px] ${
+              balancePositive ? "text-teal-800" : "text-orange-800"
+            }`}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {remainingBalance}
+          </Text>
+        </View>
+      </View>
+    </View>
   );
 };
