@@ -263,11 +263,11 @@ export const ConsumerBreakdownScreen = ({
           <Feather name="arrow-left" size={21} color="#FFFFFF" />
         </TouchableOpacity>
         <View className="ml-3 flex-1">
-          <Text className="font-inter text-[10px] font-bold uppercase tracking-[1.3px] text-teal-100">
-            Dashboard report
+          <Text className="font-inter-bold text-[18px] text-white">
+            Statement
           </Text>
-          <Text className="mt-0.5 font-inter-bold text-[18px] text-white">
-            Consumer Breakdown
+          <Text className="mt-0.5 font-inter text-xs text-teal-100/80">
+            Each member's meals, deposits & balance for a date range
           </Text>
         </View>
       </View>

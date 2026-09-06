@@ -83,7 +83,7 @@ const createBreakdownHtml = (data: DashboardPdfData): string => {
         <div class="header">
           <div>
             <div class="brand">Mealager</div>
-            <h1>Consumer Breakdown</h1>
+            <h1>Statement</h1>
             <div class="mess">${escapeHtml(messName)}</div>
           </div>
           <div class="period">
@@ -121,7 +121,7 @@ export const exportDashboardBreakdownPdf = async (
     await Sharing.shareAsync(result.uri, {
       mimeType: "application/pdf",
       UTI: "com.adobe.pdf",
-      dialogTitle: "Save or share Consumer Breakdown PDF",
+      dialogTitle: "Save or share Statement PDF",
     });
   } else {
     await Print.printAsync({ uri: result.uri });

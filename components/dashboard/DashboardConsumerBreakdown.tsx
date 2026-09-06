@@ -142,7 +142,7 @@ export const DashboardConsumerBreakdown = ({
               adjustsFontSizeToFit
               minimumFontScale={0.8}
             >
-              Consumer Breakdown
+              Statement
             </Text>
           </View>
           <View className="shrink-0 flex-row items-center gap-1.5">
@@ -171,7 +171,7 @@ export const DashboardConsumerBreakdown = ({
               disabled={pdfGenerating}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel="Download Consumer Breakdown PDF"
+              accessibilityLabel="Download Statement PDF"
             >
               {pdfGenerating ? (
                 <ActivityIndicator size={15} color="#0F766E" />
@@ -269,11 +269,11 @@ export const DashboardConsumerBreakdown = ({
             disabled={notifyingMembers}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Notify members to check consumer breakdown"
+            accessibilityLabel="Notify members to check statement"
           >
             {notifyingMembers ? <ActivityIndicator size={15} color="#FFFFFF" /> : <Feather name="bell" size={16} color="#FFFFFF" />}
             <Text className="font-inter-semibold text-[13px] text-white">
-              {notifyingMembers ? "Sending…" : "Notify members to check breakdown"}
+              {notifyingMembers ? "Sending…" : "Notify members to check statement"}
             </Text>
           </TouchableOpacity>
         ) : null}
