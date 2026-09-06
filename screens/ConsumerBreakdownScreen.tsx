@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import {
   Alert,
   Platform,
+  RefreshControl,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -18,6 +19,11 @@ import {
   loadConsumerBreakdownFromCache,
   saveConsumerBreakdownToCache,
 } from "@/lib/cache";
+import {
+  getOfflineDatabase,
+  isOfflineDatabaseSupported,
+} from "@/offline/database/connection";
+import { DashboardStatementRepository } from "@/offline/features/dashboardStatement/DashboardStatementRepository";
 import {
   useAppDispatch,
   useAuth,
@@ -52,6 +58,53 @@ const getMonthConsumers = (data: MonthData): Consumer[] =>
     accountDeletedAt: consumer.accountDeletedAt,
   }));
 
+interface StatementSnapshotData {
+  appliedRange: DashboardDateRange | null;
+  rangeData: Record<string, MonthData>;
+  consumers: Consumer[];
+}
+
+const loadStatementSnapshot = async (
+  userId: number,
+  messId: number,
+): Promise<StatementSnapshotData | null> => {
+  if (!isOfflineDatabaseSupported()) {
+    return loadConsumerBreakdownFromCache(messId);
+  }
+
+  const database = await getOfflineDatabase();
+  const repository = new DashboardStatementRepository(database);
+  let snapshot = await repository.getSnapshot(userId, messId);
+  if (!snapshot) {
+    // Migrate the pre-SQLite statement cache once, if one exists.
+    const legacy = await loadConsumerBreakdownFromCache(messId);
+    if (legacy) {
+      await repository.replaceSnapshot(userId, messId, legacy);
+      snapshot = await repository.getSnapshot(userId, messId);
+    }
+  }
+  return snapshot;
+};
+
+const saveStatementSnapshot = async (
+  userId: number,
+  messId: number,
+  data: StatementSnapshotData,
+): Promise<void> => {
+  if (!isOfflineDatabaseSupported()) {
+    await saveConsumerBreakdownToCache(messId, data);
+    return;
+  }
+  const database = await getOfflineDatabase();
+  await new DashboardStatementRepository(database).replaceSnapshot(
+    userId,
+    messId,
+    data,
+  );
+};
+
+type Toast = { type: "success" | "error"; message: string };
+
 export const ConsumerBreakdownScreen = ({
   returnTo = "dashboard",
 }: {
@@ -60,7 +113,7 @@ export const ConsumerBreakdownScreen = ({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { mess, token } = useAuth();
+  const { mess, token, user } = useAuth();
   const { consumers, currentYearMonth } = useMess();
   const { isOnline } = useNetwork();
   const { getGrandTotal, getConsumerTotal } = useMeals();
@@ -77,6 +130,13 @@ export const ConsumerBreakdownScreen = ({
     useState<Consumer[]>(consumers);
   const consumersRef = useRef(consumers);
   const [rangeLoading, setRangeLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [toast, setToast] = useState<Toast | null>(null);
+
+  const showToast = (next: Toast) => {
+    setToast(next);
+    setTimeout(() => setToast(null), 2200);
+  };
 
   useEffect(() => {
     consumersRef.current = consumers;
@@ -85,13 +145,13 @@ export const ConsumerBreakdownScreen = ({
 
   useFocusEffect(
     useCallback(() => {
-      if (!mess || !token) return;
+      if (!mess || !token || !user) return;
       void dispatch(markConsumerBreakdownNotificationsRead());
       let cancelled = false;
 
       const hydrateThenRefresh = async () => {
         const nextDefaultRange = getDefaultDashboardRange(currentYearMonth);
-        const cached = await loadConsumerBreakdownFromCache(mess.id);
+        const cached = await loadStatementSnapshot(user.id, mess.id);
         if (cancelled) return;
 
         const cachedRange = cached?.appliedRange ?? null;
@@ -154,7 +214,7 @@ export const ConsumerBreakdownScreen = ({
         }
 
         if (cancelled) return;
-        void saveConsumerBreakdownToCache(mess.id, {
+        void saveStatementSnapshot(user.id, mess.id, {
           appliedRange: cachedRange,
           rangeData: latestRangeData,
           consumers: latestConsumers,
@@ -165,7 +225,7 @@ export const ConsumerBreakdownScreen = ({
       return () => {
         cancelled = true;
       };
-    }, [currentYearMonth, dispatch, isOnline, mess?.id, token]),
+    }, [currentYearMonth, dispatch, isOnline, mess?.id, token, user?.id]),
   );
 
   const fetchRange = useCallback(
@@ -204,8 +264,8 @@ export const ConsumerBreakdownScreen = ({
       setRangeData(data);
       setAppliedRange(nextRange);
       setBreakdownConsumers(latestConsumers);
-      if (mess) {
-        void saveConsumerBreakdownToCache(mess.id, {
+      if (mess && user) {
+        void saveStatementSnapshot(user.id, mess.id, {
           appliedRange: nextRange,
           rangeData: data,
           consumers: latestConsumers,
@@ -221,6 +281,74 @@ export const ConsumerBreakdownScreen = ({
       );
     } finally {
       setRangeLoading(false);
+    }
+  };
+
+  const handlePullToRefresh = async () => {
+    if (!mess || !token || !user) return;
+
+    if (!isOnline) {
+      showToast({
+        type: "error",
+        message: "Refresh failed. Check your internet connection.",
+      });
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      clearApiCache();
+      let latestConsumers = breakdownConsumers;
+      let latestRangeData = rangeData;
+
+      const refreshed = await dispatch(refreshConsumers()).unwrap();
+      if (refreshed) {
+        latestConsumers = refreshed.consumers;
+        setBreakdownConsumers(refreshed.consumers);
+      }
+
+      const monthResult = await dispatch(
+        loadMonth({
+          messId: mess.id,
+          yearMonth: currentYearMonth,
+          force: true,
+        }),
+      ).unwrap();
+      if (monthResult.data) {
+        latestConsumers = getMonthConsumers(monthResult.data);
+        setBreakdownConsumers(latestConsumers);
+        if (!appliedRange) {
+          latestRangeData = { [currentYearMonth]: monthResult.data };
+          setRangeData(latestRangeData);
+        }
+      }
+
+      if (appliedRange) {
+        latestRangeData = await getDashboardRangeData(
+          mess.id,
+          token,
+          appliedRange.startDate,
+          appliedRange.endDate,
+        );
+        setRangeData(latestRangeData);
+      }
+
+      await saveStatementSnapshot(user.id, mess.id, {
+        appliedRange,
+        rangeData: latestRangeData,
+        consumers: latestConsumers,
+      });
+      showToast({ type: "success", message: "Statement refreshed" });
+    } catch (error) {
+      showToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Refresh failed. Please try again.",
+      });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -277,6 +405,14 @@ export const ConsumerBreakdownScreen = ({
         contentContainerClassName={
           Platform.OS === "web" ? "py-4 pb-8" : "py-4 pb-safe-offset-[32px]"
         }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void handlePullToRefresh()}
+            tintColor="#0F766E"
+            colors={["#0F766E"]}
+          />
+        }
       >
         <DashboardConsumerBreakdown
           accounting={accounting}
@@ -289,6 +425,33 @@ export const ConsumerBreakdownScreen = ({
           onApplyRange={() => void applyDateRange()}
         />
       </ScrollView>
+      {toast && (
+        <View
+          pointerEvents="none"
+          className="absolute bottom-8 left-0 right-0 z-50 items-center"
+        >
+          <View
+            className={`flex-row items-center gap-1.5 rounded-full border px-3.5 py-2 shadow-md ${
+              toast.type === "success"
+                ? "border-emerald-200 bg-emerald-50 shadow-emerald-900/15"
+                : "border-red-200 bg-red-50 shadow-red-900/15"
+            }`}
+          >
+            <Feather
+              name={toast.type === "success" ? "check-circle" : "alert-circle"}
+              size={15}
+              color={toast.type === "success" ? "#059669" : "#DC2626"}
+            />
+            <Text
+              className={`font-inter-semibold text-xs ${
+                toast.type === "success" ? "text-emerald-700" : "text-red-700"
+              }`}
+            >
+              {toast.message}
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

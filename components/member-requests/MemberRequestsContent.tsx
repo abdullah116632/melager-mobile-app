@@ -1,6 +1,11 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useCallback, useEffect, useState } from "react";
 import { Text, View } from "react-native";
+import {
+  getOfflineDatabase,
+  isOfflineDatabaseSupported,
+} from "@/offline/database/connection";
+import { MemberRequestsRepository } from "@/offline/features/memberRequests/MemberRequestsRepository";
 import { useAuth, useNetwork, useNotifications } from "@/redux/hooks";
 import { getMemberRequests } from "@/services/memberRequestService";
 import type { MemberRequest } from "@/types/memberRequest";
@@ -14,10 +19,24 @@ interface MemberRequestsContentProps {
 
 type Toast = { type: "success" | "error"; message: string };
 
+const saveMemberRequestsSnapshot = async (
+  userId: number,
+  messId: number,
+  requests: MemberRequest[],
+): Promise<void> => {
+  if (!isOfflineDatabaseSupported()) return;
+  const database = await getOfflineDatabase();
+  await new MemberRequestsRepository(database).replaceSnapshot(
+    userId,
+    messId,
+    requests,
+  );
+};
+
 export const MemberRequestsContent = ({
   onBack,
 }: MemberRequestsContentProps) => {
-  const { token, activeMess } = useAuth();
+  const { token, activeMess, user } = useAuth();
   const { refreshCount } = useNotifications();
   const { isOnline } = useNetwork();
   const [requests, setRequests] = useState<MemberRequest[]>([]);
@@ -32,18 +51,36 @@ export const MemberRequestsContent = ({
   };
 
   const fetchRequests = useCallback(async () => {
-    if (!token || !activeMess) return;
+    if (!token || !activeMess || !user) return;
     setLoading(true);
     try {
-      const nextRequests = await getMemberRequests(token, activeMess.id);
-      setRequests(nextRequests);
-      await refreshCount();
+      if (isOfflineDatabaseSupported()) {
+        const database = await getOfflineDatabase();
+        const repository = new MemberRequestsRepository(database);
+        const cached = await repository.getSnapshot(user.id, activeMess.id);
+        if (cached) setRequests(cached.requests);
+
+        if (isOnline) {
+          const nextRequests = await getMemberRequests(token, activeMess.id);
+          setRequests(nextRequests);
+          await repository.replaceSnapshot(
+            user.id,
+            activeMess.id,
+            nextRequests,
+          );
+          await refreshCount();
+        }
+      } else {
+        const nextRequests = await getMemberRequests(token, activeMess.id);
+        setRequests(nextRequests);
+        await refreshCount();
+      }
     } catch {
       // Keep the existing silent failure behavior.
     } finally {
       setLoading(false);
     }
-  }, [token, activeMess?.id, refreshCount]);
+  }, [token, activeMess?.id, user?.id, isOnline, refreshCount]);
 
   useEffect(() => {
     void fetchRequests();
@@ -65,6 +102,9 @@ export const MemberRequestsContent = ({
       const nextRequests = await getMemberRequests(token, activeMess.id);
       setRequests(nextRequests);
       await refreshCount();
+      if (user) {
+        await saveMemberRequestsSnapshot(user.id, activeMess.id, nextRequests);
+      }
       showToast({ type: "success", message: "Member requests refreshed" });
     } catch (error) {
       showToast({
@@ -89,9 +129,13 @@ export const MemberRequestsContent = ({
   });
 
   const removeResolvedRequest = (requestId: number) => {
-    setRequests((current) =>
-      current.filter((request) => request.id !== requestId),
-    );
+    setRequests((current) => {
+      const next = current.filter((request) => request.id !== requestId);
+      if (user && activeMess) {
+        void saveMemberRequestsSnapshot(user.id, activeMess.id, next);
+      }
+      return next;
+    });
   };
 
   return (

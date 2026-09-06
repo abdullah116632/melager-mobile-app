@@ -421,6 +421,8 @@ export class ReferenceDataRepository implements ReferenceDataStore {
   async clear(): Promise<void> {
     await this.database.withTransactionAsync(async () => {
       await this.database.execAsync(`
+        DELETE FROM local_member_requests;
+        DELETE FROM local_dashboard_statements;
         DELETE FROM local_meal_calendars;
         DELETE FROM local_notifications;
         DELETE FROM local_message_read_state;
