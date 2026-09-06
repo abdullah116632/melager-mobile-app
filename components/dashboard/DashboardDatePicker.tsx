@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -36,12 +36,15 @@ export const DashboardDatePicker = ({
   const [viewYearMonth, setViewYearMonth] = useState(
     fixedYearMonth ?? value.slice(0, 7),
   );
+  const wasVisibleRef = useRef(false);
 
   useEffect(() => {
-    if (!visible) return;
-    const nextYearMonth = fixedYearMonth ?? value.slice(0, 7);
-    setViewYearMonth(nextYearMonth);
-    onVisibleMonthChange?.(nextYearMonth);
+    if (visible && !wasVisibleRef.current) {
+      const nextYearMonth = fixedYearMonth ?? value.slice(0, 7);
+      setViewYearMonth(nextYearMonth);
+      onVisibleMonthChange?.(nextYearMonth);
+    }
+    wasVisibleRef.current = visible;
   }, [fixedYearMonth, onVisibleMonthChange, visible, value]);
 
   const [year, month] = viewYearMonth.split("-").map(Number);
@@ -205,6 +208,9 @@ export const DashboardDatePicker = ({
               </View>
             ))}
           </View>
+          <Text className="mt-2.5 text-center font-inter-medium text-[10px] leading-[14px] text-slate-400">
+            B = Breakfast off, L = Lunch off, D = Dinner off
+          </Text>
         </View>
       </View>
     </Modal>

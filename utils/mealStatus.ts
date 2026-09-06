@@ -9,6 +9,11 @@ export const localDateString = (date: Date): string => {
 
 export const getTodayDate = (): string => localDateString(new Date());
 
+export const formatDateDMY = (dateString: string): string => {
+  const [year, month, day] = dateString.split("-");
+  return `${day}-${month}-${year}`;
+};
+
 export const addDays = (dateString: string, numberOfDays: number): string => {
   const [year, month, day] = dateString.split("-").map(Number);
   const date = new Date(year!, month! - 1, day!);

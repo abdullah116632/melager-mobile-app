@@ -61,7 +61,6 @@ export const formatDashboardDateLabel = (
   if (difference === 1) return "Tomorrow";
   if (difference === -1) return "Yesterday";
   return date.toLocaleDateString("en-US", {
-    weekday: "short",
     month: "short",
     day: "numeric",
   });

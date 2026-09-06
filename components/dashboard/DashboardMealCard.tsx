@@ -133,13 +133,11 @@ export const DashboardMealCard = ({
       <View className="w-[52px] items-center">
         <View className="h-11 w-11 items-center justify-center rounded-full bg-teal-50">
           {mealType === "lunch" ? (
-            <View className="h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-teal-600">
-              <MaterialCommunityIcons
-                name="silverware-fork-knife"
-                size={19}
-                color="#0F8A80"
-              />
-            </View>
+            <MaterialCommunityIcons
+              name="silverware-fork-knife"
+              size={20}
+              color="#0F8A80"
+            />
           ) : (
             <Ionicons
               name={mealType === "breakfast" ? "sunny-outline" : "moon-outline"}

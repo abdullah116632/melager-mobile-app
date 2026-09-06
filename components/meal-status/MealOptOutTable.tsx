@@ -1,6 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Text, View } from "react-native";
-import { MEAL_ICONS } from "@/constants/mealStatus";
 import type { MealStatusConsumer } from "@/types/mealStatus";
 
 const MealCell = ({ opted }: { opted: boolean }) => (
@@ -46,15 +47,19 @@ export const MealOptOutTable = ({ consumers }: MealOptOutTableProps) => {
             <Text className="w-[140px] pl-3 text-left font-inter-semibold text-[13px] text-white">
               Name
             </Text>
-            <Text className="w-[54px] text-center font-inter-semibold text-[13px] text-white">
-              {MEAL_ICONS.breakfast}
-            </Text>
-            <Text className="w-[54px] text-center font-inter-semibold text-[13px] text-white">
-              {MEAL_ICONS.lunch}
-            </Text>
-            <Text className="w-[54px] text-center font-inter-semibold text-[13px] text-white">
-              {MEAL_ICONS.dinner}
-            </Text>
+            <View className="w-[54px] items-center justify-center">
+              <Ionicons name="sunny-outline" size={16} color="#fff" />
+            </View>
+            <View className="w-[54px] items-center justify-center">
+              <MaterialCommunityIcons
+                name="silverware-fork-knife"
+                size={14}
+                color="#fff"
+              />
+            </View>
+            <View className="w-[54px] items-center justify-center">
+              <Ionicons name="moon-outline" size={16} color="#fff" />
+            </View>
           </View>
 
           {optOutRows.map((row, index) => (

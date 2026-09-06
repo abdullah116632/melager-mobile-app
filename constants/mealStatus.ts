@@ -8,12 +8,6 @@ export const MEAL_LABELS: Record<MealType, string> = {
   dinner: "Dinner",
 };
 
-export const MEAL_ICONS: Record<MealType, string> = {
-  breakfast: "🌅",
-  lunch: "☀️",
-  dinner: "🌙",
-};
-
 export const DEFAULT_MEAL_DRAFT: MealDraft = {
   breakfast: { enabled: true, menu: "", start: "", end: "" },
   lunch: { enabled: true, menu: "", start: "", end: "" },

@@ -4,13 +4,9 @@ import { Text, TouchableOpacity, View } from "react-native";
 
 interface MealStatusHeaderProps {
   onBack: () => void;
-  onRefresh: () => void;
 }
 
-export const MealStatusHeader = ({
-  onBack,
-  onRefresh,
-}: MealStatusHeaderProps) => {
+export const MealStatusHeader = ({ onBack }: MealStatusHeaderProps) => {
   return (
     <LinearGradient
       colors={["#075F5B", "#00796F", "#019D83"]}
@@ -36,14 +32,6 @@ export const MealStatusHeader = ({
             Manage daily meals and availability
           </Text>
         </View>
-        <TouchableOpacity
-          className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
-          onPress={onRefresh}
-          activeOpacity={0.7}
-          accessibilityLabel="Refresh meal status"
-        >
-          <Feather name="refresh-cw" size={18} color="#fff" />
-        </TouchableOpacity>
       </View>
     </LinearGradient>
   );
