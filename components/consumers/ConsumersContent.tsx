@@ -4,6 +4,11 @@ import { StatusBar } from "expo-status-bar";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AddMealConsumerModal } from "@/components/meals/AddMealConsumerModal";
+import {
+  getOfflineDatabase,
+  isOfflineDatabaseSupported,
+} from "@/offline/database/connection";
+import { ReferenceDataRepository } from "@/offline/features/reference/ReferenceDataRepository";
 import { useAuth, useNetwork } from "@/redux/hooks";
 import { getConsumers } from "@/services/consumerService";
 import type { Consumer } from "@/types/consumer";
@@ -12,13 +17,27 @@ import { ConsumersList } from "./ConsumersList";
 
 type Toast = { type: "success" | "error"; message: string };
 
+const persistConsumersSnapshot = async (
+  userId: number,
+  messId: number,
+  consumers: Consumer[],
+): Promise<void> => {
+  if (!isOfflineDatabaseSupported()) return;
+  const database = await getOfflineDatabase();
+  await new ReferenceDataRepository(database).replaceConsumers(
+    userId,
+    messId,
+    consumers,
+  );
+};
+
 export const ConsumersContent = ({
   returnTo = "dashboard",
 }: {
   returnTo?: "dashboard" | "manager";
 }) => {
   const insets = useSafeAreaInsets();
-  const { token, activeMess, role } = useAuth();
+  const { token, activeMess, role, user } = useAuth();
   const { isOnline } = useNetwork();
   const [consumers, setConsumers] = useState<Consumer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,17 +52,30 @@ export const ConsumersContent = ({
   };
 
   const fetchConsumers = useCallback(async () => {
-    if (!token || !messId) return;
+    if (!token || !messId || !user) return;
 
     setLoading(true);
     try {
-      setConsumers(await getConsumers(token, messId));
+      if (isOfflineDatabaseSupported()) {
+        const database = await getOfflineDatabase();
+        const repository = new ReferenceDataRepository(database);
+        const cached = await repository.getConsumers(user.id, messId);
+        if (cached) setConsumers(cached.consumers);
+
+        if (isOnline) {
+          const nextConsumers = await getConsumers(token, messId);
+          setConsumers(nextConsumers);
+          await repository.replaceConsumers(user.id, messId, nextConsumers);
+        }
+      } else {
+        setConsumers(await getConsumers(token, messId));
+      }
     } catch {
       // Preserve the last successfully loaded list when refreshing fails.
     } finally {
       setLoading(false);
     }
-  }, [messId, token]);
+  }, [messId, token, user?.id, isOnline]);
 
   useEffect(() => {
     void fetchConsumers();
@@ -62,7 +94,9 @@ export const ConsumersContent = ({
 
     setRefreshing(true);
     try {
-      setConsumers(await getConsumers(token, messId));
+      const nextConsumers = await getConsumers(token, messId);
+      setConsumers(nextConsumers);
+      if (user) await persistConsumersSnapshot(user.id, messId, nextConsumers);
       showToast({ type: "success", message: "Members refreshed" });
     } catch (error) {
       showToast({
@@ -100,9 +134,15 @@ export const ConsumersContent = ({
         refreshing={refreshing}
         onRefresh={() => void handlePullToRefresh()}
         onDeleted={(consumerId) =>
-          setConsumers((currentConsumers) =>
-            currentConsumers.filter((consumer) => consumer.id !== consumerId),
-          )
+          setConsumers((currentConsumers) => {
+            const next = currentConsumers.filter(
+              (consumer) => consumer.id !== consumerId,
+            );
+            if (user && messId) {
+              void persistConsumersSnapshot(user.id, messId, next);
+            }
+            return next;
+          })
         }
       />
       {role === "admin" && (
