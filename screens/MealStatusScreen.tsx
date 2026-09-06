@@ -1,4 +1,6 @@
+import { StatusBar } from "expo-status-bar";
 import { Platform, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MealStatusContent } from "@/components/meal-status/MealStatusContent";
 
 interface MealStatusScreenProps {
@@ -9,10 +11,22 @@ interface MealStatusScreenProps {
 export const MealStatusScreen = ({
   initialDate,
   onBack,
-}: MealStatusScreenProps) => (
-  <View
-    className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
-  >
-    <MealStatusContent initialDate={initialDate} onBack={onBack} />
-  </View>
-);
+}: MealStatusScreenProps) => {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View
+      className={`flex-1 bg-slate-50 ${Platform.OS === "web" ? "pt-[67px]" : "pt-safe"}`}
+    >
+      <StatusBar style="light" backgroundColor="#075F5B" />
+      {Platform.OS !== "web" && (
+        <View
+          pointerEvents="none"
+          className="absolute left-0 right-0 top-0 z-50"
+          style={{ height: insets.top, backgroundColor: "#075F5B" }}
+        />
+      )}
+      <MealStatusContent initialDate={initialDate} onBack={onBack} />
+    </View>
+  );
+};
