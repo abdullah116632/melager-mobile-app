@@ -1,32 +1,18 @@
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { getDashboardMonthRange } from "@/utils/dashboard";
-
-const isMissingV2Route = (error: unknown): boolean =>
-  error instanceof ApiError && error.status === 404;
 
 export const getDashboardSchedule = (
   messId: number,
   token: string,
   date: string,
-) =>
-  api.getMealStatusDayV2(messId, token, date).catch((error: unknown) => {
-    if (isMissingV2Route(error)) {
-      return api.getTodaySchedule(messId, token, date);
-    }
-    throw error;
-  });
+) => api.getMealStatusDayV2(messId, token, date);
 
 export const getDashboardMealCalendar = (
   messId: number,
   token: string,
   yearMonth: string,
 ) =>
-  api
-    .getMealStatusCalendarV2(messId, token, yearMonth)
-    .catch((error: unknown) => {
-      if (isMissingV2Route(error)) return { yearMonth, days: [] };
-      throw error;
-    });
+  api.getMealStatusCalendarV2(messId, token, yearMonth);
 
 export const toggleDashboardMeal = (
   messId: number,
@@ -36,21 +22,7 @@ export const toggleDashboardMeal = (
   token: string,
   isOptedOut: boolean,
 ) =>
-  api
-    .toggleMealOptOutV2(messId, date, mealType, scope, token, isOptedOut)
-    .catch((error: unknown) => {
-      if (isMissingV2Route(error)) {
-        return api.toggleMealOptOut(
-          messId,
-          date,
-          mealType,
-          scope,
-          token,
-          isOptedOut,
-        );
-      }
-      throw error;
-    });
+  api.toggleMealOptOutV2(messId, date, mealType, scope, token, isOptedOut);
 
 export const getDashboardRangeData = async (
   messId: number,

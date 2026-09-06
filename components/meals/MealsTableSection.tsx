@@ -217,7 +217,6 @@ export const MealsTableSection = () => {
 
       {isAdmin && selectedCell && (
         <MealCellEditor
-          key={`${currentYearMonth}:${selectedCell.consumerId}:${selectedCell.day}`}
           ref={editorRef}
           cell={selectedCell}
           onDone={() => setSelectedCell(null)}

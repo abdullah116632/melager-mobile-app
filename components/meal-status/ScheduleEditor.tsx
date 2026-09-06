@@ -17,10 +17,9 @@ import {
 import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
 import { getDashboardSchedule } from "@/services/dashboardService";
 import type {
-  ControlScope,
   MealDraft,
   MealType,
-  PendingMealControls,
+  MealScheduleUpdate,
 } from "@/types/mealStatus";
 import { getTodayDate, isValidTime } from "@/utils/mealStatus";
 import {
@@ -89,14 +88,10 @@ export const ScheduleEditor = ({
   const { database } = useOfflineDatabase();
   const [draft, setDraft] = useState(() => createDraftFromSchedule(schedule));
   const [saving, setSaving] = useState(false);
-  const [pendingControls, setPendingControls] = useState<PendingMealControls>(
-    {},
-  );
   const [savedMealSnapshots, setSavedMealSnapshots] = useState(() =>
     createSavedMealSnapshots(schedule),
   );
   const today = getTodayDate();
-  const isToday = selectedDate === today;
   const isPast = selectedDate < today;
 
   const updateDraftField = (
@@ -112,14 +107,9 @@ export const ScheduleEditor = ({
 
   const handleEnabledChange = (mealType: MealType, enabled: boolean) => {
     if (isPast) return;
-    const scope: ControlScope = isToday ? "ongoing" : "day";
     setDraft((current) => ({
       ...current,
       [mealType]: { ...current[mealType], enabled },
-    }));
-    setPendingControls((current) => ({
-      ...current,
-      [mealType]: { enabled, scope },
     }));
   };
 
@@ -127,16 +117,12 @@ export const ScheduleEditor = ({
     const nextDraft = createDraftFromSchedule(schedule);
     setDraft(nextDraft);
     setSavedMealSnapshots(createSavedMealSnapshots(schedule));
-    setPendingControls({});
   }, [schedule, selectedDate]);
 
   const handleSave = async (mealType: MealType) => {
     if (!token || !mess?.id || isPast || loadedDate !== selectedDate) return;
 
     const meal = draft[mealType];
-    const controlsBeingSaved = pendingControls[mealType]
-      ? { [mealType]: pendingControls[mealType] }
-      : {};
 
     for (const [fieldLabel, value] of [
       ["start", meal.start],
@@ -150,48 +136,71 @@ export const ScheduleEditor = ({
         return;
       }
     }
+    if (Boolean(meal.start) !== Boolean(meal.end)) {
+      Alert.alert(
+        "Incomplete Window",
+        `${MEAL_LABELS[mealType]} requires both a start and end time.`,
+      );
+      return;
+    }
 
     setSaving(true);
     try {
-      const getMeal = (type: MealType) =>
-        type === mealType
-          ? draft[type]
-          : createDraftFromSchedule(schedule)[type];
-      const update = {
+      const update: MealScheduleUpdate = {
         messId: mess.id,
         date: selectedDate,
-        breakfastEnabled: getMeal("breakfast").enabled,
-        breakfastMenu: getMeal("breakfast").menu.trim() || null,
-        breakfastOptOutStart: getMeal("breakfast").start.trim() || null,
-        breakfastOptOutEnd: getMeal("breakfast").end.trim() || null,
-        lunchEnabled: getMeal("lunch").enabled,
-        lunchMenu: getMeal("lunch").menu.trim() || null,
-        lunchOptOutStart: getMeal("lunch").start.trim() || null,
-        lunchOptOutEnd: getMeal("lunch").end.trim() || null,
-        dinnerEnabled: getMeal("dinner").enabled,
-        dinnerMenu: getMeal("dinner").menu.trim() || null,
-        dinnerOptOutStart: getMeal("dinner").start.trim() || null,
-        dinnerOptOutEnd: getMeal("dinner").end.trim() || null,
-        mealControls: Object.entries(controlsBeingSaved).map(
-          ([mealType, control]) => ({
-            mealType: mealType as MealType,
-            ...control!,
-          }),
-        ),
       };
+      const savedMeal = JSON.parse(savedMealSnapshots[mealType]) as {
+        enabled: boolean;
+        menu: string;
+        start: string;
+        end: string;
+      };
+      const mealValues = {
+        enabled: meal.enabled,
+        start: meal.start.trim() || null,
+        end: meal.end.trim() || null,
+      };
+      const controlsChanged =
+        mealValues.enabled !== savedMeal.enabled ||
+        (mealValues.start ?? "") !== savedMeal.start ||
+        (mealValues.end ?? "") !== savedMeal.end;
+      if (controlsChanged) {
+        if (mealType === "breakfast") {
+          update.breakfastEnabled = mealValues.enabled;
+          update.breakfastOptOutStart = mealValues.start;
+          update.breakfastOptOutEnd = mealValues.end;
+        } else if (mealType === "lunch") {
+          update.lunchEnabled = mealValues.enabled;
+          update.lunchOptOutStart = mealValues.start;
+          update.lunchOptOutEnd = mealValues.end;
+        } else {
+          update.dinnerEnabled = mealValues.enabled;
+          update.dinnerOptOutStart = mealValues.start;
+          update.dinnerOptOutEnd = mealValues.end;
+        }
+      }
+
+      const nextMenu = meal.menu.trim();
+      if (nextMenu !== savedMeal.menu) {
+        if (mealType === "breakfast") update.breakfastMenu = nextMenu || null;
+        else if (mealType === "lunch") update.lunchMenu = nextMenu || null;
+        else update.dinnerMenu = nextMenu || null;
+      }
+
       const nextSchedule = {
-        breakfastEnabled: getMeal("breakfast").enabled,
-        breakfastMenu: getMeal("breakfast").menu.trim() || null,
-        breakfastOptOutStart: getMeal("breakfast").start.trim() || null,
-        breakfastOptOutEnd: getMeal("breakfast").end.trim() || null,
-        lunchEnabled: getMeal("lunch").enabled,
-        lunchMenu: getMeal("lunch").menu.trim() || null,
-        lunchOptOutStart: getMeal("lunch").start.trim() || null,
-        lunchOptOutEnd: getMeal("lunch").end.trim() || null,
-        dinnerEnabled: getMeal("dinner").enabled,
-        dinnerMenu: getMeal("dinner").menu.trim() || null,
-        dinnerOptOutStart: getMeal("dinner").start.trim() || null,
-        dinnerOptOutEnd: getMeal("dinner").end.trim() || null,
+        breakfastEnabled: draft.breakfast.enabled,
+        breakfastMenu: draft.breakfast.menu.trim() || null,
+        breakfastOptOutStart: draft.breakfast.start.trim() || null,
+        breakfastOptOutEnd: draft.breakfast.end.trim() || null,
+        lunchEnabled: draft.lunch.enabled,
+        lunchMenu: draft.lunch.menu.trim() || null,
+        lunchOptOutStart: draft.lunch.start.trim() || null,
+        lunchOptOutEnd: draft.lunch.end.trim() || null,
+        dinnerEnabled: draft.dinner.enabled,
+        dinnerMenu: draft.dinner.menu.trim() || null,
+        dinnerOptOutStart: draft.dinner.start.trim() || null,
+        dinnerOptOutEnd: draft.dinner.end.trim() || null,
       };
       try {
         await updateMealSchedule(update, token);
@@ -205,6 +214,10 @@ export const ScheduleEditor = ({
           nextSchedule,
         ).catch(() => false);
         if (!queued) throw remoteError;
+        setSavedMealSnapshots((current) => ({
+          ...current,
+          [mealType]: serializeMeal(meal),
+        }));
         Alert.alert("Saved offline", "Schedule will sync when you are online.");
         return;
       }
@@ -218,11 +231,6 @@ export const ScheduleEditor = ({
         ...current,
         [mealType]: serializeMeal(meal),
       }));
-      setPendingControls((current) => {
-        const next = { ...current };
-        delete next[mealType];
-        return next;
-      });
     } catch (error) {
       Alert.alert(
         "Error",

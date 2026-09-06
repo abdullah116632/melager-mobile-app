@@ -19,6 +19,12 @@ export type MealScheduleTextField = "menu" | "start" | "end";
 
 type TimePickerField = "start" | "end";
 
+const DEFAULT_WINDOWS: Record<MealType, { start: string; end: string }> = {
+  breakfast: { start: "04:00", end: "08:00" },
+  lunch: { start: "08:00", end: "13:00" },
+  dinner: { start: "13:00", end: "17:00" },
+};
+
 interface MealScheduleItemProps {
   mealType: MealType;
   meal: MealDraftItem;
@@ -44,13 +50,17 @@ export const MealScheduleItem = ({
 }: MealScheduleItemProps) => {
   const [timePickerField, setTimePickerField] =
     useState<TimePickerField | null>(null);
+  const defaultWindow = DEFAULT_WINDOWS[mealType];
 
   const openTimePicker = (field: TimePickerField) => {
     setTimePickerField(field);
   };
 
   return (
-    <View className={`py-3.5 ${isLast ? "" : "border-b border-slate-300"}`}>
+    <View
+      className={`py-3.5 ${isLast ? "" : "border-b border-slate-300"} ${isPast ? "opacity-40" : ""}`}
+      accessibilityState={{ disabled: isPast }}
+    >
       <View className="mb-2 flex-row items-center gap-2">
         <View className="h-9 w-9 items-center justify-center rounded-full bg-teal-50">
           {mealType === "lunch" ? (
@@ -116,7 +126,7 @@ export const MealScheduleItem = ({
             <Text
               className={`font-inter-medium text-xs ${meal.start ? "text-slate-900" : "text-slate-500"}`}
             >
-              {formatTime12Hour(meal.start || "07:00")}
+              {formatTime12Hour(meal.start || defaultWindow.start)}
             </Text>
           </TouchableOpacity>
           <Text className="font-inter-semibold text-sm text-slate-500">–</Text>
@@ -129,7 +139,7 @@ export const MealScheduleItem = ({
             <Text
               className={`font-inter-medium text-xs ${meal.end ? "text-slate-900" : "text-slate-500"}`}
             >
-              {formatTime12Hour(meal.end || "09:30")}
+              {formatTime12Hour(meal.end || defaultWindow.end)}
             </Text>
           </TouchableOpacity>
         </View>

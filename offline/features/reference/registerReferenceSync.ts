@@ -67,7 +67,7 @@ export function registerReferenceSync(
         );
         if (alreadyCreated) return;
       }
-      await api.createMess(payload.name, context.token);
+      await api.createMessV2(payload.name, context.token);
     } else if (payload.action === "join" && payload.messKey) {
       await api.joinMess(payload.messKey, context.token);
     } else if (payload.action === "retry_join" && payload.requestId) {

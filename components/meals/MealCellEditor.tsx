@@ -76,13 +76,31 @@ export const MealCellEditor = forwardRef<
   useImperativeHandle(ref, () => ({ commitNow: commit }));
 
   useEffect(() => {
-    const timer = setTimeout(() => inputRef.current?.focus(), 120);
+    // Keep one TextInput mounted while moving across cells. Remounting it for
+    // every selected cell dismisses Android's keyboard, then reopens it a
+    // moment later and causes the visible keyboard "flip".
+    const nextValue = initialValue > 0 ? initialValue.toString() : "";
+    valueRef.current = nextValue;
+    setValue(nextValue);
+    dirtyRef.current = false;
+    setStatus("selected");
+    inputRef.current?.focus();
+
     return () => {
-      clearTimeout(timer);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      if (dirtyRef.current) saveValue(parseMealValue(valueRef.current));
+      if (dirtyRef.current) {
+        // Moving by tapping another cell must not lose a value that has not
+        // reached the debounce timer yet.
+        saveMealRef.current(
+          currentYearMonth,
+          cell.consumerId,
+          cell.day,
+          parseMealValue(valueRef.current),
+        );
+        dirtyRef.current = false;
+      }
     };
-  }, []);
+  }, [cell.consumerId, cell.day, currentYearMonth, initialValue]);
 
   const handleChange = (nextValue: string) => {
     if (!/^\d*(?:\.\d{0,3})?$/.test(nextValue)) return;

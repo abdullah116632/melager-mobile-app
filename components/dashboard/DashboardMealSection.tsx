@@ -6,13 +6,11 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
 } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import { ApiError } from "@/lib/api";
-import {
-  DASHBOARD_MEAL_LABELS,
-  DASHBOARD_MEAL_TYPES,
-} from "@/constants/dashboard";
+import { DASHBOARD_MEAL_TYPES } from "@/constants/dashboard";
 import {
   useAppDispatch,
   useAppSelector,
@@ -43,6 +41,7 @@ import {
 } from "@/utils/dashboard";
 import { DashboardMealCard } from "@/components/dashboard/DashboardMealCard";
 import { DashboardDatePicker } from "@/components/dashboard/DashboardDatePicker";
+import { MealOffOptionsSheet } from "@/components/dashboard/MealOffOptionsSheet";
 import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
 import { MealScheduleRepository } from "@/offline/features/meals/MealScheduleRepository";
 import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
@@ -85,6 +84,8 @@ export const DashboardMealSection = forwardRef<
   const pendingOptOuts = new Set(storedPendingOptOuts);
   const calendarRequestId = useRef(0);
   const mountedRef = useRef(true);
+  const [offSheetMealType, setOffSheetMealType] =
+    useState<DashboardMealType | null>(null);
   const isAdmin = role === "admin";
   const isPast = selectedDate < today;
   const isToday = selectedDate === today;
@@ -301,21 +302,7 @@ export const DashboardMealSection = forwardRef<
       return;
     }
 
-    Alert.alert(
-      `Turn off ${DASHBOARD_MEAL_LABELS[mealType]}`,
-      "How long do you want to keep this meal off?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Only for today",
-          onPress: () => void performMealToggle(mealType, "day"),
-        },
-        {
-          text: "Until I turn on",
-          onPress: () => void performMealToggle(mealType, "ongoing"),
-        },
-      ],
-    );
+    setOffSheetMealType(mealType);
   };
 
   return (
@@ -414,6 +401,17 @@ export const DashboardMealSection = forwardRef<
         onSelect={(date) => {
           dispatch(setSelectedDate(date));
           dispatch(setDatePickerVisible(false));
+        }}
+      />
+      <MealOffOptionsSheet
+        visible={offSheetMealType !== null}
+        mealType={offSheetMealType}
+        dateLabel={formatDashboardDateLabel(selectedDate, today)}
+        onClose={() => setOffSheetMealType(null)}
+        onSelect={(scope) => {
+          const mealType = offSheetMealType;
+          setOffSheetMealType(null);
+          if (mealType) void performMealToggle(mealType, scope);
         }}
       />
     </View>

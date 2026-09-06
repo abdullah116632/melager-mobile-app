@@ -236,7 +236,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
               Date
             </Text>
             <Text className="absolute bottom-1 left-2 font-inter-semibold text-[10px] text-white">
-              Consumers
+              Members
             </Text>
           </View>
         </View>

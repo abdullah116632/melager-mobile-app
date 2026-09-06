@@ -14,7 +14,7 @@ export function registerMealScheduleSync(
   registry.registerProcessor("meal_schedule", async (operation, context) => {
     const payload = operation.payload as MealScheduleMutation;
     if (!payload.schedule) throw new Error("Meal schedule payload is missing.");
-    await api.setMealSchedule(
+    await api.setMealScheduleV2(
       { messId: context.messId!, date: payload.date, ...payload.schedule },
       context.token,
     );
@@ -51,16 +51,17 @@ export function registerMealScheduleSync(
   registry.registerPuller("meal_schedule", async (_cursor, context) => {
     if (context.messId === null) return { cursor: null };
     const date = getDhakaDate();
-    const [schedule, optOuts] = await Promise.all([
-      api.getTodaySchedule(context.messId, context.token, date),
-      api.getMealOptOuts(context.messId, date, context.token),
-    ]);
+    const schedule = await api.getMealStatusDayV2(
+      context.messId,
+      context.token,
+      date,
+    );
     await repository.replaceRemoteSnapshot(
       context.userId,
       context.messId,
       date,
       schedule,
-      optOuts.consumers,
+      schedule.consumers ?? [],
     );
     return { cursor: null };
   });

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "expo start",
+    "set-local-ip": "bash scripts/update-local-ip.sh",
     "dev:web": "expo start --web --port ${PORT:-8081}",
     "android": "expo run:android",
     "ios": "expo run:ios",

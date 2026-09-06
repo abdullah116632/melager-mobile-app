@@ -1,87 +1,50 @@
 import Feather from "@expo/vector-icons/Feather";
+import { LinearGradient } from "expo-linear-gradient";
 import { Text, TouchableOpacity, View } from "react-native";
-import { formatDateLabel } from "@/utils/mealStatus";
 
 interface MealStatusHeaderProps {
-  selectedDate: string;
-  today: string;
-  isAtFutureLimit: boolean;
   onBack: () => void;
-  onPreviousDate: () => void;
-  onNextDate: () => void;
-  onToday: () => void;
   onRefresh: () => void;
 }
 
 export const MealStatusHeader = ({
-  selectedDate,
-  today,
-  isAtFutureLimit,
   onBack,
-  onPreviousDate,
-  onNextDate,
-  onToday,
   onRefresh,
 }: MealStatusHeaderProps) => {
-  const isToday = selectedDate === today;
-
   return (
-    <View className="flex-row items-center gap-2 bg-teal-700 px-3 py-3">
-      <TouchableOpacity
-        className="h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-white/10"
-        onPress={onBack}
-        activeOpacity={0.7}
-      >
-        <Feather name="arrow-left" size={20} color="#fff" />
-      </TouchableOpacity>
-
-      <View className="flex-1 flex-row items-center justify-center">
+    <LinearGradient
+      colors={["#075F5B", "#00796F", "#019D83"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      className="relative overflow-hidden px-4 pb-5 pt-2"
+    >
+      <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
+      <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
+      <View className="flex-row items-center gap-2">
         <TouchableOpacity
-          onPress={onPreviousDate}
+          className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
+          onPress={onBack}
           activeOpacity={0.7}
-          className="p-1.5"
         >
-          <Feather
-            name="chevron-left"
-            size={18}
-            color="rgba(255,255,255,0.8)"
-          />
+          <Feather name="arrow-left" size={20} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={isToday ? undefined : onToday}
-          activeOpacity={isToday ? 1 : 0.7}
-          className="min-w-[100px] items-center px-2"
-        >
-          <Text className="font-inter-bold text-base text-white">
-            {formatDateLabel(selectedDate, today)}
+        <View className="min-w-0 flex-1 justify-center">
+          <Text className="font-inter-bold text-[18px] tracking-[0.1px] text-white">
+            Meal Status
           </Text>
-          {!isToday && (
-            <Text className="mt-px font-inter text-[10px] text-white/65">
-              Tap → Today
-            </Text>
-          )}
-        </TouchableOpacity>
+          <Text className="mt-0.5 font-inter text-[10px] text-white/70">
+            Manage daily meals and availability
+          </Text>
+        </View>
         <TouchableOpacity
-          onPress={onNextDate}
+          className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
+          onPress={onRefresh}
           activeOpacity={0.7}
-          className={`p-1.5 ${isAtFutureLimit ? "opacity-35" : "opacity-100"}`}
-          disabled={isAtFutureLimit}
+          accessibilityLabel="Refresh meal status"
         >
-          <Feather
-            name="chevron-right"
-            size={18}
-            color="rgba(255,255,255,0.8)"
-          />
+          <Feather name="refresh-cw" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity
-        className="h-[38px] w-[38px] items-center justify-center rounded-[10px] bg-white/10"
-        onPress={onRefresh}
-        activeOpacity={0.7}
-      >
-        <Feather name="refresh-cw" size={18} color="#fff" />
-      </TouchableOpacity>
-    </View>
+    </LinearGradient>
   );
 };

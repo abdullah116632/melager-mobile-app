@@ -26,19 +26,19 @@ export interface MealStatusConsumer {
 export interface MealScheduleUpdate {
   messId: number;
   date: string;
-  breakfastEnabled: boolean;
-  breakfastMenu: string | null;
-  breakfastOptOutStart: string | null;
-  breakfastOptOutEnd: string | null;
-  lunchEnabled: boolean;
-  lunchMenu: string | null;
-  lunchOptOutStart: string | null;
-  lunchOptOutEnd: string | null;
-  dinnerEnabled: boolean;
-  dinnerMenu: string | null;
-  dinnerOptOutStart: string | null;
-  dinnerOptOutEnd: string | null;
-  mealControls: Array<{
+  breakfastEnabled?: boolean;
+  breakfastMenu?: string | null;
+  breakfastOptOutStart?: string | null;
+  breakfastOptOutEnd?: string | null;
+  lunchEnabled?: boolean;
+  lunchMenu?: string | null;
+  lunchOptOutStart?: string | null;
+  lunchOptOutEnd?: string | null;
+  dinnerEnabled?: boolean;
+  dinnerMenu?: string | null;
+  dinnerOptOutStart?: string | null;
+  dinnerOptOutEnd?: string | null;
+  mealControls?: Array<{
     mealType: MealType;
     enabled: boolean;
     scope: ControlScope;

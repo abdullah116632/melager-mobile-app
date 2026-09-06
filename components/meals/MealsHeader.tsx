@@ -58,7 +58,7 @@ export const MealsHeader = () => {
           <NotificationBell badgeBorderColor="#00796F" />
           <View className="shrink-0 items-center rounded-full border border-white/20 bg-white/15 px-2 py-1.5">
             <Text className="font-inter text-[8px] leading-[9px] text-white/75">
-              TOTAL
+              TOTAL MEALS
             </Text>
             <Text
               className="font-inter-bold text-[12px] leading-[14px] text-white"

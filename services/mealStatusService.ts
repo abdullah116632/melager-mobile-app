@@ -9,15 +9,12 @@ export const getMealStatus = async (
   date: string,
   token: string,
 ) => {
-  const [schedule, optOuts] = await Promise.all([
-    api.getTodaySchedule(messId, token, date),
-    api.getMealOptOuts(messId, date, token),
-  ]);
+  const schedule = await api.getMealStatusDayV2(messId, token, date);
 
   return {
     schedule: schedule.schedule,
     myOptOuts: schedule.myOptOuts,
-    consumers: optOuts.consumers,
+    consumers: schedule.consumers ?? [],
   };
 };
 
@@ -67,7 +64,7 @@ export const cacheMealStatus = async (
 };
 
 export const updateMealSchedule = (data: MealScheduleUpdate, token: string) =>
-  api.setMealSchedule(data, token);
+  api.setMealScheduleV2(data, token);
 
 export const queueMealScheduleUpdate = async (
   database: SQLiteDatabase | null,
@@ -77,9 +74,10 @@ export const queueMealScheduleUpdate = async (
 ) => {
   if (!database || !userId) return false;
   const repository = new MealScheduleRepository(database);
+  const { messId: _messId, date: _date, ...scheduleUpdate } = data;
   await repository.saveSchedule(userId, data.messId, data.date, schedule, {
     date: data.date,
-    schedule,
+    schedule: scheduleUpdate,
   });
   return true;
 };

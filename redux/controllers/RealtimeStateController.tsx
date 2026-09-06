@@ -167,6 +167,7 @@ export const RealtimeStateController = ({
         ) {
           return;
         }
+        clearApiCache();
         dispatch(invalidateSchedule());
       });
     };

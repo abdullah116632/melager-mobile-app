@@ -33,6 +33,19 @@ const emptyTodaySchedule = (
 const parsePayload = (row: ScheduleRow | null): StoredSchedulePayload | null =>
   row ? (JSON.parse(row.payload_json) as StoredSchedulePayload) : null;
 
+const SCHEDULE_MEAL_TYPES = ["breakfast", "lunch", "dinner"] as const;
+
+/** Which meal(s) a partial v2 schedule update actually touches, from its field names. */
+const scheduleMealTypesTouched = (
+  schedule: MealScheduleMutation["schedule"],
+): string => {
+  if (!schedule) return "schedule";
+  const touched = SCHEDULE_MEAL_TYPES.filter((mealType) =>
+    Object.keys(schedule).some((field) => field.startsWith(mealType)),
+  );
+  return touched.length > 0 ? touched.join("+") : "schedule";
+};
+
 export class MealScheduleRepository {
   private readonly outbox: OutboxRepository;
   constructor(private readonly database: SQLiteDatabase) {
@@ -282,14 +295,25 @@ export class MealScheduleRepository {
     date: string,
     mutation: MealScheduleMutation,
   ): Promise<unknown> {
+    // A schedule mutation only ever carries the meal type(s) it actually
+    // touches, so an edit to breakfast and a later, still-unsynced edit to
+    // lunch must not collapse into one outbox row — that would silently
+    // drop whichever one loses the dedupe race. The "optout:"/"schedule:"
+    // namespace keeps an admin's own opt-out for a meal from colliding with
+    // their schedule edit for that same meal — dedupe_key is unique per user
+    // regardless of entity_type.
+    const isOptOut = mutation.mealType !== undefined;
+    const suffix = isOptOut
+      ? `optout:${mutation.mealType}`
+      : `schedule:${scheduleMealTypesTouched(mutation.schedule)}`;
     return this.outbox.enqueue({
       userId,
       messId,
-      entityType: mutation.mealType ? "meal_opt_out" : "meal_schedule",
-      entityId: `${messId}:${date}:${mutation.mealType ?? "schedule"}`,
+      entityType: isOptOut ? "meal_opt_out" : "meal_schedule",
+      entityId: `${messId}:${date}:${suffix}`,
       operation: "upsert",
       payload: mutation,
-      dedupeKey: `meal:${mutation.mealType ?? "schedule"}:${messId}:${date}`,
+      dedupeKey: `meal:${suffix}:${messId}:${date}`,
     });
   }
 

@@ -307,7 +307,7 @@ export const createMess = createAuthAsyncThunk<
   if (!token) throw new Error("Not authenticated");
   let newMess: ApiMess;
   try {
-    ({ mess: newMess } = await api.createMess(name, token));
+    ({ mess: newMess } = await api.createMessV2(name, token));
   } catch (error) {
     if (!user || !isQueueableConnectivityError(error)) throw error;
     await new OutboxRepository(await getOfflineDatabase()).enqueue({

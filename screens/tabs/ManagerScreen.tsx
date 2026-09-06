@@ -108,9 +108,6 @@ export function ManagerScreen() {
                 Manager
               </Text>
             </View>
-            <Text className="mt-0.5 font-inter text-[10px] text-white/70">
-              Manage your mess and member activity.
-            </Text>
           </View>
           <TouchableOpacity
             className="max-w-[132px] shrink flex-row items-center gap-1.5 rounded-full border border-white/15 bg-white/15 px-2.5 py-2"

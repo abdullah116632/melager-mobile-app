@@ -27,6 +27,7 @@ export interface TodaySchedule {
   totalConsumers: number;
   activeByMeal: { breakfast: number; lunch: number; dinner: number };
   totalActive: number;
+  consumers?: ConsumerMealStatus[];
 }
 
 export interface MealStatusCalendarDay {
@@ -389,6 +390,9 @@ export const api = {
 
   createMess: (name: string, token: string) =>
     req<{ mess: ApiMess }>("POST", "/mess/create", { name }, token),
+
+  createMessV2: (name: string, token: string) =>
+    req<{ mess: ApiMess }>("POST", "/v2/mess/create", { name }, token),
 
   joinMess: (messKey: string, token: string) =>
     req<{ pendingRequest: ApiMyRequest }>(
@@ -1064,6 +1068,31 @@ export const api = {
     },
     token: string,
   ) => req<{ success: boolean }>("PUT", "/mess/meal-schedule", data, token),
+
+  setMealScheduleV2: (
+    data: {
+      messId: number;
+      date: string;
+      breakfastEnabled?: boolean;
+      breakfastMenu?: string | null;
+      breakfastOptOutStart?: string | null;
+      breakfastOptOutEnd?: string | null;
+      lunchEnabled?: boolean;
+      lunchMenu?: string | null;
+      lunchOptOutStart?: string | null;
+      lunchOptOutEnd?: string | null;
+      dinnerEnabled?: boolean;
+      dinnerMenu?: string | null;
+      dinnerOptOutStart?: string | null;
+      dinnerOptOutEnd?: string | null;
+      mealControls?: Array<{
+        mealType: "breakfast" | "lunch" | "dinner";
+        enabled: boolean;
+        scope: "day" | "ongoing";
+      }>;
+    },
+    token: string,
+  ) => req<{ success: boolean }>("PUT", "/v2/mess/meal-schedule", data, token),
 
   toggleMealOptOut: (
     messId: number,
