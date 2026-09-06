@@ -36,7 +36,7 @@ export const ConsumerDetailModal = ({
             </View>
             <View className="min-w-0 flex-1">
               <Text className="font-inter-medium text-[11px] uppercase tracking-[1px] text-teal-700">
-                Consumer details
+                Member details
               </Text>
               <Text className="mt-0.5 font-inter-bold text-[18px] leading-6 text-slate-950">
                 {consumer?.name}

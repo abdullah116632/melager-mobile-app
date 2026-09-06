@@ -163,7 +163,7 @@ export const AddMealConsumerModal = ({
           <View className="mb-2 h-1 w-11 self-center rounded-sm bg-slate-200" />
           <View className="flex-row items-center justify-between gap-3">
             <Text className="flex-1 font-inter-bold text-lg text-slate-900">
-              Add Member
+              Add New Member
             </Text>
             <TouchableOpacity
               className="h-8 w-8 items-center justify-center rounded-full bg-teal-700/[0.06]"

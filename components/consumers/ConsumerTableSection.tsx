@@ -1,18 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Animated,
-  Easing,
-  type LayoutChangeEvent,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import { useAuth } from "@/redux/hooks";
 import type { Consumer } from "@/types/consumer";
+import { getProfileInitials } from "@/utils/profile";
 
 type ConsumerTableSectionProps = {
   label: string;
@@ -25,7 +16,7 @@ type ConsumerTableSectionProps = {
   deletingId: number | null;
 };
 
-type ConsumerTableProps = ConsumerTableSectionProps & {
+type ConsumerCardListProps = ConsumerTableSectionProps & {
   isAdmin: boolean;
 };
 
@@ -38,64 +29,54 @@ const consumerNameColors = [
   "#0369A1",
 ];
 
-const ConsumerName = ({ name, color }: { name: string; color: string }) => {
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const [contentWidth, setContentWidth] = useState(0);
-  const translateX = useRef(new Animated.Value(0)).current;
-  const shouldScroll = viewportWidth > 0 && contentWidth > viewportWidth;
-
-  useEffect(() => {
-    translateX.stopAnimation();
-    translateX.setValue(0);
-
-    if (!shouldScroll) return;
-
-    const distance = contentWidth + 24;
-    const animation = Animated.loop(
-      Animated.timing(translateX, {
-        toValue: -distance,
-        duration: Math.max(4500, distance * 36),
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    animation.start();
-
-    return () => animation.stop();
-  }, [contentWidth, name, shouldScroll, translateX]);
-
-  return (
-    <View
-      className="h-7 justify-center overflow-hidden"
-      onLayout={(event: LayoutChangeEvent) =>
-        setViewportWidth(event.nativeEvent.layout.width)
-      }
-    >
-      <Animated.View
-        className="flex-row"
-        style={{ transform: [{ translateX }] }}
-      >
+const ContactRow = ({
+  icon,
+  value,
+  copyId,
+  copiedId,
+  onCopy,
+  copyLabel,
+}: {
+  icon: React.ComponentProps<typeof Feather>["name"];
+  value?: string | null;
+  copyId: string;
+  copiedId: string | null;
+  onCopy: (value: string, key: string, label: string) => void;
+  copyLabel: string;
+}) => (
+  <View className="mt-2 flex-row items-center gap-2.5">
+    <Feather name={icon} size={14} color="#0F766E" />
+    {value ? (
+      <>
         <Text
-          className="font-inter-semibold text-[15px]"
+          className="min-w-0 flex-1 font-inter text-[13px] text-slate-700"
           numberOfLines={1}
-          style={{ color, flexShrink: 0 }}
-          onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
         >
-          {name}
+          {value}
         </Text>
-        {shouldScroll && (
-          <Text
-            className="ml-6 font-inter-semibold text-[15px]"
-            numberOfLines={1}
-            style={{ color, flexShrink: 0 }}
-          >
-            {name}
-          </Text>
-        )}
-      </Animated.View>
-    </View>
-  );
-};
+        <TouchableOpacity
+          className={`h-7 w-7 items-center justify-center rounded-lg ${copiedId === copyId ? "bg-emerald-50" : "bg-teal-50"}`}
+          onPress={(event) => {
+            event.stopPropagation();
+            onCopy(value, copyId, copyLabel);
+          }}
+          activeOpacity={0.7}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Feather
+            name={copiedId === copyId ? "check" : "copy"}
+            size={13}
+            color={copiedId === copyId ? "#16A34A" : "#0F766E"}
+          />
+        </TouchableOpacity>
+      </>
+    ) : (
+      <Text className="font-inter text-[13px] text-slate-400">
+        Not available
+      </Text>
+    )}
+  </View>
+);
 
 export const ConsumerTableSection = ({
   label,
@@ -110,7 +91,7 @@ export const ConsumerTableSection = ({
   const { role } = useAuth();
 
   return (
-    <ConsumerTable
+    <ConsumerCardList
       label={label}
       consumers={consumers}
       copiedId={copiedId}
@@ -124,7 +105,7 @@ export const ConsumerTableSection = ({
   );
 };
 
-const ConsumerTable = ({
+const ConsumerCardList = ({
   label,
   consumers,
   copiedId,
@@ -134,14 +115,7 @@ const ConsumerTable = ({
   onDelete,
   onSelect,
   deletingId,
-}: ConsumerTableProps) => {
-  const [scrollOffset, setScrollOffset] = useState(0);
-  const [scrollViewportWidth, setScrollViewportWidth] = useState(0);
-  const [scrollContentWidth, setScrollContentWidth] = useState(0);
-  const hasMoreToScroll =
-    scrollContentWidth > scrollViewportWidth + 1 &&
-    scrollOffset < scrollContentWidth - scrollViewportWidth - 4;
-
+}: ConsumerCardListProps) => {
   return (
     <View className={`px-4 ${topMargin ? "mt-6" : "mt-4"}`}>
       <View className="mb-2.5 flex-row items-center justify-between px-0.5">
@@ -155,190 +129,103 @@ const ConsumerTable = ({
         </View>
       </View>
 
-      <View className="relative flex-row overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-300/50">
-        {/* Fixed pane: only the columns to its right scroll horizontally. */}
-        <View className="z-10 w-[128px] border-r border-slate-200 bg-white shadow-md shadow-slate-300/40">
-          <View className="h-10 justify-center border-b border-slate-200 bg-slate-100 px-3">
-            <Text className="font-inter-semibold text-[10px] tracking-[0.9px] text-slate-500">
-              CONSUMER
-            </Text>
-          </View>
+      <View className="gap-3">
+        {consumers.map((consumer) => {
+          const emailCopyId = `email-${consumer.id}`;
+          const phoneCopyId = `phone-${consumer.id}`;
+          const nameColor =
+            consumerNameColors[consumer.id % consumerNameColors.length];
 
-          {consumers.map((consumer, index) => (
+          return (
             <TouchableOpacity
               key={consumer.id}
-              className={`h-16 justify-center px-3 ${index > 0 ? "border-t border-slate-100" : ""}`}
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-300/50"
               onPress={() => onSelect(consumer)}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={`View details for ${consumer.name}`}
             >
-              <ConsumerName
-                name={consumer.name}
-                color={
-                  consumerNameColors[consumer.id % consumerNameColors.length]
-                }
-              />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <ScrollView
-          className="flex-1"
-          horizontal
-          showsHorizontalScrollIndicator
-          bounces={false}
-          contentContainerStyle={{ minWidth: isAdmin ? 406 : 350 }}
-          scrollEventThrottle={16}
-          onLayout={(event) =>
-            setScrollViewportWidth(event.nativeEvent.layout.width)
-          }
-          onContentSizeChange={(width) => setScrollContentWidth(width)}
-          onScroll={(event) =>
-            setScrollOffset(event.nativeEvent.contentOffset.x)
-          }
-        >
-          <View>
-            <View className="h-10 flex-row border-b border-slate-200 bg-slate-100">
-              <View className="w-[210px] justify-center px-3.5">
-                <Text className="font-inter-semibold text-[10px] tracking-[0.9px] text-slate-500">
-                  EMAIL ADDRESS
-                </Text>
-              </View>
-              <View className="w-[140px] justify-center border-l border-slate-200 px-3.5">
-                <Text className="font-inter-semibold text-[10px] tracking-[0.9px] text-slate-500">
-                  PHONE
-                </Text>
-              </View>
-              {isAdmin && <View className="w-14 border-l border-slate-200" />}
-            </View>
-
-            {consumers.map((consumer, index) => {
-              const emailCopyId = `email-${consumer.id}`;
-              const phoneCopyId = `phone-${consumer.id}`;
-
-              return (
-                <TouchableOpacity
-                  key={consumer.id}
-                  className={`h-16 flex-row ${index > 0 ? "border-t border-slate-100" : ""}`}
-                  onPress={() => onSelect(consumer)}
-                  activeOpacity={0.82}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View details for ${consumer.name}`}
+              <View className="flex-row items-start gap-3">
+                <View
+                  className="h-11 w-11 items-center justify-center rounded-2xl"
+                  style={{ backgroundColor: `${nameColor}26` }}
                 >
-                  <View className="w-[210px] justify-center px-3.5">
-                    {consumer.email ? (
-                      <View className="flex-row items-center gap-2">
-                        <Text
-                          className="flex-1 font-inter text-[13px] text-slate-700"
-                          numberOfLines={1}
-                        >
-                          {consumer.email}
-                        </Text>
-                        <TouchableOpacity
-                          className={`h-7 w-7 items-center justify-center rounded-lg ${copiedId === emailCopyId ? "bg-emerald-50" : "bg-slate-100"}`}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            onCopy(consumer.email!, emailCopyId, "Email");
-                          }}
-                          activeOpacity={0.7}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <Feather
-                            name={copiedId === emailCopyId ? "check" : "copy"}
-                            size={13}
-                            color={
-                              copiedId === emailCopyId ? "#16A34A" : "#0F766E"
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <Text className="font-inter text-sm text-slate-400">
-                        —
-                      </Text>
-                    )}
-                  </View>
-
-                  <View className="w-[140px] justify-center border-l border-slate-100 px-3.5">
-                    {consumer.mobileNumber ? (
-                      <View className="flex-row items-center gap-2">
-                        <Text
-                          className="flex-1 font-inter text-[13px] text-slate-700"
-                          numberOfLines={1}
-                        >
-                          {consumer.mobileNumber}
-                        </Text>
-                        <TouchableOpacity
-                          className={`h-7 w-7 items-center justify-center rounded-lg ${copiedId === phoneCopyId ? "bg-emerald-50" : "bg-slate-100"}`}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            onCopy(
-                              consumer.mobileNumber!,
-                              phoneCopyId,
-                              "Phone",
-                            );
-                          }}
-                          activeOpacity={0.7}
-                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        >
-                          <Feather
-                            name={copiedId === phoneCopyId ? "check" : "copy"}
-                            size={13}
-                            color={
-                              copiedId === phoneCopyId ? "#16A34A" : "#0F766E"
-                            }
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <Text className="font-inter text-sm text-slate-400">
-                        —
-                      </Text>
-                    )}
-                  </View>
-
-                  {isAdmin && (
-                    <View className="w-14 items-center justify-center border-l border-slate-100">
-                      {deletingId === consumer.id ? (
-                        <ActivityIndicator size="small" color="#DC2626" />
-                      ) : consumer.accountDeletedAt ? (
-                        <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
-                          <Feather name="lock" size={14} color="#94A3B8" />
+                  <Text
+                    className="font-inter-bold text-[15px]"
+                    style={{ color: nameColor }}
+                  >
+                    {getProfileInitials(consumer.name)}
+                  </Text>
+                </View>
+                <View className="min-w-0 flex-1">
+                  <Text
+                    className="font-inter-bold text-[15px] text-slate-950"
+                    numberOfLines={1}
+                  >
+                    {consumer.name}
+                  </Text>
+                  {(consumer.isAdmin || consumer.accountDeletedAt) && (
+                    <View className="mt-1 flex-row flex-wrap items-center gap-1.5">
+                      {consumer.isAdmin && (
+                        <View className="flex-row items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5">
+                          <Feather name="shield" size={11} color="#B45309" />
+                          <Text className="font-inter-semibold text-[10px] text-amber-700">
+                            Admin
+                          </Text>
                         </View>
-                      ) : consumer.isAdmin ? (
-                        <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
-                          <Feather name="shield" size={15} color="#64748B" />
+                      )}
+                      {consumer.accountDeletedAt && (
+                        <View className="flex-row items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5">
+                          <Feather name="user-x" size={11} color="#E11D48" />
+                          <Text className="font-inter-semibold text-[10px] text-rose-600">
+                            Deleted
+                          </Text>
                         </View>
-                      ) : (
-                        <TouchableOpacity
-                          className="h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50"
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            onDelete(consumer);
-                          }}
-                          activeOpacity={0.7}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Feather name="trash-2" size={15} color="#DC2626" />
-                        </TouchableOpacity>
                       )}
                     </View>
                   )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </ScrollView>
+                </View>
+                {isAdmin &&
+                  !consumer.accountDeletedAt &&
+                  !consumer.isAdmin &&
+                  (deletingId === consumer.id ? (
+                    <ActivityIndicator size="small" color="#DC2626" />
+                  ) : (
+                    <TouchableOpacity
+                      className="h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-red-50"
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        onDelete(consumer);
+                      }}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="trash-2" size={15} color="#DC2626" />
+                    </TouchableOpacity>
+                  ))}
+              </View>
 
-        {hasMoreToScroll && (
-          <View
-            pointerEvents="none"
-            className="absolute right-2 top-2 z-20 h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md shadow-teal-950/40"
-          >
-            <Feather name="chevron-right" size={18} color="#FFFFFF" />
-          </View>
-        )}
+              <View className="mt-1 border-t border-slate-100 pt-1">
+                <ContactRow
+                  icon="mail"
+                  value={consumer.email}
+                  copyId={emailCopyId}
+                  copiedId={copiedId}
+                  onCopy={onCopy}
+                  copyLabel="Email"
+                />
+                <ContactRow
+                  icon="phone"
+                  value={consumer.mobileNumber}
+                  copyId={phoneCopyId}
+                  copiedId={copiedId}
+                  onCopy={onCopy}
+                  copyLabel="Phone"
+                />
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );

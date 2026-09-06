@@ -137,7 +137,7 @@ export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
       showsVerticalScrollIndicator={false}
       contentContainerClassName="gap-5 p-4 pb-safe-offset-6"
     >
-      <ProfileSectionCard title="Mess">
+      <ProfileSectionCard title="Mess Information">
         {editingMessName ? (
           <ProfileEditRow
             icon="home"

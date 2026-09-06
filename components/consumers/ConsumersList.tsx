@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  RefreshControl,
   ScrollView,
   ToastAndroid,
   View,
@@ -20,6 +21,8 @@ import { DeleteConsumerModal } from "./DeleteConsumerModal";
 interface ConsumersListProps {
   consumers: Consumer[];
   loading: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
   onDeleted: (consumerId: number) => void;
 }
 
@@ -34,6 +37,8 @@ const showCopiedMessage = (label: string) => {
 export const ConsumersList = ({
   consumers,
   loading,
+  refreshing,
+  onRefresh,
   onDeleted,
 }: ConsumersListProps) => {
   const { token, activeMess } = useAuth();
@@ -67,7 +72,7 @@ export const ConsumersList = ({
         "Error",
         caughtError instanceof Error
           ? caughtError.message
-          : "Failed to delete consumer.",
+          : "Failed to delete member.",
       );
     } finally {
       setDeletingId(null);
@@ -81,7 +86,7 @@ export const ConsumersList = ({
     }
 
     Alert.alert(
-      "Delete Consumer",
+      "Delete Member",
       `All meals, expenses, and deposits for "${consumer.name}" will be permanently deleted.\n\nAre you sure?`,
       [
         { text: "Cancel", style: "cancel" },
@@ -124,70 +129,80 @@ export const ConsumersList = ({
         onClear={() => setSearch("")}
       />
 
-      {loading ? (
-        <View className="flex-1 items-center justify-center gap-3 px-8">
-          <ActivityIndicator size="large" color="#0F766E" />
-        </View>
-      ) : consumers.length === 0 ? (
-        <ConsumersEmptyState
-          icon="users"
-          iconSize={52}
-          title="No consumers yet"
-          description="Add consumers from the Meals tab."
-        />
-      ) : filteredConsumers.length === 0 ? (
-        <ConsumersEmptyState
-          icon="search"
-          iconSize={40}
-          title="No results"
-          description="Try a different name, email or phone."
-        />
-      ) : (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="pb-safe-offset-6"
-          showsVerticalScrollIndicator={false}
-        >
-          {registeredConsumers.length > 0 && (
-            <ConsumerTableSection
-              label="REGISTERED MEMBERS"
-              consumers={registeredConsumers}
-              copiedId={copiedId}
-              onCopy={copy}
-              onDelete={confirmDelete}
-              onSelect={setSelectedConsumer}
-              deletingId={deletingId}
-            />
-          )}
-          {manuallyAddedConsumers.length > 0 && (
-            <ConsumerTableSection
-              label="MANUALLY ADDED"
-              consumers={manuallyAddedConsumers}
-              copiedId={copiedId}
-              onCopy={copy}
-              topMargin={registeredConsumers.length > 0}
-              onDelete={confirmDelete}
-              onSelect={setSelectedConsumer}
-              deletingId={deletingId}
-            />
-          )}
-          {deletedAccountConsumers.length > 0 && (
-            <ConsumerTableSection
-              label="DELETED ACCOUNTS"
-              consumers={deletedAccountConsumers}
-              copiedId={copiedId}
-              onCopy={copy}
-              topMargin={
-                registeredConsumers.length > 0 ||
-                manuallyAddedConsumers.length > 0
-              }
-              onDelete={confirmDelete}
-              onSelect={setSelectedConsumer}
-              deletingId={deletingId}
-            />
-          )}
-        </ScrollView>
-      )}
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="flex-grow pb-safe-offset-6"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#0F766E"
+            colors={["#0F766E"]}
+          />
+        }
+      >
+        {loading ? (
+          <View className="flex-1 items-center justify-center gap-3 px-8">
+            <ActivityIndicator size="large" color="#0F766E" />
+          </View>
+        ) : consumers.length === 0 ? (
+          <ConsumersEmptyState
+            icon="users"
+            iconSize={52}
+            title="No members yet"
+            description="Add members from the Meals tab."
+          />
+        ) : filteredConsumers.length === 0 ? (
+          <ConsumersEmptyState
+            icon="search"
+            iconSize={40}
+            title="No results"
+            description="Try a different name, email or phone."
+          />
+        ) : (
+          <>
+            {registeredConsumers.length > 0 && (
+              <ConsumerTableSection
+                label="REGISTERED MEMBERS"
+                consumers={registeredConsumers}
+                copiedId={copiedId}
+                onCopy={copy}
+                onDelete={confirmDelete}
+                onSelect={setSelectedConsumer}
+                deletingId={deletingId}
+              />
+            )}
+            {manuallyAddedConsumers.length > 0 && (
+              <ConsumerTableSection
+                label="MANUALLY ADDED"
+                consumers={manuallyAddedConsumers}
+                copiedId={copiedId}
+                onCopy={copy}
+                topMargin={registeredConsumers.length > 0}
+                onDelete={confirmDelete}
+                onSelect={setSelectedConsumer}
+                deletingId={deletingId}
+              />
+            )}
+            {deletedAccountConsumers.length > 0 && (
+              <ConsumerTableSection
+                label="DELETED ACCOUNTS"
+                consumers={deletedAccountConsumers}
+                copiedId={copiedId}
+                onCopy={copy}
+                topMargin={
+                  registeredConsumers.length > 0 ||
+                  manuallyAddedConsumers.length > 0
+                }
+                onDelete={confirmDelete}
+                onSelect={setSelectedConsumer}
+                deletingId={deletingId}
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
 
       <DeleteConsumerModal
         consumer={pendingDelete}

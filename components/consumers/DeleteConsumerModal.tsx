@@ -26,7 +26,7 @@ export const DeleteConsumerModal = ({
           <Feather name="trash-2" size={22} color="#DC2626" />
         </View>
         <Text className="text-center font-inter-bold text-lg text-slate-900">
-          Delete Consumer?
+          Delete Member?
         </Text>
         <Text className="text-center font-inter text-sm leading-5 text-slate-500">
           All meals, expenses, and deposits for{" "}

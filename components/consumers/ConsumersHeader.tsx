@@ -6,16 +6,12 @@ type ConsumersHeaderProps = {
   returnTo?: "dashboard" | "manager";
   loading: boolean;
   totalConsumers: number;
-  onRefresh: () => void;
-  onAddMember?: () => void;
 };
 
 export const ConsumersHeader = ({
   returnTo = "dashboard",
   loading,
   totalConsumers,
-  onRefresh,
-  onAddMember,
 }: ConsumersHeaderProps) => {
   const router = useRouter();
 
@@ -33,7 +29,7 @@ export const ConsumersHeader = ({
         <Feather name="arrow-left" size={22} color="#fff" />
       </TouchableOpacity>
       <View className="flex-1">
-        <Text className="font-inter-bold text-xl text-white">Consumers</Text>
+        <Text className="font-inter-bold text-xl text-white">Members</Text>
         <Text className="mt-0.5 font-inter text-xs text-white/70">
           Manage your mess members
         </Text>
@@ -41,32 +37,10 @@ export const ConsumersHeader = ({
       {!loading && (
         <View className="rounded-full bg-white/15 px-2.5 py-1.5">
           <Text className="font-inter-semibold text-xs text-white">
-            {totalConsumers}
+            {totalConsumers} Total Member{totalConsumers === 1 ? "" : "s"}
           </Text>
         </View>
       )}
-      {onAddMember ? (
-        <TouchableOpacity
-          className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10"
-          onPress={onAddMember}
-          activeOpacity={0.7}
-          accessibilityLabel="Add member"
-        >
-          <Feather name="user-plus" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-      ) : null}
-      <TouchableOpacity
-        className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10"
-        onPress={onRefresh}
-        activeOpacity={0.7}
-        disabled={loading}
-      >
-        <Feather
-          name="refresh-cw"
-          size={17}
-          color={loading ? "rgba(255,255,255,0.45)" : "#FFFFFF"}
-        />
-      </TouchableOpacity>
     </View>
   );
 };
