@@ -5,14 +5,12 @@ interface MemberRequestsHeaderProps {
   loading: boolean;
   totalRequests: number;
   onBack: () => void;
-  onRefresh: () => void;
 }
 
 export const MemberRequestsHeader = ({
   loading,
   totalRequests,
   onBack,
-  onRefresh,
 }: MemberRequestsHeaderProps) => (
   <View className="flex-row items-center gap-3 bg-teal-700 px-4 pb-5 pt-4">
     <TouchableOpacity
@@ -34,22 +32,9 @@ export const MemberRequestsHeader = ({
     {!loading && (
       <View className="rounded-full bg-white/15 px-2.5 py-1.5">
         <Text className="font-inter-semibold text-xs text-white">
-          {totalRequests}
+          {totalRequests} Total Request{totalRequests === 1 ? "" : "s"}
         </Text>
       </View>
     )}
-    <TouchableOpacity
-      className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10"
-      onPress={onRefresh}
-      activeOpacity={0.7}
-      disabled={loading}
-      accessibilityLabel="Refresh member requests"
-    >
-      <Feather
-        name="refresh-cw"
-        size={17}
-        color={loading ? "rgba(255,255,255,0.45)" : "#FFFFFF"}
-      />
-    </TouchableOpacity>
   </View>
 );
