@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { View } from "react-native";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { consumeOpenForgotPasswordIntent } from "@/services/pendingForgotPasswordIntentService";
 import { getPendingPasswordReset } from "@/services/pendingPasswordResetService";
 import { getPendingSignupOtp } from "@/services/pendingSignupOtpService";
 import type {
@@ -44,24 +45,30 @@ export const AuthContent = () => {
   useEffect(() => {
     let cancelled = false;
 
-    void Promise.all([getPendingPasswordReset(), getPendingSignupOtp()]).then(
-      ([pendingReset, pendingSignup]) => {
-        if (cancelled) return;
+    void Promise.all([
+      getPendingPasswordReset(),
+      getPendingSignupOtp(),
+      consumeOpenForgotPasswordIntent(),
+    ]).then(([pendingReset, pendingSignup, openForgotPassword]) => {
+      if (cancelled) return;
 
-        const activeFlow = [
-          pendingReset && { mode: "reset-otp" as const, ...pendingReset },
-          pendingSignup && { mode: "otp" as const, ...pendingSignup },
-        ]
-          .filter(Boolean)
-          .sort((first, second) => second!.requestedAt - first!.requestedAt)[0];
+      const activeFlow = [
+        pendingReset && { mode: "reset-otp" as const, ...pendingReset },
+        pendingSignup && { mode: "otp" as const, ...pendingSignup },
+      ]
+        .filter(Boolean)
+        .sort((first, second) => second!.requestedAt - first!.requestedAt)[0];
 
-        if (!activeFlow) return;
+      if (activeFlow) {
         setPendingEmail(activeFlow.email);
         setResetOtp("");
         setStartResetTimer(true);
         setMode(activeFlow.mode);
-      },
-    );
+        return;
+      }
+
+      if (openForgotPassword) setMode("forgot");
+    });
 
     return () => {
       cancelled = true;

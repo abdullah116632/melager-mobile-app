@@ -62,8 +62,11 @@ const SecurityAction = ({
 );
 
 export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
-  const { mess, role, updateMessName } = useAuth();
+  const { mess, role, activeMess, updateMessName } = useAuth();
   const isAdmin = role === "admin";
+  // Falls back to the broader admin check when the flag isn't known yet
+  // (e.g. hydrated from the offline cache before the next server refresh).
+  const isPrimaryAdmin = activeMess?.isPrimaryAdmin ?? isAdmin;
 
   const [editingMessName, setEditingMessName] = useState(false);
   const [messNameValue, setMessNameValue] = useState("");
@@ -193,6 +196,17 @@ export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
             danger
             onPress={() => onOpen("leaveAdmin")}
           />
+          {isPrimaryAdmin && (
+            <SecurityAction
+              icon="trash-2"
+              iconClassName="bg-red-100"
+              iconColor="#DC2626"
+              title="Delete Mess"
+              description="Permanently delete this mess and all its data"
+              danger
+              onPress={() => onOpen("deleteMess")}
+            />
+          )}
         </View>
       )}
     </ScrollView>

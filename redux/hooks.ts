@@ -4,6 +4,8 @@ import {
   createMess,
   deleteAccount,
   deleteAccountWithOtp,
+  deleteMess,
+  deleteMessWithGoogle,
   exitMess,
   joinMess,
   login,
@@ -165,6 +167,10 @@ export const useAuth = () => {
       unwrapAsyncResult(dispatch(updatePhone(phone))),
     updateMessName: (name: string) =>
       unwrapAsyncResult(dispatch(updateMessName(name))),
+    deleteMess: (password: string) =>
+      unwrapAsyncResult(dispatch(deleteMess(password))),
+    deleteMessWithGoogle: (googleIdToken: string) =>
+      unwrapAsyncResult(dispatch(deleteMessWithGoogle(googleIdToken))),
   };
 };
 

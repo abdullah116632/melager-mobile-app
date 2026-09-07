@@ -194,6 +194,7 @@ export interface ApiUser {
   email: string;
   name: string;
   mobileNumber?: string | null;
+  hasGoogleAccount?: boolean;
 }
 
 export interface ApiMess {
@@ -204,6 +205,11 @@ export interface ApiMess {
 
 export interface ApiMessWithRole extends ApiMess {
   role: "admin" | "member";
+  // True only for the mess creator (as opposed to a co-admin). Only the
+  // primary admin can delete the mess or transfer/revoke admin access.
+  // Omitted (not persisted) when hydrated from the offline cache — treat
+  // `undefined` as "unknown" and fall back to the broader `role` check.
+  isPrimaryAdmin?: boolean;
 }
 
 export interface ApiMyRequest {
@@ -962,6 +968,22 @@ export const api = {
 
   updateMessName: (name: string, token: string, messId: number) =>
     req<{ name: string }>("PATCH", "/settings/mess", { name, messId }, token),
+
+  deleteMess: (password: string, token: string, messId: number) =>
+    req<{ success: boolean }>(
+      "DELETE",
+      "/settings/mess",
+      { password, messId },
+      token,
+    ),
+
+  deleteMessWithGoogle: (googleIdToken: string, token: string, messId: number) =>
+    req<{ success: boolean }>(
+      "DELETE",
+      "/settings/mess",
+      { googleIdToken, messId },
+      token,
+    ),
 
   getEligibleAdmins: (token: string, messId: number) =>
     req<{ consumers: ApiConsumer[] }>(

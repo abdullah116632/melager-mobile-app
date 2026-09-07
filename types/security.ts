@@ -2,6 +2,7 @@ export type SecurityModalType =
   | "transferAdmin"
   | "addCoAdmin"
   | "leaveAdmin"
+  | "deleteMess"
   | null;
 
 export type ProfileSecurityModalType = "changePassword" | "updateEmail" | null;

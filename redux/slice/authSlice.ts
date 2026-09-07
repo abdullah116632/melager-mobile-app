@@ -521,6 +521,28 @@ export const updateMessName = createAuthAsyncThunk<string, string>(
   },
 );
 
+export const deleteMess = createAuthAsyncThunk<number, string>(
+  "auth/deleteMess",
+  async (password, { getState }) => {
+    const { token, activeMess, user } = getState().auth;
+    if (!token || !activeMess || !user) throw new Error("No active mess");
+    await api.deleteMess(password, token, activeMess.id);
+    await setLocalActiveMess(user.id, null);
+    return activeMess.id;
+  },
+);
+
+export const deleteMessWithGoogle = createAuthAsyncThunk<number, string>(
+  "auth/deleteMessWithGoogle",
+  async (googleIdToken, { getState }) => {
+    const { token, activeMess, user } = getState().auth;
+    if (!token || !activeMess || !user) throw new Error("No active mess");
+    await api.deleteMessWithGoogle(googleIdToken, token, activeMess.id);
+    await setLocalActiveMess(user.id, null);
+    return activeMess.id;
+  },
+);
+
 const authAsyncThunks = [
   initializeAuth,
   login,
@@ -539,6 +561,8 @@ const authAsyncThunks = [
   updateProfileName,
   updatePhone,
   updateMessName,
+  deleteMess,
+  deleteMessWithGoogle,
 ] as const;
 
 const applySession = (state: AuthState, payload: AuthSessionPayload) => {
@@ -655,6 +679,16 @@ const authSlice = createSlice({
         );
         if (mess) mess.name = action.payload;
       })
+      .addMatcher(
+        isFulfilled(deleteMess, deleteMessWithGoogle),
+        (state, action) => {
+          const deletedMessId = action.payload;
+          state.messes = state.messes.filter(
+            (mess) => mess.id !== deletedMessId,
+          );
+          if (state.activeMess?.id === deletedMessId) state.activeMess = null;
+        },
+      )
       .addMatcher(isPending(...authAsyncThunks), (state) => {
         state.requestStatus = "loading";
         state.requestError = null;

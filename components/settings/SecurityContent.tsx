@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AddCoAdminForm } from "./AddCoAdminForm";
+import { DeleteMessForm } from "./DeleteMessForm";
 import { LeaveAdminRoleForm } from "./LeaveAdminRoleForm";
 import { SecurityActionList } from "./SecurityActionList";
 import { SecurityBottomSheet } from "./SecurityBottomSheet";
@@ -15,7 +16,7 @@ export const SecurityContent = ({
   const [activeModal, setActiveModal] = useState<SecurityModalType>(null);
   const closeModal = () => setActiveModal(null);
 
-  const modalContent =
+  const sheetContent =
     activeModal === "transferAdmin" ? (
       <TransferAdminForm onClose={closeModal} />
     ) : activeModal === "addCoAdmin" ? (
@@ -29,12 +30,16 @@ export const SecurityContent = ({
       <SecurityHeader returnTo={returnTo} />
       <SecurityActionList onOpen={setActiveModal} />
       <SecurityBottomSheet
-        visible={activeModal !== null}
+        visible={sheetContent !== null}
         canClose
         onClose={closeModal}
       >
-        {modalContent}
+        {sheetContent}
       </SecurityBottomSheet>
+      <DeleteMessForm
+        visible={activeModal === "deleteMess"}
+        onClose={closeModal}
+      />
     </>
   );
 };
