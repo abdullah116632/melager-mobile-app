@@ -62,11 +62,8 @@ const SecurityAction = ({
 );
 
 export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
-  const { mess, role, activeMess, updateMessName } = useAuth();
+  const { mess, role, updateMessName } = useAuth();
   const isAdmin = role === "admin";
-  // Falls back to the broader admin check when the flag isn't known yet
-  // (e.g. hydrated from the offline cache before the next server refresh).
-  const isPrimaryAdmin = activeMess?.isPrimaryAdmin ?? isAdmin;
 
   const [editingMessName, setEditingMessName] = useState(false);
   const [messNameValue, setMessNameValue] = useState("");
@@ -168,22 +165,30 @@ export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
       {isAdmin && (
         <View>
           <Text className="mb-2.5 ml-1 font-inter-semibold text-[11px] tracking-[1px] text-slate-500">
-            ADMIN CONTROLS
+            MANAGER CONTROLS
           </Text>
+          <SecurityAction
+            icon="users"
+            iconClassName="bg-teal-50"
+            iconColor="#0F766E"
+            title="View All Managers"
+            description="See everyone who manages this mess"
+            onPress={() => onOpen("viewAdmins")}
+          />
           <SecurityAction
             icon="user-check"
             iconClassName="bg-blue-50"
             iconColor="#2563EB"
-            title="Add New Admin"
-            description="Grant admin to a member, keep yours"
+            title="Add New Manager"
+            description="Grant manager access to a member, keep yours"
             onPress={() => onOpen("addCoAdmin")}
           />
           <SecurityAction
             icon="shield"
             iconClassName="bg-orange-50"
             iconColor="#EA580C"
-            title="Transfer Admin Role"
-            description="Make another member the admin"
+            title="Transfer Manager Role"
+            description="Make another member the manager"
             warning
             onPress={() => onOpen("transferAdmin")}
           />
@@ -191,22 +196,20 @@ export const SecurityActionList = ({ onOpen }: SecurityActionListProps) => {
             icon="user-minus"
             iconClassName="bg-red-100"
             iconColor="#DC2626"
-            title="Remove My Admin Role"
+            title="Remove My Manager Role"
             description="Continue in this mess as a regular member"
             danger
             onPress={() => onOpen("leaveAdmin")}
           />
-          {isPrimaryAdmin && (
-            <SecurityAction
-              icon="trash-2"
-              iconClassName="bg-red-100"
-              iconColor="#DC2626"
-              title="Delete Mess"
-              description="Permanently delete this mess and all its data"
-              danger
-              onPress={() => onOpen("deleteMess")}
-            />
-          )}
+          <SecurityAction
+            icon="trash-2"
+            iconClassName="bg-red-100"
+            iconColor="#DC2626"
+            title="Delete Mess"
+            description="Permanently delete this mess and all its data"
+            danger
+            onPress={() => onOpen("deleteMess")}
+          />
         </View>
       )}
     </ScrollView>

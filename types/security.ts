@@ -3,6 +3,7 @@ export type SecurityModalType =
   | "addCoAdmin"
   | "leaveAdmin"
   | "deleteMess"
+  | "viewAdmins"
   | null;
 
 export type ProfileSecurityModalType = "changePassword" | "updateEmail" | null;
@@ -39,4 +40,12 @@ export interface EligibleAdmin {
   userId: number;
   isAdmin?: boolean;
   email?: string | null;
+}
+
+export interface MessAdmin {
+  id: number;
+  name: string;
+  userId: number | null;
+  email?: string | null;
+  isPrimaryAdmin: boolean;
 }

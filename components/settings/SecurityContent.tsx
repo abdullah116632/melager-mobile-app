@@ -3,9 +3,9 @@ import { AddCoAdminForm } from "./AddCoAdminForm";
 import { DeleteMessForm } from "./DeleteMessForm";
 import { LeaveAdminRoleForm } from "./LeaveAdminRoleForm";
 import { SecurityActionList } from "./SecurityActionList";
-import { SecurityBottomSheet } from "./SecurityBottomSheet";
 import { SecurityHeader } from "./SecurityHeader";
 import { TransferAdminForm } from "./TransferAdminForm";
+import { ViewAdminsForm } from "./ViewAdminsForm";
 import type { SecurityModalType } from "@/types/security";
 
 export const SecurityContent = ({
@@ -16,28 +16,28 @@ export const SecurityContent = ({
   const [activeModal, setActiveModal] = useState<SecurityModalType>(null);
   const closeModal = () => setActiveModal(null);
 
-  const sheetContent =
-    activeModal === "transferAdmin" ? (
-      <TransferAdminForm onClose={closeModal} />
-    ) : activeModal === "addCoAdmin" ? (
-      <AddCoAdminForm onClose={closeModal} />
-    ) : activeModal === "leaveAdmin" ? (
-      <LeaveAdminRoleForm onClose={closeModal} />
-    ) : null;
-
   return (
     <>
       <SecurityHeader returnTo={returnTo} />
       <SecurityActionList onOpen={setActiveModal} />
-      <SecurityBottomSheet
-        visible={sheetContent !== null}
-        canClose
+      <TransferAdminForm
+        visible={activeModal === "transferAdmin"}
         onClose={closeModal}
-      >
-        {sheetContent}
-      </SecurityBottomSheet>
+      />
+      <AddCoAdminForm
+        visible={activeModal === "addCoAdmin"}
+        onClose={closeModal}
+      />
+      <LeaveAdminRoleForm
+        visible={activeModal === "leaveAdmin"}
+        onClose={closeModal}
+      />
       <DeleteMessForm
         visible={activeModal === "deleteMess"}
+        onClose={closeModal}
+      />
+      <ViewAdminsForm
+        visible={activeModal === "viewAdmins"}
         onClose={closeModal}
       />
     </>

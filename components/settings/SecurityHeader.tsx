@@ -45,7 +45,7 @@ export const SecurityHeader = ({
             Mess Settings
           </Text>
           <Text className="mt-0.5 font-inter text-xs text-teal-100/75">
-            {mess ? "Manage admins and mess controls" : "Protect your account"}
+            {mess ? "Manage managers and mess controls" : "Protect your account"}
           </Text>
         </View>
         <View className="h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10">
@@ -62,13 +62,13 @@ export const SecurityHeader = ({
             Your account is protected
           </Text>
           <Text className="mt-0.5 font-inter text-xs leading-[18px] text-teal-50/75">
-            Sensitive changes require email verification.
+            Sensitive changes require identity verification.
           </Text>
         </View>
         {mess && (
           <View className="rounded-full bg-white/15 px-2.5 py-1.5">
             <Text className="font-inter-semibold text-[10px] text-teal-50">
-              {isAdmin ? "ADMIN" : "MEMBER"}
+              {isAdmin ? "MANAGER" : "MEMBER"}
             </Text>
           </View>
         )}
