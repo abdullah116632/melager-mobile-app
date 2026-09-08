@@ -129,6 +129,12 @@ export class SyncEngine {
     // Keep taking bounded SQLite batches until every currently-ready mutation
     // has been handled. Failed transient rows get a future next_attempt_at and
     // therefore cannot make this loop spin.
+    //
+    // The outbox is an ordered log per feature: replaying a later operation
+    // ahead of an earlier one that is still retrying would reorder what the
+    // user actually did, so a retryable failure holds back the rest of its
+    // kind until the next run. Other features keep flowing.
+    const blockedUntil = new Map<string, number>();
     while (true) {
       const operations = await this.outbox.listReady(
         context.userId,
@@ -137,7 +143,16 @@ export class SyncEngine {
       );
       if (operations.length === 0) break;
 
+      let handled = 0;
       for (const operation of operations) {
+        const heldUntil = blockedUntil.get(operation.entityType);
+        if (heldUntil !== undefined) {
+          // Wait for the earlier operation instead of overtaking it, and share
+          // its retry time so the scheduler does not wake up to do nothing.
+          await this.outbox.deferUntil(operation.id, heldUntil);
+          continue;
+        }
+        handled += 1;
         const processor = this.registry.getProcessor(operation.entityType);
         if (!processor) {
           await this.outbox.moveToDeadLetter(
@@ -160,21 +175,28 @@ export class SyncEngine {
         } catch (error) {
           const status = permanentHttpStatus(error);
           if (status !== null) {
+            // A rejected operation never lands, so the ones queued behind it
+            // must not wait for it.
             await this.outbox.moveToDeadLetter(
               operation.id,
               errorMessage(error),
               status,
             );
           } else {
+            const retryAt = nextRetryAt(operation.attemptCount);
             await this.outbox.markFailed(
               operation.id,
               errorMessage(error),
-              nextRetryAt(operation.attemptCount),
+              retryAt,
             );
+            blockedUntil.set(operation.entityType, retryAt);
           }
           summary.failed += 1;
         }
       }
+      // Everything still ready is waiting behind a failure, so stop instead of
+      // re-reading the same rows forever.
+      if (handled === 0) break;
     }
 
     for (const [collection, pull] of this.registry.getPullers()) {

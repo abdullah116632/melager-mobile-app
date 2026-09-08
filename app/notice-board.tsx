@@ -316,9 +316,9 @@ export default function NoticeBoardRoute() {
   };
 
   return (
-    <View className="pt-safe flex-1 bg-[#F6F8FB]">
+    <View className="flex-1 bg-[#F6F8FB]">
       <StatusBar style="light" backgroundColor="#075E59" />
-      <View className="overflow-hidden bg-[#075E59] px-4 pb-7 pt-2">
+      <View className="pt-safe-offset-2 overflow-hidden bg-[#075E59] px-4 pb-7">
         <View className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-white/5" />
         <View className="absolute -bottom-16 left-16 h-32 w-32 rounded-full bg-teal-300/10" />
         <View className="flex-row items-center">
@@ -511,29 +511,27 @@ export default function NoticeBoardRoute() {
           }
           ListHeaderComponent={
             <>
-              <View className="mb-4 rounded-[20px] border border-slate-100 bg-white p-1.5 shadow-sm shadow-slate-300/30">
-                <View className="h-12 flex-row items-center rounded-2xl bg-slate-50 px-3.5">
-                  <View className="h-8 w-8 items-center justify-center rounded-xl bg-white">
-                    <Feather name="search" size={17} color="#64748B" />
-                  </View>
-                  <TextInput
-                    className="ml-2.5 min-w-0 flex-1 font-inter text-[14px] text-slate-700"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Search notices..."
-                    placeholderTextColor="#64748B"
-                    returnKeyType="search"
-                  />
-                  {searchQuery ? (
-                    <TouchableOpacity
-                      className="h-8 w-8 items-center justify-center rounded-full bg-slate-200/70"
-                      onPress={() => setSearchQuery("")}
-                      accessibilityLabel="Clear notice search"
-                    >
-                      <Feather name="x" size={15} color="#64748B" />
-                    </TouchableOpacity>
-                  ) : null}
+              <View className="mb-4 h-[52px] flex-row items-center rounded-2xl border border-teal-600/30 bg-white px-2.5 shadow-sm shadow-slate-400/25">
+                <View className="h-9 w-9 items-center justify-center rounded-xl bg-teal-50">
+                  <Feather name="search" size={18} color="#0F766E" />
                 </View>
+                <TextInput
+                  className="ml-2.5 min-w-0 flex-1 font-inter text-[14px] text-slate-800"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search notices..."
+                  placeholderTextColor="#64748B"
+                  returnKeyType="search"
+                />
+                {searchQuery ? (
+                  <TouchableOpacity
+                    className="h-8 w-8 items-center justify-center rounded-full bg-slate-200"
+                    onPress={() => setSearchQuery("")}
+                    accessibilityLabel="Clear notice search"
+                  >
+                    <Feather name="x" size={15} color="#475569" />
+                  </TouchableOpacity>
+                ) : null}
               </View>
               {!loading && notices.length > 0 ? (
                 <View className="mb-3 flex-row items-center justify-between px-1">

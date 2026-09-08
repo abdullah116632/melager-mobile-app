@@ -237,11 +237,20 @@ const messagesSlice = createSlice({
       state,
       action: PayloadAction<{ localId: string; message: ApiMessage }>,
     ) => {
-      if (state.scopeMessId !== action.payload.message.messId) return;
       const replacement = serverMessage({
         ...action.payload.message,
         clientMutationId: action.payload.localId,
       });
+      const known = state.messages.some(
+        (message) =>
+          message.localId === action.payload.localId ||
+          message.serverId === action.payload.message.id,
+      );
+      // A message already in the thread belongs to it whatever the scope says.
+      // Dropping its acknowledgement would leave the bubble stuck on pending
+      // even though the send succeeded, so only an unknown message has to
+      // match the conversation on screen before it is adopted.
+      if (!known && state.scopeMessId !== action.payload.message.messId) return;
       state.messages = state.messages.filter(
         (message) =>
           message.localId !== action.payload.localId &&

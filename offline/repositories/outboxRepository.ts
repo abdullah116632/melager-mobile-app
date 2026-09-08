@@ -165,7 +165,7 @@ export class OutboxRepository {
          AND ${scopeClause}
          AND status IN ('pending', 'failed')
          AND next_attempt_at <= ?
-       ORDER BY created_at ASC
+       ORDER BY created_at ASC, rowid ASC
        LIMIT ?`,
       ...parameters,
     );
@@ -241,6 +241,22 @@ export class OutboxRepository {
 
   async removeSynced(id: string): Promise<void> {
     await this.database.runAsync("DELETE FROM offline_outbox WHERE id = ?", id);
+  }
+
+  /**
+   * Holds an operation back until `at` without spending a delivery attempt.
+   * Used to keep a queue behind an earlier operation that is still retrying.
+   */
+  async deferUntil(id: string, at: number): Promise<void> {
+    await this.database.runAsync(
+      `UPDATE offline_outbox
+       SET next_attempt_at = ?, updated_at = ?
+       WHERE id = ? AND next_attempt_at < ?`,
+      at,
+      Date.now(),
+      id,
+      at,
+    );
   }
 
   async markFailed(

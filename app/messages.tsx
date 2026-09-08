@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import {
   ActivityIndicator,
@@ -32,11 +33,28 @@ import {
   sendMessage,
 } from "@/redux/slice/messagesSlice";
 
-const formatMessageTime = (value: string) => {
+const startOfDay = (value: Date) =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+
+const formatMessageStamp = (value: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const now = new Date();
+  const dayGap = Math.round(
+    (startOfDay(now) - startOfDay(date)) / (24 * 60 * 60 * 1000),
+  );
+  if (dayGap === 0) return `Today ${time}`;
+  if (dayGap === 1) return `Yesterday ${time}`;
+  const day = date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+  return `${day} ${time}`;
 };
 
 const avatarThemes = [
@@ -62,17 +80,24 @@ const MessageAvatar = ({ userId }: { userId: number }) => {
 const MessageBubble = ({
   message,
   own,
+  isOnline,
 }: {
   message: MessageItem;
   own: boolean;
+  isOnline: boolean;
 }) => {
-  const time = formatMessageTime(message.createdAt);
-  const deliveryLabel =
-    own && message.status === "pending"
-      ? "Sending…"
-      : own && message.status === "failed"
-        ? "Failed"
-        : time;
+  const stamp = formatMessageStamp(message.createdAt);
+  // A server id is proof the message landed, so it decides delivery rather
+  // than the status flag, which depends on an acknowledgement event that a
+  // scope guard or a missed listener can drop. Until then it is still queued
+  // in the outbox, so it is pending rather than failed.
+  const undelivered = own && message.serverId === null;
+  // Offline it is queued for later; online it is on its way out right now.
+  const deliveryLabel = undelivered
+    ? isOnline
+      ? "Sending"
+      : "Pending"
+    : stamp;
 
   return (
     <View
@@ -102,17 +127,19 @@ const MessageBubble = ({
           {message.body}
         </Text>
         <View className="mt-1.5 flex-row items-center justify-end">
-          <Feather
-            name={
-              own && message.status === "failed"
-                ? "alert-circle"
-                : own && message.status === "sent"
-                  ? "check"
-                  : "clock"
-            }
-            size={11}
-            color={own ? "#CCFBF1" : "#94A3B8"}
-          />
+          {own && !undelivered ? (
+            <MaterialCommunityIcons
+              name="check-all"
+              size={14}
+              color="#CCFBF1"
+            />
+          ) : (
+            <Feather
+              name="clock"
+              size={11}
+              color={own ? "#CCFBF1" : "#94A3B8"}
+            />
+          )}
           <Text
             className={`ml-1 font-inter text-[10px] ${
               own ? "text-teal-100" : "text-slate-400"
@@ -157,14 +184,32 @@ export default function MessagesRoute() {
     setCanLoadOlder(false);
   }, [mess?.id]);
 
+  const focusedRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
       if (!mess) return undefined;
+      focusedRef.current = true;
       enterMessageConversation(mess.id);
       if (token) void dispatch(markMessagesRead());
-      return () => leaveMessageConversation(mess.id);
+      return () => {
+        focusedRef.current = false;
+        leaveMessageConversation(mess.id);
+      };
     }, [dispatch, mess?.id, token]),
   );
+
+  // The read watermark is the newest message this device knows about, and the
+  // thread is still loading when the screen is focused. Mark read again once
+  // newer messages land, otherwise they stay unread on the server and the
+  // badge comes back on the next unread-count refresh.
+  const newestServerId = messages.reduce(
+    (newest, message) => Math.max(newest, message.serverId ?? 0),
+    0,
+  );
+  useEffect(() => {
+    if (!token || !mess || !focusedRef.current || newestServerId === 0) return;
+    void dispatch(markMessagesRead());
+  }, [dispatch, mess?.id, newestServerId, token]);
 
   const refreshMessages = useCallback(async () => {
     if (!token || !mess) return;
@@ -260,6 +305,7 @@ export default function MessagesRoute() {
               <MessageBubble
                 message={item}
                 own={item.senderUserId === user?.id}
+                isOnline={isOnline}
               />
             )}
             onEndReached={loadOlderMessages}
