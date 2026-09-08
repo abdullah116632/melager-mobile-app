@@ -19,9 +19,7 @@ import { AdminOtpHeader } from "./AdminOtpHeader";
 import { AdminOtpVerificationCard } from "./AdminOtpVerificationCard";
 
 const flowOrigin = (flow: PendingAdminOtpFlow | null) =>
-  flow?.action === "change_password" || flow?.action === "update_email"
-    ? "/(tabs)/profile"
-    : "/settings/security";
+  flow?.action === "update_email" ? "/(tabs)/profile" : "/settings/security";
 
 export const AdminOtpContent = () => {
   const router = useRouter();

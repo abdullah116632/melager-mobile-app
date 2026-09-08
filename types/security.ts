@@ -9,7 +9,6 @@ export type SecurityModalType =
 export type ProfileSecurityModalType = "changePassword" | "updateEmail" | null;
 
 export type SecurityAction =
-  | "change_password"
   | "update_email"
   | "add_admin"
   | "add_co_admin"
@@ -17,11 +16,7 @@ export type SecurityAction =
 
 export type AdminOtpAction = Extract<
   SecurityAction,
-  | "change_password"
-  | "update_email"
-  | "add_admin"
-  | "add_co_admin"
-  | "remove_self_admin"
+  "update_email" | "add_admin" | "add_co_admin" | "remove_self_admin"
 >;
 
 export interface PendingAdminOtpFlow {

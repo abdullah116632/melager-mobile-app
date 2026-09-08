@@ -78,12 +78,15 @@ export const resendSecurityOtp = (
     { action },
   );
 
-export const changeSecurityPassword = (token: string | null, otp: string) =>
+export const changeSecurityPassword = (
+  token: string | null,
+  data: { currentPassword: string; newPassword: string },
+) =>
   securityRequest<{ message: string }>(
     "POST",
     "/settings/security/change-password",
     token,
-    { otp },
+    data,
   );
 
 export const updateSecurityEmail = (token: string | null, otp: string) =>

@@ -1,23 +1,22 @@
 import { useState } from "react";
 import Feather from "@expo/vector-icons/Feather";
-import { useRouter } from "expo-router";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import {
   SecurityErrorBox,
   SecuritySubmitButton,
+  SecuritySuccessCard,
 } from "@/components/settings/SecurityFormControls";
 import { useAuth } from "@/redux/hooks";
-import { savePendingAdminOtp } from "@/services/pendingAdminOtpService";
-import { requestSecurityOtp } from "@/services/securityService";
+import { changeSecurityPassword } from "@/services/securityService";
 
 interface ChangePasswordFormProps {
   onClose: () => void;
 }
 
 export const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
-  const router = useRouter();
-  const { token, user, activeMess } = useAuth();
+  const { token } = useAuth();
+  const [step, setStep] = useState<"form" | "success">("form");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -26,11 +25,7 @@ export const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  const sendCode = async () => {
-    if (!user || !activeMess) {
-      setError("No active mess selected.");
-      return;
-    }
+  const submit = async () => {
     if (!currentPassword) {
       setError("Please enter your current password.");
       return;
@@ -47,25 +42,27 @@ export const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
     setError("");
     setLoading(true);
     try {
-      await requestSecurityOtp(token, {
-        action: "change_password",
-        currentPassword,
-        newPassword,
-      });
-      await savePendingAdminOtp({
-        action: "change_password",
-        userId: user.id,
-        messId: activeMess.id,
-        requestedAt: Date.now(),
-      });
-      onClose();
-      router.push("/settings/admin-otp");
+      await changeSecurityPassword(token, { currentPassword, newPassword });
+      setStep("success");
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Request failed");
     } finally {
       setLoading(false);
     }
   };
+
+  if (step === "success") {
+    return (
+      <SecuritySuccessCard
+        icon="check-circle"
+        iconClassName="bg-green-50"
+        iconColor="#16A34A"
+        title="Password Changed!"
+        body="Your account password has been updated successfully."
+        onClose={onClose}
+      />
+    );
+  }
 
   return (
     <>
@@ -76,8 +73,7 @@ export const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
         Change Password
       </Text>
       <Text className="mb-5 text-center font-inter text-sm leading-[22px] text-gray-500">
-        First verify your identity, then we&apos;ll send a code to your email to
-        confirm.
+        Enter your current password and choose a new one.
       </Text>
       <Text className="mb-1.5 font-inter-semibold text-[13px] text-gray-700">
         Current Password
@@ -144,13 +140,13 @@ export const ChangePasswordForm = ({ onClose }: ChangePasswordFormProps) => {
         value={confirmPassword}
         onChangeText={setConfirmPassword}
         returnKeyType="done"
-        onSubmitEditing={() => void sendCode()}
+        onSubmitEditing={() => void submit()}
       />
       <SecurityErrorBox message={error} />
       <SecuritySubmitButton
         loading={loading}
-        onPress={() => void sendCode()}
-        label="Send Verification Code"
+        onPress={() => void submit()}
+        label="Change Password"
       />
     </>
   );

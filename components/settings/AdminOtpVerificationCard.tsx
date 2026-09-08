@@ -15,7 +15,6 @@ import {
   savePendingAdminOtp,
 } from "@/services/pendingAdminOtpService";
 import {
-  changeSecurityPassword,
   confirmAdminTransfer,
   confirmCoAdmin,
   confirmSelfAdminRemoval,
@@ -36,16 +35,6 @@ const actionContent: Record<
     icon: "lock" | "at-sign" | "shield" | "user-check" | "user-minus";
   }
 > = {
-  change_password: {
-    title: "Confirm Password Change",
-    description: () =>
-      "Enter the code sent to your email to confirm your new password.",
-    submitLabel: "Change Password",
-    successTitle: "Password Changed!",
-    successBody: "Your account password has been updated successfully.",
-    accent: "#0F766E",
-    icon: "lock",
-  },
   update_email: {
     title: "Confirm Email Change",
     description: () =>
@@ -120,9 +109,7 @@ export const AdminOtpVerificationCard = ({
     setError("");
     setSubmitting(true);
     try {
-      if (flow.action === "change_password") {
-        await changeSecurityPassword(token, otp);
-      } else if (flow.action === "update_email") {
+      if (flow.action === "update_email") {
         const data = await updateSecurityEmail(token, otp);
         patchUser({ email: data.newEmail });
       } else if (flow.action === "add_admin") {

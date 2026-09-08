@@ -19,7 +19,6 @@ export const getPendingAdminOtp = async () => {
     if (
       !flow.action ||
       ![
-        "change_password",
         "update_email",
         "add_admin",
         "add_co_admin",
