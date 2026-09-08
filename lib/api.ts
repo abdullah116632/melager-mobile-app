@@ -275,7 +275,8 @@ export type ApiNoticeSyncOperation =
 export interface ApiBazarItem {
   id: number;
   messId: number;
-  weekday: number;
+  /** Calendar day (YYYY-MM-DD) this item belongs to. */
+  bazarDate: string;
   name: string;
   price: number;
   isCompleted: boolean;
@@ -555,10 +556,16 @@ export const api = {
       token,
     ),
 
-  getBazar: (token: string, messId: number) =>
-    req<{ items: ApiBazarItem[]; assignments: ApiBazarAssignment[] }>(
+  getBazar: (token: string, messId: number, from?: string, to?: string) =>
+    req<{
+      items: ApiBazarItem[];
+      assignments: ApiBazarAssignment[];
+      window: { from: string; to: string };
+    }>(
       "GET",
-      `/mess/bazar?messId=${messId}`,
+      `/mess/bazar?messId=${messId}` +
+        (from ? `&from=${from}` : "") +
+        (to ? `&to=${to}` : ""),
       undefined,
       token,
     ),
@@ -578,7 +585,7 @@ export const api = {
     ),
 
   createBazarItem: (
-    weekday: number,
+    bazarDate: string,
     name: string,
     price: number,
     token: string,
@@ -587,7 +594,7 @@ export const api = {
     req<{ item: ApiBazarItem }>(
       "POST",
       "/mess/bazar/items",
-      { weekday, name, price, messId },
+      { bazarDate, name, price, messId },
       token,
     ),
 
@@ -626,29 +633,29 @@ export const api = {
       token,
     ),
 
-  deleteBazarItems: (weekday: number, token: string, messId: number) =>
+  deleteBazarItems: (bazarDate: string, token: string, messId: number) =>
     req<{ success: boolean; deletedCount: number }>(
       "DELETE",
-      `/mess/bazar/items?messId=${messId}&weekday=${weekday}`,
+      `/mess/bazar/items?messId=${messId}&bazarDate=${bazarDate}`,
       undefined,
       token,
     ),
 
   addBazarItemsToExpense: (
-    yearMonth: string,
-    day: number,
+    bazarDate: string,
     token: string,
     messId: number,
     preview = false,
   ) =>
     req<{
       newItems: Array<{ id: string; name: string; amount: number }>;
+      alreadyAddedItems: Array<{ name: string; amount: number }>;
       alreadyAddedAll: boolean;
       added: boolean;
     }>(
       "POST",
       "/mess/bazar/items/add-to-expense",
-      { yearMonth, day, messId, preview },
+      { bazarDate, messId, preview },
       token,
     ),
 
@@ -687,14 +694,14 @@ export const api = {
     ),
 
   notifyAssignedBazarMembers: (
-    weekday: number,
+    bazarDate: string,
     token: string,
     messId: number,
   ) =>
     req<{ notifiedCount: number }>(
       "POST",
       "/mess/bazar/assignments/notify",
-      { weekday, messId },
+      { bazarDate, messId },
       token,
     ),
 
@@ -1030,7 +1037,11 @@ export const api = {
       token,
     ),
 
-  deleteMessWithGoogle: (googleIdToken: string, token: string, messId: number) =>
+  deleteMessWithGoogle: (
+    googleIdToken: string,
+    token: string,
+    messId: number,
+  ) =>
     req<{ success: boolean }>(
       "DELETE",
       "/settings/mess",

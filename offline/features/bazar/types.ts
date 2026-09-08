@@ -1,5 +1,10 @@
 import type { ApiBazarAssignment, ApiBazarItem, ApiConsumer } from "@/lib/api";
 
+export interface BazarDateWindow {
+  from: string;
+  to: string;
+}
+
 export interface BazarSnapshot {
   items: ApiBazarItem[];
   assignments: ApiBazarAssignment[];
@@ -21,6 +26,9 @@ export type BazarSyncOperation =
 export interface BazarMutationPayload {
   localId?: string;
   serverId?: number;
+  /** Item, expense and notify operations are scoped to one calendar date. */
+  bazarDate?: string;
+  /** Duty assignments stay on the weekly rotation (0 = Saturday). */
   weekday?: number;
   name?: string;
   price?: number;
@@ -28,8 +36,6 @@ export interface BazarMutationPayload {
   consumerIds?: number[];
   baseUpdatedAt?: string;
   baseConsumerIds?: number[];
-  yearMonth?: string;
-  day?: number;
 }
 
 export interface BazarSyncResponse {

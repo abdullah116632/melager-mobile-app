@@ -7,6 +7,8 @@ import {
   type ApiBazarItem,
 } from "@/lib/api";
 
+import { addDashboardDays, getDhakaDate } from "@/utils/dashboard";
+
 import type { OutboxOperation } from "../../outbox/types";
 import type { SyncRegistry } from "../../sync/registry";
 import { BazarRepository } from "./BazarRepository";
@@ -18,6 +20,12 @@ import type {
 
 const getPayload = (operation: OutboxOperation): BazarMutationPayload =>
   operation.payload as BazarMutationPayload;
+
+/**
+ * Items live on every calendar date forever, so a pull only carries the dates
+ * around today. The server clamps to the same span when no range is sent.
+ */
+const ITEM_WINDOW_DAYS = 180;
 
 export function registerBazarSync(
   registry: SyncRegistry,
@@ -96,7 +104,7 @@ export function registerBazarSync(
     "bazar_notification",
     async (operation, context) => {
       const payload = getPayload(operation);
-      const isNotify = payload.weekday !== undefined;
+      const isNotify = payload.bazarDate !== undefined;
       await api.syncBazarMutation<BazarSyncResponse>(
         operation.id,
         isNotify ? "notify_members" : "notifications_read",
@@ -115,7 +123,7 @@ export function registerBazarSync(
 
   registry.registerProcessor("bazar_expense", async (operation, context) => {
     const payload = getPayload(operation);
-    if (!payload.yearMonth || payload.day === undefined) {
+    if (!payload.bazarDate) {
       throw new Error("Bazar expense outbox data is invalid.");
     }
     await api.syncBazarMutation<BazarSyncResponse>(
@@ -129,8 +137,11 @@ export function registerBazarSync(
 
   registry.registerPuller("bazar", async (_cursor, context) => {
     if (context.messId === null) return { cursor: null };
+    const today = getDhakaDate();
+    const from = addDashboardDays(today, -ITEM_WINDOW_DAYS);
+    const to = addDashboardDays(today, ITEM_WINDOW_DAYS);
     const [bazar, notifications] = await Promise.all([
-      api.getBazar(context.token, context.messId),
+      api.getBazar(context.token, context.messId, from, to),
       api.getUnreadBazarAssignmentCount(context.token, context.messId),
     ]);
     await repository.replaceRemoteSnapshot(
@@ -139,6 +150,7 @@ export function registerBazarSync(
       bazar.items as ApiBazarItem[],
       bazar.assignments as ApiBazarAssignment[],
       notifications.unreadCount,
+      bazar.window ?? { from, to },
     );
     return { cursor: null };
   });

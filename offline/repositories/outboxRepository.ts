@@ -1,6 +1,7 @@
 import * as Crypto from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
+import { runInTransaction } from "../database/transaction";
 import type {
   DeadLetterOperation,
   EnqueueOperationInput,
@@ -305,7 +306,7 @@ export class OutboxRepository {
     httpStatus: number | null,
   ): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `INSERT OR REPLACE INTO offline_outbox_dead_letters (
           id, dedupe_key, user_id, mess_id, entity_type, entity_id,
@@ -347,7 +348,7 @@ export class OutboxRepository {
 
   async retryDeadLetter(id: string): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `INSERT INTO offline_outbox (
           id, dedupe_key, user_id, mess_id, entity_type, entity_id,

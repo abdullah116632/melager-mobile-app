@@ -3,8 +3,10 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { ApiBazarAssignment, ApiBazarItem } from "@/lib/api";
 
+import { runInTransaction } from "../../database/transaction";
 import { OutboxRepository } from "../../repositories/outboxRepository";
 import type {
+  BazarDateWindow,
   BazarMutationPayload,
   BazarSnapshot,
   DesiredAssignmentInput,
@@ -15,7 +17,7 @@ interface ItemRow {
   server_id: number | null;
   display_id: number;
   mess_id: number;
-  weekday: number;
+  bazar_date: string;
   name: string;
   price: number;
   is_completed: number;
@@ -50,7 +52,7 @@ const tempId = () =>
 const toItem = (row: ItemRow): ApiBazarItem => ({
   id: row.display_id,
   messId: row.mess_id,
-  weekday: row.weekday,
+  bazarDate: row.bazar_date,
   name: row.name,
   price: Number(row.price),
   isCompleted: row.is_completed === 1,
@@ -90,7 +92,7 @@ export class BazarRepository {
       this.database.getAllAsync<ItemRow>(
         `SELECT * FROM local_bazar_items
          WHERE mess_id = ? AND is_deleted = 0
-         ORDER BY weekday ASC, created_at DESC, display_id DESC`,
+         ORDER BY bazar_date ASC, created_at DESC, display_id DESC`,
         messId,
       ),
       this.database.getAllAsync<AssignmentRow>(
@@ -128,28 +130,75 @@ export class BazarRepository {
     items: ApiBazarItem[],
     assignments: ApiBazarAssignment[],
     unreadCount: number,
+    window: BazarDateWindow,
   ): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const localItems = await this.database.getAllAsync<ItemRow>(
         "SELECT * FROM local_bazar_items WHERE mess_id = ?",
         messId,
       );
-      const dirtyItemServerIds = new Set(
-        localItems.flatMap((row) =>
-          row.is_dirty === 1 && row.server_id !== null ? [row.server_id] : [],
-        ),
+      const pendingItemLocalIds = new Set(
+        (
+          await this.database.getAllAsync<{ entity_id: string }>(
+            `SELECT entity_id FROM offline_outbox
+             WHERE user_id = ? AND mess_id = ? AND entity_type = 'bazar_item'`,
+            userId,
+            messId,
+          )
+        ).map((row) => row.entity_id),
       );
       const remoteItemIds = new Set(items.map((item) => item.id));
+      // A dirty row with no outbox entry lost its mutation — the sync engine
+      // dropped it as permanently failed. Nothing else would ever reconcile it
+      // because the loops below skip dirty rows, so settle it here: retry a
+      // delete the user asked for, and let the server win otherwise.
+      const dirtyItemServerIds = new Set<number>();
+      const healedLocalIds = new Set<string>();
+      const inWindow = (row: ItemRow) =>
+        row.bazar_date >= window.from && row.bazar_date <= window.to;
+      for (const row of localItems) {
+        if (row.is_dirty === 0) continue;
+        if (pendingItemLocalIds.has(row.local_id)) {
+          if (row.server_id !== null) dirtyItemServerIds.add(row.server_id);
+          continue;
+        }
+        if (row.server_id === null) {
+          // A create that never landed; nothing on the server to reconcile to.
+          await this.database.runAsync(
+            "DELETE FROM local_bazar_items WHERE local_id = ?",
+            row.local_id,
+          );
+          continue;
+        }
+        if (row.is_deleted === 1) {
+          // Outside the pulled window the response cannot prove the row is
+          // gone, so retry the delete rather than assume it succeeded.
+          if (remoteItemIds.has(row.server_id) || !inWindow(row)) {
+            await this.enqueueItemDelete(userId, messId, row);
+            dirtyItemServerIds.add(row.server_id);
+            continue;
+          }
+          await this.database.runAsync(
+            "DELETE FROM local_bazar_items WHERE local_id = ?",
+            row.local_id,
+          );
+        }
+        healedLocalIds.add(row.local_id);
+      }
       for (const item of items) {
         if (dirtyItemServerIds.has(item.id)) continue;
         await this.upsertServerItem(messId, item, now);
       }
       for (const row of localItems) {
+        // Rows outside the pulled window were not queried, so their absence
+        // from the response says nothing about whether they still exist.
         if (
-          row.is_dirty === 0 &&
+          (row.is_dirty === 0 || healedLocalIds.has(row.local_id)) &&
           row.server_id !== null &&
-          !remoteItemIds.has(row.server_id)
+          !remoteItemIds.has(row.server_id) &&
+          row.bazar_date >= window.from &&
+          row.bazar_date <= window.to
         ) {
           await this.database.runAsync(
             "DELETE FROM local_bazar_items WHERE local_id = ?",
@@ -235,7 +284,7 @@ export class BazarRepository {
     unreadCount: number,
   ): Promise<number> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const local = await this.database.getFirstAsync<{
         read_pending: number;
       }>(
@@ -266,23 +315,23 @@ export class BazarRepository {
   async createItem(
     userId: number,
     messId: number,
-    input: { weekday: number; name: string; price: number },
+    input: { bazarDate: string; name: string; price: number },
   ): Promise<ApiBazarItem> {
     const localId = Crypto.randomUUID();
     const displayId = tempId();
     const now = Date.now();
     const createdAt = new Date(now).toISOString();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `INSERT INTO local_bazar_items (
-          local_id, server_id, display_id, mess_id, weekday, name, price,
+          local_id, server_id, display_id, mess_id, bazar_date, name, price,
           is_completed, created_by_user_id, created_at, server_updated_at,
           local_updated_at, is_dirty, is_deleted
         ) VALUES (?, NULL, ?, ?, ?, ?, ?, 0, ?, ?, NULL, ?, 1, 0)`,
         localId,
         displayId,
         messId,
-        input.weekday,
+        input.bazarDate,
         input.name,
         input.price,
         userId,
@@ -295,7 +344,7 @@ export class BazarRepository {
     return {
       id: displayId,
       messId,
-      weekday: input.weekday,
+      bazarDate: input.bazarDate,
       name: input.name,
       price: input.price,
       isCompleted: false,
@@ -313,7 +362,7 @@ export class BazarRepository {
   ): Promise<ApiBazarItem> {
     const row = await this.requireItem(messId, displayId);
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `UPDATE local_bazar_items
          SET name = ?, price = ?, local_updated_at = ?, is_dirty = 1
@@ -325,7 +374,7 @@ export class BazarRepository {
       );
       if (row.server_id === null) {
         await this.enqueueItemCreate(userId, messId, row.local_id, {
-          weekday: row.weekday,
+          bazarDate: row.bazar_date,
           name: input.name,
           price: input.price,
           completed: row.is_completed === 1,
@@ -362,7 +411,7 @@ export class BazarRepository {
   ): Promise<ApiBazarItem> {
     const row = await this.requireItem(messId, displayId);
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `UPDATE local_bazar_items
          SET is_completed = ?, local_updated_at = ?, is_dirty = 1
@@ -373,7 +422,7 @@ export class BazarRepository {
       );
       if (row.server_id === null) {
         await this.enqueueItemCreate(userId, messId, row.local_id, {
-          weekday: row.weekday,
+          bazarDate: row.bazar_date,
           name: row.name,
           price: row.price,
           completed,
@@ -413,7 +462,7 @@ export class BazarRepository {
     displayId: number,
   ): Promise<void> {
     const row = await this.requireItem(messId, displayId);
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       if (row.server_id === null) {
         await this.database.runAsync(
           "DELETE FROM local_bazar_items WHERE local_id = ?",
@@ -438,37 +487,22 @@ export class BazarRepository {
           userId,
           row.local_id,
         );
-        await this.outbox.enqueue<BazarMutationPayload>({
-          dedupeKey: `bazar:item:delete:${row.local_id}`,
-          userId,
-          messId,
-          entityType: "bazar_item",
-          entityId: row.local_id,
-          operation: "delete",
-          baseVersion: row.server_updated_at
-            ? Date.parse(row.server_updated_at)
-            : null,
-          payload: {
-            localId: row.local_id,
-            serverId: row.server_id,
-            baseUpdatedAt: row.server_updated_at ?? undefined,
-          },
-        });
+        await this.enqueueItemDelete(userId, messId, row);
       }
       await this.ensureSyncState(userId, messId, Date.now());
     });
   }
 
-  async deleteWeekday(
+  async deleteDate(
     userId: number,
     messId: number,
-    weekday: number,
+    bazarDate: string,
   ): Promise<void> {
     const rows = await this.database.getAllAsync<ItemRow>(
       `SELECT * FROM local_bazar_items
-       WHERE mess_id = ? AND weekday = ? AND is_deleted = 0`,
+       WHERE mess_id = ? AND bazar_date = ? AND is_deleted = 0`,
       messId,
-      weekday,
+      bazarDate,
     );
     for (const row of rows)
       await this.deleteItem(userId, messId, row.display_id);
@@ -497,7 +531,7 @@ export class BazarRepository {
     const pendingBase = pending
       ? (JSON.parse(pending.payload) as BazarMutationPayload).baseConsumerIds
       : undefined;
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         "DELETE FROM local_bazar_assignments WHERE mess_id = ? AND weekday = ?",
         messId,
@@ -553,7 +587,7 @@ export class BazarRepository {
 
   async markNotificationsRead(userId: number, messId: number): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `INSERT INTO local_bazar_notification_state (
           user_id, mess_id, unread_count, read_pending, updated_at
@@ -582,17 +616,17 @@ export class BazarRepository {
   async enqueueNotifyMembers(
     userId: number,
     messId: number,
-    weekday: number,
+    bazarDate: string,
   ): Promise<void> {
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.outbox.enqueue<BazarMutationPayload>({
-        dedupeKey: `bazar:notifications:notify:${messId}:${weekday}`,
+        dedupeKey: `bazar:notifications:notify:${messId}:${bazarDate}`,
         userId,
         messId,
         entityType: "bazar_notification",
-        entityId: `notify:${weekday}`,
+        entityId: `notify:${bazarDate}`,
         operation: "command",
-        payload: { weekday },
+        payload: { bazarDate },
       });
       await this.ensureSyncState(userId, messId, Date.now());
     });
@@ -617,7 +651,7 @@ export class BazarRepository {
       operationId,
     );
     if (Number(other?.total ?? 0) > 0) {
-      await this.database.withTransactionAsync(async () => {
+      await runInTransaction(this.database, async () => {
         await this.database.runAsync(
           `UPDATE local_bazar_items
            SET server_id = ?, display_id = ?, server_updated_at = ?
@@ -655,14 +689,14 @@ export class BazarRepository {
     }
     await this.database.runAsync(
       `UPDATE local_bazar_items SET
-        server_id = ?, display_id = ?, weekday = ?, name = ?, price = ?,
+        server_id = ?, display_id = ?, bazar_date = ?, name = ?, price = ?,
         is_completed = ?, created_by_user_id = ?, created_at = ?,
         server_updated_at = ?, local_updated_at = ?, is_dirty = 0,
         is_deleted = 0
        WHERE local_id = ?`,
       item.id,
       item.id,
-      item.weekday,
+      item.bazarDate,
       item.name,
       item.price,
       item.isCompleted ? 1 : 0,
@@ -687,7 +721,7 @@ export class BazarRepository {
     assignments: ApiBazarAssignment[],
   ): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         "DELETE FROM local_bazar_assignments WHERE mess_id = ? AND weekday = ?",
         messId,
@@ -727,12 +761,35 @@ export class BazarRepository {
     return row;
   }
 
+  private async enqueueItemDelete(
+    userId: number,
+    messId: number,
+    row: ItemRow,
+  ): Promise<void> {
+    await this.outbox.enqueue<BazarMutationPayload>({
+      dedupeKey: `bazar:item:delete:${row.local_id}`,
+      userId,
+      messId,
+      entityType: "bazar_item",
+      entityId: row.local_id,
+      operation: "delete",
+      baseVersion: row.server_updated_at
+        ? Date.parse(row.server_updated_at)
+        : null,
+      payload: {
+        localId: row.local_id,
+        serverId: row.server_id ?? undefined,
+        baseUpdatedAt: row.server_updated_at ?? undefined,
+      },
+    });
+  }
+
   private async enqueueItemCreate(
     userId: number,
     messId: number,
     localId: string,
     input: {
-      weekday: number;
+      bazarDate: string;
       name: string;
       price: number;
       completed?: boolean;
@@ -756,13 +813,13 @@ export class BazarRepository {
   ): Promise<void> {
     await this.database.runAsync(
       `INSERT INTO local_bazar_items (
-        local_id, server_id, display_id, mess_id, weekday, name, price,
+        local_id, server_id, display_id, mess_id, bazar_date, name, price,
         is_completed, created_by_user_id, created_at, server_updated_at,
         local_updated_at, is_dirty, is_deleted
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
       ON CONFLICT(mess_id, server_id) WHERE server_id IS NOT NULL DO UPDATE SET
         display_id = excluded.display_id,
-        weekday = excluded.weekday,
+        bazar_date = excluded.bazar_date,
         name = excluded.name,
         price = excluded.price,
         is_completed = excluded.is_completed,
@@ -776,7 +833,7 @@ export class BazarRepository {
       item.id,
       item.id,
       messId,
-      item.weekday,
+      item.bazarDate,
       item.name,
       item.price,
       item.isCompleted ? 1 : 0,

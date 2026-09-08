@@ -263,7 +263,7 @@ export const loadBazar = createAsyncThunk<
 
 export const createBazarItem = createAsyncThunk<
   MutationResult,
-  { weekday: number; name: string; price: number },
+  { bazarDate: string; name: string; price: number },
   { state: BazarRootState }
 >("bazar/createItem", async (input, { dispatch, getState }) => {
   const context = getAuthContext(getState());
@@ -271,7 +271,7 @@ export const createBazarItem = createAsyncThunk<
     if (!getState().network.isOnline)
       throw new Error("Offline editing requires the mobile app.");
     await api.createBazarItem(
-      input.weekday,
+      input.bazarDate,
       input.name,
       input.price,
       context.token,
@@ -357,19 +357,19 @@ export const deleteBazarItem = createAsyncThunk<
 
 export const deleteBazarItems = createAsyncThunk<
   MutationResult,
-  number,
+  string,
   { state: BazarRootState }
->("bazar/deleteItems", async (weekday, { dispatch, getState }) => {
+>("bazar/deleteItems", async (bazarDate, { dispatch, getState }) => {
   const context = getAuthContext(getState());
   if (!isOfflineDatabaseSupported()) {
     if (!getState().network.isOnline)
       throw new Error("Offline editing requires the mobile app.");
-    await api.deleteBazarItems(weekday, context.token, context.messId);
+    await api.deleteBazarItems(bazarDate, context.token, context.messId);
     await dispatch(loadBazar({ includeConsumers: context.isAdmin })).unwrap();
     return { messId: context.messId, queued: false };
   }
   const repository = new BazarRepository(await getOfflineDatabase());
-  await repository.deleteWeekday(context.userId, context.messId, weekday);
+  await repository.deleteDate(context.userId, context.messId, bazarDate);
   return finishNativeMutation(dispatch, getState, context);
 });
 
@@ -401,15 +401,15 @@ export const assignBazarMembers = createAsyncThunk<
 
 export const notifyBazarMembers = createAsyncThunk<
   MutationResult,
-  { weekday: number },
+  { bazarDate: string },
   { state: BazarRootState }
->("bazar/notifyMembers", async ({ weekday }, { dispatch, getState }) => {
+>("bazar/notifyMembers", async ({ bazarDate }, { dispatch, getState }) => {
   const context = getAuthContext(getState());
   if (!isOfflineDatabaseSupported()) {
     if (!getState().network.isOnline)
       throw new Error("Offline notifications require the mobile app.");
     await api.notifyAssignedBazarMembers(
-      weekday,
+      bazarDate,
       context.token,
       context.messId,
     );
@@ -419,7 +419,7 @@ export const notifyBazarMembers = createAsyncThunk<
   await repository.enqueueNotifyMembers(
     context.userId,
     context.messId,
-    weekday,
+    bazarDate,
   );
   return finishNativeMutation(dispatch, getState, context);
 });

@@ -100,6 +100,9 @@ export async function loadBazarFromCache(
     )
       return null;
     const cached = data as BazarCacheData;
+    // Bazar items used to be cached per weekday. Drop pre-date entries rather
+    // than showing a list that can never match the selected date.
+    cached.items = cached.items.filter((item) => Boolean(item.bazarDate));
     memoryCache.set(key, cached);
     return cached;
   } catch {
