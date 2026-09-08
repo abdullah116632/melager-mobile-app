@@ -27,6 +27,7 @@ import {
 } from "@/redux/hooks";
 import {
   createNotice as createNoticeAction,
+  deleteAllNotices as deleteAllNoticesAction,
   deleteNotice as deleteNoticeAction,
   loadNotices as loadNoticesAction,
   markNoticesRead,
@@ -252,6 +253,35 @@ export default function NoticeBoardRoute() {
     ]);
   };
 
+  const removeAllNotices = () => {
+    if (notices.length === 0) return;
+    Alert.alert(
+      "Delete all notices",
+      `Delete all ${notices.length} notice${notices.length === 1 ? "" : "s"}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete all",
+          style: "destructive",
+          onPress: async () => {
+            if (!token || !mess) return;
+            try {
+              await dispatch(deleteAllNoticesAction()).unwrap();
+            } catch (error) {
+              dispatch(
+                apiActionFailed(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not delete notices.",
+                ),
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const persistNoticeOrder = async (
     next: ApiNotice[],
     previous: ApiNotice[],
@@ -286,36 +316,13 @@ export default function NoticeBoardRoute() {
             <Feather name="arrow-left" size={21} color="#FFFFFF" />
           </TouchableOpacity>
           <View className="ml-3 flex-1">
-            <View className="flex-row items-center">
-              <Text className="font-inter-bold text-[20px] text-white">
-                Notice Board
-              </Text>
-              {notices.length > 0 ? (
-                <View className="ml-2 rounded-full bg-white/15 px-2 py-0.5">
-                  <Text className="font-inter-semibold text-[10px] text-teal-50">
-                    {notices.length}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+            <Text className="font-inter-bold text-[20px] text-white">
+              Notice Board
+            </Text>
             <Text className="mt-0.5 font-inter text-[11px] text-teal-100/90">
               Updates and announcements from your mess
             </Text>
           </View>
-          {isAdmin ? (
-            <TouchableOpacity
-              className="h-11 flex-row items-center rounded-2xl bg-white px-3.5 shadow-sm"
-              onPress={() => setFormOpen(true)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Create notice"
-            >
-              <Feather name="plus" size={17} color="#0F766E" />
-              <Text className="ml-1.5 font-inter-bold text-xs text-teal-700">
-                New
-              </Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
       </View>
 
@@ -540,15 +547,32 @@ export default function NoticeBoardRoute() {
               </View>
               {!loading && notices.length > 0 ? (
                 <View className="mb-3 flex-row items-center justify-between px-1">
-                  <Text className="font-inter-bold text-sm text-slate-800">
+                  <Text className="font-inter-bold text-base text-slate-800">
                     {normalizedSearchQuery
                       ? "Search results"
                       : "Latest notices"}
                   </Text>
-                  <Text className="font-inter text-[11px] text-slate-500">
-                    {filteredNotices.length}{" "}
-                    {filteredNotices.length === 1 ? "notice" : "notices"}
-                  </Text>
+                  <View className="flex-row items-center gap-2.5">
+                    <Text className="font-inter text-[11px] text-slate-500">
+                      {filteredNotices.length}{" "}
+                      {filteredNotices.length === 1 ? "notice" : "notices"}
+                    </Text>
+                    {isAdmin && !normalizedSearchQuery ? (
+                      <TouchableOpacity
+                        className="h-10 flex-row items-center rounded-full bg-red-700 px-4 shadow-sm shadow-red-900/30"
+                        onPress={removeAllNotices}
+                        disabled={saving || reordering}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete all notices"
+                      >
+                        <Feather name="trash-2" size={15} color="#FFFFFF" />
+                        <Text className="ml-1.5 font-inter-bold text-xs text-white">
+                          Delete all
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 </View>
               ) : null}
             </>
@@ -726,6 +750,19 @@ export default function NoticeBoardRoute() {
             </Text>
           </View>
         </View>
+      ) : null}
+      {isAdmin ? (
+        <TouchableOpacity
+          className="absolute bottom-6 right-5 h-14 flex-row items-center rounded-full bg-teal-700 pl-4 pr-5 shadow-lg shadow-teal-900/30"
+          style={{ elevation: 6 }}
+          onPress={() => setFormOpen(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Create notice"
+        >
+          <Feather name="plus" size={22} color="#FFFFFF" />
+          <Text className="ml-2 font-inter-bold text-sm text-white">New</Text>
+        </TouchableOpacity>
       ) : null}
     </View>
   );

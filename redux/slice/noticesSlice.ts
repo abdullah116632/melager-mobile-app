@@ -358,6 +358,30 @@ export const deleteNotice = createAsyncThunk<
   return finishNativeMutation(dispatch, getState, context);
 });
 
+export const deleteAllNotices = createAsyncThunk<
+  MutationResult,
+  void,
+  { state: NoticesRootState }
+>("notices/deleteAll", async (_arg, { dispatch, getState }) => {
+  const context = getAuthContext(getState());
+  const ids = getState().notices.notices.map((notice) => notice.id);
+  if (ids.length === 0) return { messId: context.messId, queued: false };
+  if (!isOfflineDatabaseSupported()) {
+    if (!getState().network.isOnline)
+      throw new Error("Offline editing requires the mobile app.");
+    for (const id of ids) {
+      await api.deleteNotice(id, context.token, context.messId);
+    }
+    await dispatch(loadNotices({})).unwrap();
+    return { messId: context.messId, queued: false };
+  }
+  const repository = new NoticeRepository(await getOfflineDatabase());
+  for (const id of ids) {
+    await repository.remove(context.userId, context.messId, id);
+  }
+  return finishNativeMutation(dispatch, getState, context);
+});
+
 export const reorderNotices = createAsyncThunk<
   MutationResult,
   ApiNotice[],
