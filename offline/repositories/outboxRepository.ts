@@ -205,6 +205,30 @@ export class OutboxRepository {
     return Number(row?.total ?? 0);
   }
 
+  /** The newest failure for this scope, whether still retrying or quarantined. */
+  async getLatestFailure(
+    userId: number,
+    messId: number | null,
+  ): Promise<string | null> {
+    const scopeClause =
+      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
+    const parameters = messId === null ? [userId] : [userId, messId];
+    const row = await this.database.getFirstAsync<{ message: string | null }>(
+      `SELECT message FROM (
+         SELECT last_error AS message, updated_at AS at FROM offline_outbox
+          WHERE user_id = ? AND ${scopeClause} AND last_error IS NOT NULL
+         UNION ALL
+         SELECT last_error AS message, failed_at AS at
+           FROM offline_outbox_dead_letters
+          WHERE user_id = ? AND ${scopeClause}
+       )
+       ORDER BY at DESC LIMIT 1`,
+      ...parameters,
+      ...parameters,
+    );
+    return row?.message ?? null;
+  }
+
   async markSyncing(id: string): Promise<void> {
     await this.database.runAsync(
       `UPDATE offline_outbox

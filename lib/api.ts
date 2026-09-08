@@ -90,11 +90,24 @@ export function clearApiCache(): void {
   responseCache.clear();
 }
 
+/** Drops only the cached GETs of one feature so a forced refresh re-fetches it. */
+export function invalidateApiCache(pathFragment: string): void {
+  for (const key of responseCache.keys()) {
+    if (key.includes(pathFragment)) responseCache.delete(key);
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
     public readonly path?: string,
+    /**
+     * True when the server answered with a JSON error body. A bare status (an
+     * HTML 404 for a route that is not deployed, a proxy error page) leaves
+     * this false, so callers must not read meaning into the status alone.
+     */
+    public readonly hasErrorBody = false,
   ) {
     super(message);
     this.name = "ApiError";
@@ -147,10 +160,12 @@ async function req<T>(
         }
       }
       if (!res.ok) {
+        const parsed = (data ?? null) as { error?: string } | null;
         throw new ApiError(
-          (data as { error?: string }).error ?? "Request failed",
+          parsed?.error ?? `Request failed (${res.status})`,
           res.status,
           path,
+          parsed !== null,
         );
       }
       if (method === "GET") {

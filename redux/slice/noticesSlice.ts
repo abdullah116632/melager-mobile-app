@@ -1,6 +1,11 @@
-import { createAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import {
+  createAction,
+  createAsyncThunk,
+  createSlice,
+  isAnyOf,
+} from "@reduxjs/toolkit";
 
-import { api, type ApiNotice } from "@/lib/api";
+import { api, invalidateApiCache, type ApiNotice } from "@/lib/api";
 import { loadNoticesFromCache, saveNoticesToCache } from "@/lib/cache";
 import {
   getOfflineDatabase,
@@ -104,6 +109,15 @@ const syncNativeNotices = async (
     { collections: ["notices"], force },
   );
 
+/** Surfaces what the server actually rejected instead of a generic message. */
+const describeSyncFailure = async (userId: number, messId: number) => {
+  const runtime = getOfflineRuntime(await getOfflineDatabase());
+  const reason = await runtime.outbox.getLatestFailure(userId, messId);
+  return reason
+    ? `Could not sync to the server: ${reason}`
+    : "Some notice changes could not sync yet.";
+};
+
 const publishNativeSnapshot = async (
   dispatch: (action: ReturnType<typeof localSnapshotReceived>) => unknown,
   context: ReturnType<typeof getAuthContext>,
@@ -135,7 +149,9 @@ const finishNativeMutation = async (
     true,
   );
   const syncError =
-    summary.failed > 0 ? "Some notice changes could not sync yet." : null;
+    summary.failed > 0
+      ? await describeSyncFailure(context.userId, context.messId)
+      : null;
   const payload = await publishNativeSnapshot(
     dispatch,
     context,
@@ -151,6 +167,8 @@ export const loadNotices = createAsyncThunk<
   { state: NoticesRootState }
 >("notices/load", async ({ force = false }, { dispatch, getState }) => {
   const context = getAuthContext(getState());
+  // A forced refresh must reach the server, not the 15s GET response cache.
+  if (force) invalidateApiCache("/mess/notices");
   if (!isOfflineDatabaseSupported()) {
     const cached = await loadNoticesFromCache(context.messId);
     if (!getState().network.isOnline) {
@@ -218,6 +236,7 @@ export const loadNotices = createAsyncThunk<
     context.userId,
     context.messId,
     context.token,
+    force,
   );
   const syncError =
     summary.failed > 0 ? "Refresh failed. Cached notices are shown." : null;
@@ -482,42 +501,46 @@ const noticesSlice = createSlice({
         state.reorderStatus = "loading";
         state.error = null;
       })
+      .addCase(reorderNotices.fulfilled, (state) => {
+        state.reorderStatus = "succeeded";
+      })
+      .addCase(reorderNotices.rejected, (state, action) => {
+        state.reorderStatus = "failed";
+        state.error = action.error.message ?? "Could not reorder notices";
+      })
       .addMatcher(
-        (action) =>
-          action.type.startsWith("notices/") &&
-          action.type.endsWith("/pending") &&
-          action.type !== loadNotices.pending.type &&
-          action.type !== markNoticesRead.pending.type &&
-          action.type !== reorderNotices.pending.type,
+        isAnyOf(
+          createNotice.pending,
+          updateNotice.pending,
+          deleteNotice.pending,
+          deleteAllNotices.pending,
+        ),
         (state) => {
           state.mutationStatus = "loading";
           state.error = null;
         },
       )
       .addMatcher(
-        (action) =>
-          action.type.startsWith("notices/") &&
-          action.type.endsWith("/fulfilled") &&
-          action.type !== loadNotices.fulfilled.type &&
-          action.type !== markNoticesRead.fulfilled.type &&
-          action.type !== loadUnreadNoticesCount.fulfilled.type,
-        (state, action) => {
+        isAnyOf(
+          createNotice.fulfilled,
+          updateNotice.fulfilled,
+          deleteNotice.fulfilled,
+          deleteAllNotices.fulfilled,
+        ),
+        (state) => {
           state.mutationStatus = "succeeded";
-          if (action.type === reorderNotices.fulfilled.type)
-            state.reorderStatus = "succeeded";
         },
       )
       .addMatcher(
-        (action): action is { type: string; error: { message?: string } } =>
-          action.type.startsWith("notices/") &&
-          action.type.endsWith("/rejected") &&
-          "error" in action,
+        isAnyOf(
+          createNotice.rejected,
+          updateNotice.rejected,
+          deleteNotice.rejected,
+          deleteAllNotices.rejected,
+        ),
         (state, action) => {
-          if (action.type === reorderNotices.rejected.type)
-            state.reorderStatus = "failed";
-          else if (action.type !== loadNotices.rejected.type)
-            state.mutationStatus = "failed";
-          state.error = action.error?.message ?? "Notice request failed";
+          state.mutationStatus = "failed";
+          state.error = action.error.message ?? "Notice request failed";
         },
       );
   },

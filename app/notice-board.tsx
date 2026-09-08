@@ -1,14 +1,12 @@
 import Feather from "@expo/vector-icons/Feather";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import DraggableFlatList, {
-  type RenderItemParams,
-} from "react-native-draggable-flatlist";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
   Pressable,
   RefreshControl,
@@ -104,8 +102,10 @@ export default function NoticeBoardRoute() {
   const [color, setColor] = useState(NOTICE_COLORS[0]);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshToastVisible, setRefreshToastVisible] = useState(false);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredNotices = notices.filter((notice) => {
     return (
@@ -115,64 +115,70 @@ export default function NoticeBoardRoute() {
         .includes(normalizedSearchQuery)
     );
   });
-  useEffect(() => {
-    if (!token || !mess) return;
-    void dispatch(loadNoticesAction({}))
-      .unwrap()
-      .catch((error) => {
-        if (isCheckingNetwork) return;
-        dispatch(
-          apiActionFailed(
-            isOnline
-              ? error instanceof Error
-                ? error.message
-                : "Could not load notices."
-              : "Failed to load notices because you are offline",
-          ),
-        );
-      });
-  }, [dispatch, isCheckingNetwork, isOnline, mess?.id, token]);
+  const loadLatestNotices = useCallback(
+    (force: boolean) => {
+      if (!token || !mess) return;
+      void dispatch(loadNoticesAction({ force }))
+        .unwrap()
+        .catch((error) => {
+          if (isCheckingNetwork) return;
+          dispatch(
+            apiActionFailed(
+              isOnline
+                ? error instanceof Error
+                  ? error.message
+                  : "Could not load notices."
+                : "Failed to load notices because you are offline",
+            ),
+          );
+        });
+    },
+    [dispatch, isCheckingNetwork, isOnline, mess?.id, token],
+  );
 
+  // Opening the page must show what the server has now, and this re-runs when
+  // connectivity changes too, so reconnecting catches up as well. The sync
+  // engine always pushes queued offline edits before it pulls, and the pull
+  // keeps any notice that still owns a queued mutation, so local work is never
+  // dropped here.
   useFocusEffect(
     useCallback(() => {
-      if (token && mess) void dispatch(markNoticesRead());
+      if (!token || !mess) return;
+      void dispatch(markNoticesRead());
+      loadLatestNotices(true);
       return undefined;
-    }, [dispatch, mess?.id, token]),
+    }, [dispatch, loadLatestNotices, mess?.id, token]),
   );
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), type === "success" ? 2200 : 3200);
+  };
 
   const refreshNotices = async () => {
     if (!token || !mess) return;
-    setRefreshToastVisible(false);
-    setRefreshError(null);
-    if (!isOnline) {
-      setRefreshError(
-        "Refresh failed. Check your internet connection and try again.",
-      );
-      dispatch(offlineActionFailed("refresh"));
-      return;
-    }
+    setToast(null);
     setRefreshing(true);
     try {
+      if (!isOnline) {
+        showToast("error", "Refresh failed. You are offline.");
+        dispatch(offlineActionFailed("refresh"));
+        return;
+      }
       const result = await dispatch(
         loadNoticesAction({ force: true }),
       ).unwrap();
       if (result.syncError) {
-        setRefreshError(result.syncError);
+        showToast("error", result.syncError);
         return;
       }
-      setRefreshError(null);
-      setRefreshToastVisible(true);
-      setTimeout(() => setRefreshToastVisible(false), 2200);
+      showToast("success", "Refresh successful");
     } catch (error) {
-      setRefreshError(
+      showToast(
+        "error",
         error instanceof Error
           ? `Refresh failed. ${error.message}`
           : "Refresh failed. Please try again.",
-      );
-      dispatch(
-        apiActionFailed(
-          error instanceof Error ? error.message : "Could not refresh notices.",
-        ),
       );
     } finally {
       setRefreshing(false);
@@ -299,6 +305,16 @@ export default function NoticeBoardRoute() {
     }
   };
 
+  const moveNotice = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= notices.length) return;
+    const next = [...notices];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved!);
+    dispatch(setNoticeOrder(next));
+    void persistNoticeOrder(next, notices);
+  };
+
   return (
     <View className="pt-safe flex-1 bg-[#F6F8FB]">
       <StatusBar style="light" backgroundColor="#075E59" />
@@ -326,25 +342,7 @@ export default function NoticeBoardRoute() {
         </View>
       </View>
 
-      {refreshError ? (
-        <View
-          className="flex-row items-center border-b border-red-200 bg-red-50 px-4 py-2"
-          accessibilityRole="alert"
-        >
-          <Feather name="alert-circle" size={14} color="#DC2626" />
-          <Text className="ml-2 min-w-0 flex-1 font-inter-medium text-[11px] text-red-700">
-            {refreshError}
-          </Text>
-          <TouchableOpacity
-            className="ml-2 h-6 w-6 items-center justify-center rounded-full"
-            onPress={() => setRefreshError(null)}
-            accessibilityLabel="Dismiss refresh error"
-          >
-            <Feather name="x" size={14} color="#B91C1C" />
-          </TouchableOpacity>
-        </View>
-      ) : null}
-      {!refreshError && noticeError ? (
+      {noticeError ? (
         <View className="flex-row items-center border-b border-amber-200 bg-amber-50 px-4 py-2">
           <Feather name="info" size={14} color="#B45309" />
           <Text className="ml-2 min-w-0 flex-1 font-inter-medium text-[11px] text-amber-800">
@@ -352,7 +350,7 @@ export default function NoticeBoardRoute() {
           </Text>
         </View>
       ) : null}
-      {!refreshError && !noticeError && pendingCount > 0 ? (
+      {!noticeError && pendingCount > 0 ? (
         <View className="border-b border-sky-200 bg-sky-50 px-4 py-2">
           <Text className="font-inter-medium text-[11px] text-sky-800">
             Saved locally · {pendingCount} change
@@ -362,7 +360,7 @@ export default function NoticeBoardRoute() {
       ) : null}
 
       <View
-        className={`${refreshError || noticeError || pendingCount > 0 ? "pt-3" : "-mt-3"} flex-1 px-4`}
+        className={`${noticeError || pendingCount > 0 ? "pt-3" : "-mt-3"} flex-1 px-4`}
       >
         {isAdmin && formOpen ? (
           <Modal
@@ -496,19 +494,11 @@ export default function NoticeBoardRoute() {
           </Modal>
         ) : null}
 
-        <DraggableFlatList
-          containerStyle={{ flex: 1 }}
+        <FlatList
           style={{ flex: 1 }}
           alwaysBounceVertical
           data={loading ? [] : filteredNotices}
           keyExtractor={(notice) => String(notice.id)}
-          onDragEnd={({ data }) => {
-            if (searchQuery.trim()) return;
-            const previous = notices;
-            dispatch(setNoticeOrder(data));
-            void persistNoticeOrder(data, previous);
-          }}
-          activationDistance={8}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
           refreshControl={
@@ -625,26 +615,20 @@ export default function NoticeBoardRoute() {
               </View>
             )
           }
-          renderItem={({
-            item: notice,
-            drag,
-            isActive,
-          }: RenderItemParams<ApiNotice>) => (
+          renderItem={({ item: notice, index }) => (
             <View
-              className={`mb-3.5 overflow-hidden rounded-[18px] border ${isActive ? "opacity-90" : ""}`}
+              className="mb-3.5 overflow-hidden rounded-[18px] border"
               style={{
                 backgroundColor: getNoticeSurfaceColor(
                   notice.color || NOTICE_COLORS[0],
                 ),
-                borderColor: isActive
-                  ? "#0F766E"
-                  : getNoticeAccent(notice.color || NOTICE_COLORS[0])
-                      .background,
+                borderColor: getNoticeAccent(notice.color || NOTICE_COLORS[0])
+                  .background,
                 shadowColor: "#94A3B8",
                 shadowOffset: { width: 0, height: 3 },
                 shadowOpacity: 0.2,
                 shadowRadius: 8,
-                elevation: isActive ? 6 : 3,
+                elevation: 3,
               }}
             >
               <View className="flex-row items-center gap-2 px-4 py-3">
@@ -712,25 +696,45 @@ export default function NoticeBoardRoute() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    className="ml-2 h-9 flex-1 flex-row items-center justify-center rounded-xl bg-white/70 px-2.5"
-                    onLongPress={(event) => {
-                      event.stopPropagation();
-                      drag();
-                    }}
-                    delayLongPress={150}
-                    disabled={reordering || Boolean(normalizedSearchQuery)}
-                    accessibilityLabel="Drag to reorder notice"
+                    className="ml-2 h-9 w-11 items-center justify-center rounded-xl bg-white/70"
+                    onPress={() => moveNotice(index, -1)}
+                    disabled={
+                      reordering ||
+                      Boolean(normalizedSearchQuery) ||
+                      index === 0
+                    }
+                    accessibilityLabel="Move notice up"
                   >
                     <Feather
-                      name="move"
+                      name="arrow-up"
                       size={15}
-                      color={normalizedSearchQuery ? "#CBD5E1" : "#0F766E"}
+                      color={
+                        normalizedSearchQuery || index === 0
+                          ? "#CBD5E1"
+                          : "#0F766E"
+                      }
                     />
-                    <Text
-                      className={`ml-1.5 font-inter-semibold text-[11px] ${normalizedSearchQuery ? "text-slate-300" : "text-teal-700"}`}
-                    >
-                      Move
-                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="ml-2 h-9 w-11 items-center justify-center rounded-xl bg-white/70"
+                    onPress={() => moveNotice(index, 1)}
+                    disabled={
+                      reordering ||
+                      Boolean(normalizedSearchQuery) ||
+                      index === filteredNotices.length - 1
+                    }
+                    accessibilityLabel="Move notice down"
+                  >
+                    <Feather
+                      name="arrow-down"
+                      size={15}
+                      color={
+                        normalizedSearchQuery ||
+                        index === filteredNotices.length - 1
+                          ? "#CBD5E1"
+                          : "#0F766E"
+                      }
+                    />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -738,15 +742,30 @@ export default function NoticeBoardRoute() {
           )}
         />
       </View>
-      {refreshToastVisible ? (
+      {toast ? (
         <View
           pointerEvents="none"
-          className="absolute bottom-8 left-0 right-0 z-50 items-center"
+          className="absolute bottom-24 left-0 right-0 z-50 items-center px-6"
+          accessibilityRole="alert"
         >
-          <View className="flex-row items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 shadow-md shadow-emerald-900/15">
-            <Feather name="check-circle" size={15} color="#059669" />
-            <Text className="font-inter-semibold text-xs text-emerald-700">
-              Refresh successful
+          <View
+            className={`flex-row items-center gap-1.5 rounded-full border px-3.5 py-2 shadow-md ${
+              toast.type === "success"
+                ? "border-emerald-200 bg-emerald-50 shadow-emerald-900/15"
+                : "border-red-200 bg-red-50 shadow-red-900/15"
+            }`}
+          >
+            <Feather
+              name={toast.type === "success" ? "check-circle" : "alert-circle"}
+              size={15}
+              color={toast.type === "success" ? "#059669" : "#DC2626"}
+            />
+            <Text
+              className={`font-inter-semibold text-xs ${
+                toast.type === "success" ? "text-emerald-700" : "text-red-700"
+              }`}
+            >
+              {toast.message}
             </Text>
           </View>
         </View>

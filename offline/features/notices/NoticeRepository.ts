@@ -76,10 +76,12 @@ export class NoticeRepository {
         userId,
         messId,
       ),
+      // Read-state sync is not a user edit, so it must not surface as an
+      // unsynced "change" on the notice board.
       this.database.getFirstAsync<{ total: number }>(
         `SELECT COUNT(*) AS total FROM offline_outbox
          WHERE user_id = ? AND mess_id = ?
-           AND entity_type IN ('notice', 'notice_reorder', 'notice_notification')`,
+           AND entity_type IN ('notice', 'notice_reorder')`,
         userId,
         messId,
       ),
@@ -145,17 +147,28 @@ export class NoticeRepository {
         "SELECT * FROM local_notices WHERE mess_id = ?",
         messId,
       );
-      const dirtyServerIds = new Set(
+      // Only a row that still owns a queued mutation may override the server.
+      // A row left dirty by a dropped or dead-lettered operation must realign
+      // instead of shadowing the server copy forever.
+      const queued = await this.database.getAllAsync<{ entity_id: string }>(
+        `SELECT entity_id FROM offline_outbox
+         WHERE user_id = ? AND mess_id = ? AND entity_type = 'notice'`,
+        userId,
+        messId,
+      );
+      const pendingLocalIds = new Set(queued.map((row) => row.entity_id));
+      const pendingServerIds = new Set(
         localRows.flatMap((row) =>
-          row.is_dirty === 1 && row.server_id !== null ? [row.server_id] : [],
+          pendingLocalIds.has(row.local_id) && row.server_id !== null
+            ? [row.server_id]
+            : [],
         ),
       );
       const remoteIds = new Set(notices.map((notice) => notice.id));
       const reorderPending = await this.hasPendingReorder(userId, messId);
-      const localOrderingProtected =
-        reorderPending || localRows.some((row) => row.is_dirty === 1);
+      const localOrderingProtected = reorderPending || pendingLocalIds.size > 0;
       for (const [index, notice] of notices.entries()) {
-        if (dirtyServerIds.has(notice.id)) continue;
+        if (pendingServerIds.has(notice.id)) continue;
         await this.upsertServerNotice(
           messId,
           notice,
@@ -164,11 +177,8 @@ export class NoticeRepository {
         );
       }
       for (const row of localRows) {
-        if (
-          row.is_dirty === 0 &&
-          row.server_id !== null &&
-          !remoteIds.has(row.server_id)
-        ) {
+        if (pendingLocalIds.has(row.local_id)) continue;
+        if (row.server_id === null || !remoteIds.has(row.server_id)) {
           await this.database.runAsync(
             "DELETE FROM local_notices WHERE local_id = ?",
             row.local_id,

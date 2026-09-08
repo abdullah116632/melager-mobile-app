@@ -54,13 +54,23 @@ export function registerNoticeSync(
       if (!response.notice) throw new Error("Server returned no notice.");
       await repository.acknowledge(localId, response.notice, operation.id);
     } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+      // Only a real "this notice is gone" answer may drop the local row. A
+      // bare 404 also means the sync route is missing, and deleting local
+      // work because the backend is out of date would lose the user's edit.
       if (
-        error instanceof ApiError &&
         error.status === 404 &&
+        error.hasErrorBody &&
         operation.operation !== "create"
       ) {
         await repository.acknowledgeDelete(localId);
         return;
+      }
+      // A create conflicts only on its own mutation id, which means an earlier
+      // attempt is still completing server-side. Keep it queued and retry so
+      // the offline notice is never dropped.
+      if (error.status === 409 && operation.operation === "create") {
+        throw new Error("Notice create is still being confirmed.");
       }
       throw error;
     }
@@ -104,7 +114,7 @@ export function registerNoticeSync(
     } catch (error) {
       if (
         error instanceof ApiError &&
-        (error.status === 400 || error.status === 404)
+        (error.status === 400 || error.status === 404 || error.status === 409)
       ) {
         await repository.discardReorder(operation.id, context.messId!);
         const [remote, unread] = await Promise.all([
