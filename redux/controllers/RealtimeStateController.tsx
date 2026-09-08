@@ -10,6 +10,7 @@ import {
   disconnectRealtime,
   isMessageConversationActive,
   subscribeToRealtimeMessages,
+  subscribeToRealtimeReactions,
 } from "@/lib/realtime";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
@@ -21,6 +22,7 @@ import {
   loadUnreadMessageCount,
   markMessagesRead,
   messageAcknowledged,
+  messageReactionChanged,
   messageReceived,
   messageStatusChanged,
   unreadMessageReceived,
@@ -58,6 +60,25 @@ export const RealtimeStateController = ({
         }
       }),
     [dispatch],
+  );
+
+  useEffect(
+    () =>
+      subscribeToRealtimeReactions((change) => {
+        if (user?.id)
+          void getOfflineDatabase()
+            .then((db) =>
+              new MessageRepository(db).applyRemoteReaction(
+                change.messId,
+                change.messageId,
+                change.userId,
+                change.reaction,
+              ),
+            )
+            .catch(() => undefined);
+        dispatch(messageReactionChanged(change));
+      }),
+    [dispatch, user?.id],
   );
 
   useEffect(

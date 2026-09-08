@@ -1,7 +1,12 @@
 import * as Crypto from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
-import type { ApiMessage, ApiMessageCursor } from "@/lib/api";
+import type {
+  ApiMessage,
+  ApiMessageCursor,
+  ApiMessageReaction,
+  MessageReactionKind,
+} from "@/lib/api";
 
 import { OutboxRepository } from "../../repositories/outboxRepository";
 import {
@@ -9,11 +14,12 @@ import {
   type MessageDeliveryState,
 } from "./messageLifecycle";
 
-export type MessageItem = Omit<ApiMessage, "id"> & {
+export type MessageItem = Omit<ApiMessage, "id" | "reactions"> & {
   id: number | string;
   localId: string;
   serverId: number | null;
   status: MessageDeliveryState;
+  reactions: ApiMessageReaction[];
 };
 
 export interface MessagePage {
@@ -70,6 +76,30 @@ export class MessageRepository {
           message.createdAt,
           message.updatedAt,
         );
+      }
+      for (const message of messages) {
+        if (!message.reactions) continue;
+        // The server list is authoritative for this message, but a reaction of
+        // our own that has not synced yet must survive the replacement.
+        await this.db.runAsync(
+          "DELETE FROM local_message_reactions WHERE message_server_id=? AND is_dirty=0",
+          message.id,
+        );
+        for (const reaction of message.reactions) {
+          await this.db.runAsync(
+            `INSERT INTO local_message_reactions
+              (mess_id,message_server_id,user_id,reaction,updated_at,is_dirty)
+             VALUES(?,?,?,?,?,0)
+             ON CONFLICT(message_server_id,user_id) DO UPDATE SET
+               reaction=excluded.reaction,updated_at=excluded.updated_at
+             WHERE is_dirty=0`,
+            message.messId,
+            message.id,
+            reaction.userId,
+            reaction.reaction,
+            Date.now(),
+          );
+        }
       }
       for (const messId of new Set(messages.map((message) => message.messId))) {
         const readState = await this.db.getFirstAsync<{
@@ -132,8 +162,19 @@ export class MessageRepository {
     const hasMore = rows.length > PAGE_SIZE;
     const messages = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
     const last = messages.at(-1);
+    const reactions = await this.reactionsFor(
+      messages.flatMap((message) =>
+        message.serverId === null ? [] : [message.serverId],
+      ),
+    );
     return {
-      messages,
+      messages: messages.map((message) => ({
+        ...message,
+        reactions:
+          message.serverId === null
+            ? []
+            : (reactions.get(message.serverId) ?? []),
+      })),
       nextCursor:
         hasMore && last
           ? { createdAt: last.createdAt, id: last.serverId ?? 0 }
@@ -202,7 +243,119 @@ export class MessageRepository {
       createdAt: now,
       updatedAt: now,
       status: "pending",
+      reactions: [],
     };
+  }
+
+  private async reactionsFor(
+    messageServerIds: number[],
+  ): Promise<Map<number, ApiMessageReaction[]>> {
+    const grouped = new Map<number, ApiMessageReaction[]>();
+    if (messageServerIds.length === 0) return grouped;
+    const placeholders = messageServerIds.map(() => "?").join(",");
+    const rows = await this.db.getAllAsync<{
+      message_server_id: number;
+      user_id: number;
+      reaction: MessageReactionKind;
+    }>(
+      `SELECT message_server_id,user_id,reaction FROM local_message_reactions
+       WHERE message_server_id IN (${placeholders})`,
+      ...messageServerIds,
+    );
+    for (const row of rows) {
+      const entry = { userId: row.user_id, reaction: row.reaction };
+      const existing = grouped.get(row.message_server_id);
+      if (existing) existing.push(entry);
+      else grouped.set(row.message_server_id, [entry]);
+    }
+    return grouped;
+  }
+
+  /**
+   * Applies the caller's reaction locally and queues it. `reaction` of null
+   * removes it. The row stays dirty until the server confirms so a refresh
+   * cannot wipe a choice that has not synced yet.
+   */
+  async setReaction(
+    userId: number,
+    messId: number,
+    messageServerId: number,
+    reaction: MessageReactionKind | null,
+  ): Promise<void> {
+    await this.db.withTransactionAsync(async () => {
+      if (reaction === null) {
+        await this.db.runAsync(
+          "DELETE FROM local_message_reactions WHERE message_server_id=? AND user_id=?",
+          messageServerId,
+          userId,
+        );
+      } else {
+        await this.db.runAsync(
+          `INSERT INTO local_message_reactions
+            (mess_id,message_server_id,user_id,reaction,updated_at,is_dirty)
+           VALUES(?,?,?,?,?,1)
+           ON CONFLICT(message_server_id,user_id) DO UPDATE SET
+             reaction=excluded.reaction,updated_at=excluded.updated_at,is_dirty=1`,
+          messId,
+          messageServerId,
+          userId,
+          reaction,
+          Date.now(),
+        );
+      }
+      await this.outbox.enqueue({
+        userId,
+        messId,
+        entityType: "message_reaction",
+        entityId: String(messageServerId),
+        operation: "upsert",
+        // One pending choice per message: a later change replaces the queued one.
+        dedupeKey: `message-reaction:${messageServerId}`,
+        payload: { messageServerId, reaction },
+      });
+    });
+  }
+
+  /** Clears the dirty flag once the server has stored the caller's choice. */
+  async acknowledgeReaction(
+    userId: number,
+    messageServerId: number,
+  ): Promise<void> {
+    await this.db.runAsync(
+      "UPDATE local_message_reactions SET is_dirty=0 WHERE message_server_id=? AND user_id=?",
+      messageServerId,
+      userId,
+    );
+  }
+
+  /** Applies a reaction change coming from another device over realtime. */
+  async applyRemoteReaction(
+    messId: number,
+    messageServerId: number,
+    userId: number,
+    reaction: MessageReactionKind | null,
+  ): Promise<void> {
+    if (reaction === null) {
+      await this.db.runAsync(
+        "DELETE FROM local_message_reactions WHERE message_server_id=? AND user_id=? AND is_dirty=0",
+        messageServerId,
+        userId,
+      );
+      return;
+    }
+    await this.db.runAsync(
+      `INSERT INTO local_message_reactions
+        (mess_id,message_server_id,user_id,reaction,updated_at,is_dirty)
+       VALUES(?,?,?,?,?,0)
+       ON CONFLICT(message_server_id,user_id) DO UPDATE SET
+         reaction=excluded.reaction,updated_at=excluded.updated_at
+       WHERE is_dirty=0`,
+      messId,
+      messageServerId,
+      userId,
+      reaction,
+      Date.now(),
+    );
   }
 
   async markPending(localId: string): Promise<void> {

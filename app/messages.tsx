@@ -7,6 +7,8 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
+  Pressable,
   RefreshControl,
   Text,
   TextInput,
@@ -14,6 +16,7 @@ import {
   View,
 } from "react-native";
 
+import type { MessageReactionKind } from "@/lib/api";
 import type { MessageItem } from "@/offline/features/messages/MessageRepository";
 import {
   enterMessageConversation,
@@ -29,6 +32,7 @@ import { apiActionFailed } from "@/redux/slice/networkSlice";
 import {
   loadMessages,
   markMessagesRead,
+  reactToMessage,
   selectMessagesState,
   sendMessage,
 } from "@/redux/slice/messagesSlice";
@@ -77,14 +81,30 @@ const MessageAvatar = ({ userId }: { userId: number }) => {
   );
 };
 
+const REACTION_CHOICES: { kind: MessageReactionKind; emoji: string }[] = [
+  { kind: "like", emoji: "👍" },
+  { kind: "love", emoji: "❤️" },
+  { kind: "haha", emoji: "😂" },
+  { kind: "sad", emoji: "😢" },
+  { kind: "angry", emoji: "😠" },
+  { kind: "dislike", emoji: "👎" },
+];
+
+const reactionEmoji = (kind: MessageReactionKind) =>
+  REACTION_CHOICES.find((choice) => choice.kind === kind)?.emoji ?? "";
+
 const MessageBubble = ({
   message,
   own,
   isOnline,
+  myUserId,
+  onOpenReactions,
 }: {
   message: MessageItem;
   own: boolean;
   isOnline: boolean;
+  myUserId?: number;
+  onOpenReactions: (message: MessageItem) => void;
 }) => {
   const stamp = formatMessageStamp(message.createdAt);
   // A server id is proof the message landed, so it decides delivery rather
@@ -98,6 +118,35 @@ const MessageBubble = ({
       ? "Sending"
       : "Pending"
     : stamp;
+  // Reactions are keyed by the server id, so a message still in the outbox
+  // cannot carry one yet.
+  const canReact = message.serverId !== null;
+  const counts = REACTION_CHOICES.map((choice) => ({
+    ...choice,
+    count: message.reactions.filter(
+      (entry) => entry.reaction === choice.kind,
+    ).length,
+  })).filter((entry) => entry.count > 0);
+  const mine = message.reactions.find((entry) => entry.userId === myUserId);
+
+  const reactionButton = canReact ? (
+    <TouchableOpacity
+      className="mx-1 h-7 w-7 items-center justify-center rounded-full bg-slate-800/70"
+      onPress={() => onOpenReactions(message)}
+      accessibilityRole="button"
+      accessibilityLabel="React to message"
+    >
+      {mine ? (
+        <Text className="text-[13px]">{reactionEmoji(mine.reaction)}</Text>
+      ) : (
+        <MaterialCommunityIcons
+          name="emoticon-happy-outline"
+          size={15}
+          color="#94A3B8"
+        />
+      )}
+    </TouchableOpacity>
+  ) : null;
 
   return (
     <View
@@ -108,13 +157,19 @@ const MessageBubble = ({
           <MessageAvatar userId={message.senderUserId} />
         </View>
       ) : null}
-      <View
-        className={`max-w-[76%] rounded-[22px] px-4 py-3 shadow-sm ${
-          own
-            ? "rounded-br-md border border-teal-500 bg-teal-600 shadow-teal-950/40"
-            : "rounded-bl-md border border-slate-700 bg-slate-800 shadow-black/30"
-        }`}
-      >
+      {own ? reactionButton : null}
+      <View className="max-w-[76%]">
+        <Pressable
+          onLongPress={() => canReact && onOpenReactions(message)}
+          delayLongPress={250}
+        >
+          <View
+            className={`rounded-[22px] px-4 py-3 shadow-sm ${
+              own
+                ? "rounded-br-md border border-teal-500 bg-teal-600 shadow-teal-950/40"
+                : "rounded-bl-md border border-slate-700 bg-slate-800 shadow-black/30"
+            }`}
+          >
         {!own ? (
           <View className="mb-1.5 flex-row items-center">
             <View className="mr-1.5 h-1.5 w-1.5 rounded-full bg-cyan-400" />
@@ -147,8 +202,34 @@ const MessageBubble = ({
           >
             {deliveryLabel}
           </Text>
-        </View>
+            </View>
+          </View>
+        </Pressable>
+        {counts.length > 0 ? (
+          <View
+            className={`mt-1 flex-row flex-wrap items-center gap-1 ${
+              own ? "justify-end" : "justify-start"
+            }`}
+          >
+            {counts.map((entry) => (
+              <View
+                key={entry.kind}
+                className={`flex-row items-center rounded-full border px-2 py-0.5 ${
+                  mine?.reaction === entry.kind
+                    ? "border-teal-400 bg-teal-900/60"
+                    : "border-slate-700 bg-slate-800"
+                }`}
+              >
+                <Text className="text-[11px]">{entry.emoji}</Text>
+                <Text className="ml-1 font-inter-semibold text-[10px] text-slate-300">
+                  {entry.count}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </View>
+      {!own ? reactionButton : null}
     </View>
   );
 };
@@ -175,6 +256,32 @@ export default function MessagesRoute() {
   const [draft, setDraft] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [canLoadOlder, setCanLoadOlder] = useState(false);
+  const [reactionTargetId, setReactionTargetId] = useState<number | null>(null);
+  // Read from the live thread rather than a snapshot so the picker still marks
+  // the right choice if the reaction changed while it was open.
+  const myReactionOnTarget =
+    reactionTargetId === null
+      ? undefined
+      : messages
+          .find((message) => message.serverId === reactionTargetId)
+          ?.reactions.find((entry) => entry.userId === user?.id)?.reaction;
+
+  const openReactions = (message: MessageItem) => {
+    if (message.serverId !== null) setReactionTargetId(message.serverId);
+  };
+
+  const applyReaction = (kind: MessageReactionKind) => {
+    const messageServerId = reactionTargetId;
+    setReactionTargetId(null);
+    if (messageServerId === null) return;
+    void dispatch(
+      reactToMessage({
+        messageServerId,
+        // Choosing the reaction that is already set removes it.
+        reaction: myReactionOnTarget === kind ? null : kind,
+      }),
+    );
+  };
 
   useEffect(() => {
     if (token && mess) void dispatch(loadMessages(undefined));
@@ -306,6 +413,8 @@ export default function MessagesRoute() {
                 message={item}
                 own={item.senderUserId === user?.id}
                 isOnline={isOnline}
+                myUserId={user?.id}
+                onOpenReactions={openReactions}
               />
             )}
             onEndReached={loadOlderMessages}
@@ -373,6 +482,43 @@ export default function MessagesRoute() {
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={reactionTargetId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReactionTargetId(null)}
+      >
+        <Pressable
+          className="flex-1 items-center justify-center bg-slate-950/60 px-6"
+          onPress={() => setReactionTargetId(null)}
+        >
+          <Pressable
+            className="flex-row items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-2.5 py-2 shadow-lg shadow-black/40"
+            onPress={(event) => event.stopPropagation()}
+          >
+            {REACTION_CHOICES.map((choice) => {
+              const selected = myReactionOnTarget === choice.kind;
+              return (
+                <TouchableOpacity
+                  key={choice.kind}
+                  className={`h-12 w-12 items-center justify-center rounded-full ${
+                    selected ? "border-2 border-teal-400 bg-teal-900/70" : ""
+                  }`}
+                  onPress={() => applyReaction(choice.kind)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={
+                    selected ? `Remove ${choice.kind}` : `React ${choice.kind}`
+                  }
+                >
+                  <Text className="text-[26px]">{choice.emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

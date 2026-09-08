@@ -5,7 +5,12 @@ import {
   type PayloadAction,
 } from "@reduxjs/toolkit";
 
-import { api, type ApiMessage, type ApiMessageCursor } from "@/lib/api";
+import {
+  api,
+  type ApiMessage,
+  type ApiMessageCursor,
+  type MessageReactionKind,
+} from "@/lib/api";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import {
   MessageRepository,
@@ -15,6 +20,10 @@ import {
 import type { MessageDeliveryState } from "@/offline/features/messages/messageLifecycle";
 import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
+import {
+  apiActionFailed,
+  type NetworkState,
+} from "@/redux/slice/networkSlice";
 import { syncMessScope } from "@/redux/slice/messSlice";
 
 export interface MessagesState {
@@ -29,7 +38,11 @@ export interface MessagesState {
   error: string | null;
 }
 
-type MessagesRootState = { auth: AuthState; messages: MessagesState };
+type MessagesRootState = {
+  auth: AuthState;
+  network: NetworkState;
+  messages: MessagesState;
+};
 
 const initialState: MessagesState = {
   messages: [],
@@ -55,6 +68,7 @@ const serverMessage = (message: ApiMessage): MessageItem => ({
   localId: message.clientMutationId ?? String(message.id),
   serverId: message.id,
   status: "sent",
+  reactions: message.reactions ?? [],
 });
 
 const messageKey = (message: MessageItem): string =>
@@ -205,6 +219,53 @@ export const markMessagesRead = createAsyncThunk<
   }
 });
 
+/**
+ * Applies the caller's reaction (null removes it) locally first so the bubble
+ * updates instantly, then queues it for the server. Works offline: the outbox
+ * replays it on reconnect.
+ */
+export const reactToMessage = createAsyncThunk<
+  { messageId: number; userId: number; reaction: MessageReactionKind | null },
+  { messageServerId: number; reaction: MessageReactionKind | null },
+  { state: MessagesRootState }
+>(
+  "messages/react",
+  async ({ messageServerId, reaction }, { dispatch, getState }) => {
+    const { token, messId, userId } = getAuthContext(getState());
+    const database = await getOfflineDatabase();
+    await new MessageRepository(database).setReaction(
+      userId,
+      messId,
+      messageServerId,
+      reaction,
+    );
+    const runtime = getOfflineRuntime(database);
+    const push = runtime.engine.sync(
+      { userId, messId, token },
+      { collections: ["messages"], force: true },
+    );
+    // Offline the reaction just waits in the outbox, but online a rejected
+    // push would otherwise be invisible: the reacting device keeps showing it
+    // while nobody else ever receives it.
+    if (getState().network.isOnline) {
+      void push
+        .then(async (summary) => {
+          if (summary.failed === 0) return;
+          const reason = await runtime.outbox.getLatestFailure(userId, messId);
+          dispatch(
+            apiActionFailed(
+              reason
+                ? `Reaction did not reach the server: ${reason}`
+                : "Reaction could not be sent yet.",
+            ),
+          );
+        })
+        .catch(() => undefined);
+    }
+    return { messageId: messageServerId, userId, reaction };
+  },
+);
+
 const messagesSlice = createSlice({
   name: "messages",
   initialState,
@@ -258,6 +319,33 @@ const messagesSlice = createSlice({
       );
       state.messages.unshift(replacement);
       sortMessages(state.messages);
+    },
+    messageReactionChanged: (
+      state,
+      action: PayloadAction<{
+        messageId: number;
+        userId: number;
+        reaction: MessageReactionKind | null;
+      }>,
+    ) => {
+      const message = state.messages.find(
+        (item) => item.serverId === action.payload.messageId,
+      );
+      if (!message) return;
+      // One reaction per user, so the previous choice is always replaced.
+      const others = message.reactions.filter(
+        (entry) => entry.userId !== action.payload.userId,
+      );
+      message.reactions =
+        action.payload.reaction === null
+          ? others
+          : [
+              ...others,
+              {
+                userId: action.payload.userId,
+                reaction: action.payload.reaction,
+              },
+            ];
     },
     messageStatusChanged: (
       state,
@@ -352,6 +440,12 @@ const messagesSlice = createSlice({
         state.sendStatus = "failed";
         state.error = action.error.message ?? "Could not send message";
       })
+      .addCase(reactToMessage.fulfilled, (state, action) => {
+        messagesSlice.caseReducers.messageReactionChanged(state, {
+          type: "messages/messageReactionChanged",
+          payload: action.payload,
+        });
+      })
       .addCase(loadUnreadMessageCount.fulfilled, (state, action) => {
         if (state.scopeMessId !== action.payload.messId) return;
         state.unreadCount = Math.max(0, action.payload.unreadCount);
@@ -368,6 +462,7 @@ const messagesSlice = createSlice({
 
 export const {
   messageAcknowledged,
+  messageReactionChanged,
   messageReceived,
   messageStatusChanged,
   unreadMessageReceived,

@@ -1,6 +1,6 @@
 import { io, type Socket } from "socket.io-client";
 
-import type { ApiMessage } from "@/lib/api";
+import type { ApiMessage, ApiMessageReactionChange } from "@/lib/api";
 
 const apiUrl = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "");
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -19,6 +19,9 @@ const socketUrl =
 let socket: Socket | null = null;
 let activeConversationMessId: number | null = null;
 const messageListeners = new Set<(message: ApiMessage) => void>();
+const reactionListeners = new Set<
+  (change: ApiMessageReactionChange) => void
+>();
 
 const announceActiveConversation = (targetSocket: Socket): void => {
   if (activeConversationMessId === null) return;
@@ -44,6 +47,10 @@ export const connectRealtime = (token: string, messId: number): Socket => {
   nextSocket.on("message:created", (message: ApiMessage) => {
     if (!message || typeof message.id !== "number") return;
     messageListeners.forEach((listener) => listener(message));
+  });
+  nextSocket.on("message:reaction", (change: ApiMessageReactionChange) => {
+    if (!change || typeof change.messageId !== "number") return;
+    reactionListeners.forEach((listener) => listener(change));
   });
   socket = nextSocket;
 
@@ -76,4 +83,11 @@ export const subscribeToRealtimeMessages = (
 ): (() => void) => {
   messageListeners.add(listener);
   return () => messageListeners.delete(listener);
+};
+
+export const subscribeToRealtimeReactions = (
+  listener: (change: ApiMessageReactionChange) => void,
+): (() => void) => {
+  reactionListeners.add(listener);
+  return () => reactionListeners.delete(listener);
 };

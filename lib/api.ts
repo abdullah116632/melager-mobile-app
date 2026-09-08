@@ -313,6 +313,29 @@ export interface ApiServerNotification {
   createdAt: string;
 }
 
+export const MESSAGE_REACTIONS = [
+  "like",
+  "dislike",
+  "love",
+  "haha",
+  "sad",
+  "angry",
+] as const;
+
+export type MessageReactionKind = (typeof MESSAGE_REACTIONS)[number];
+
+export interface ApiMessageReaction {
+  userId: number;
+  reaction: MessageReactionKind;
+}
+
+export interface ApiMessageReactionChange {
+  messId: number;
+  messageId: number;
+  userId: number;
+  reaction: MessageReactionKind | null;
+}
+
 export interface ApiMessage {
   id: number;
   messId: number;
@@ -321,6 +344,8 @@ export interface ApiMessage {
   body: string;
   createdAt: string;
   updatedAt: string;
+  /** One row per reacting user; counts are derived on the client. */
+  reactions?: ApiMessageReaction[];
   /** Present on acknowledgements/realtime events for offline-created messages. */
   clientMutationId?: string;
 }
@@ -762,6 +787,19 @@ export const api = {
       { body, messId },
       token,
     ),
+  setMessageReaction: (
+    messId: number,
+    messageId: number,
+    reaction: MessageReactionKind | null,
+    token: string,
+  ) =>
+    req<{ reaction: ApiMessageReactionChange }>(
+      "POST",
+      "/mess/messages/reaction",
+      { messId, messageId, reaction },
+      token,
+    ),
+
   syncMessage: (
     clientMutationId: string,
     messId: number,

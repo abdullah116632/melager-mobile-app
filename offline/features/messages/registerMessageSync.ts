@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { api, type ApiMessage } from "@/lib/api";
+import { api, type ApiMessage, type MessageReactionKind } from "@/lib/api";
 import type { SyncRegistry } from "../../sync/registry";
 import { MessageRepository } from "./MessageRepository";
 export const registerMessageSync = (
@@ -18,6 +18,20 @@ export const registerMessageSync = (
       throw e;
     }
   });
+  registry.registerProcessor("message_reaction", async (op, ctx) => {
+    const payload = op.payload as {
+      messageServerId: number;
+      reaction: MessageReactionKind | null;
+    };
+    await api.setMessageReaction(
+      ctx.messId!,
+      payload.messageServerId,
+      payload.reaction,
+      ctx.token,
+    );
+    await repository.acknowledgeReaction(ctx.userId, payload.messageServerId);
+  });
+
   registry.registerProcessor("message_read", async (op, ctx) => {
     const payload = op.payload as { lastReadMessageId?: number };
     if (!Number.isSafeInteger(payload.lastReadMessageId)) {

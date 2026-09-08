@@ -18,6 +18,7 @@ import { mealCalendarMigration } from "./014-meal-calendar";
 import { dailyMealConfirmationMigration } from "./015-daily-meal-confirmation";
 import { dashboardStatementMigration } from "./016-dashboard-statement";
 import { memberRequestsMigration } from "./017-member-requests";
+import { messageReactionsMigration } from "./018-message-reactions";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
@@ -38,6 +39,7 @@ const migrations: DatabaseMigration[] = [
   dailyMealConfirmationMigration,
   dashboardStatementMigration,
   memberRequestsMigration,
+  messageReactionsMigration,
 ];
 
 type UserVersionRow = { user_version: number };
