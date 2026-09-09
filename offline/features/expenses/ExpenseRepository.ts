@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { DayExpenseItem } from "@/types/mess";
 import { OutboxRepository } from "../../repositories/outboxRepository";
+import { runInTransaction } from "../../database/transaction";
 
 export interface LocalExpenseDay {
   items: DayExpenseItem[];
@@ -115,7 +116,7 @@ export class ExpenseRepository {
       })),
     );
 
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `DELETE FROM local_expense_days
          WHERE user_id = ? AND mess_id = ? AND year_month = ? AND is_dirty = 0`,
@@ -177,7 +178,7 @@ export class ExpenseRepository {
     );
     const baseHash = old?.base_hash ?? "empty";
     const normalizedItems = canonicalItems(items);
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `INSERT INTO local_expense_days
            (user_id, mess_id, year_month, day, items_json, base_hash,

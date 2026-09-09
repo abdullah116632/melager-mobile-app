@@ -40,11 +40,7 @@ export const registerDepositSync = (
         throw error;
       }
       if (p.operation === "create") {
-        if (
-          !p.consumerId ||
-          p.amount === undefined ||
-          !p.depositedAt
-        ) {
+        if (!p.consumerId || p.amount === undefined || !p.depositedAt) {
           throw new Error("The queued deposit is incomplete.");
         }
         result = await api.addDepositEntry(
@@ -72,7 +68,8 @@ export const registerDepositSync = (
           context.token,
         );
       } else {
-        if (!p.serverId) throw new Error("The queued deposit delete is incomplete.");
+        if (!p.serverId)
+          throw new Error("The queued deposit delete is incomplete.");
         result = await api.deleteDepositEntry(
           p.serverId,
           context.messId!,

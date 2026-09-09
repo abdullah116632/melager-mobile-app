@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import { OutboxRepository } from "../../repositories/outboxRepository";
 import type { MealData } from "@/redux/slice/mealsSlice";
 import { emitDailyMealConflictsChanged } from "./conflictEvents";
+import { runInTransaction } from "../../database/transaction";
 
 export interface DailyMealConflict {
   yearMonth: string;
@@ -40,7 +41,7 @@ export class DailyMealsRepository {
       messId,
       yearMonth,
     );
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       for (const [consumerId, days] of Object.entries(meals))
         for (const [day, count] of Object.entries(days)) {
           const numericDay = Number(day);
@@ -124,19 +125,24 @@ export class DailyMealsRepository {
     changes: Array<{ consumerId: string; day: number; count: number }>,
     cursor: string,
   ): Promise<void> {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       for (const change of changes) {
-        const dirty = await this.db.getFirstAsync<{ is_dirty: number }>(
-          "SELECT is_dirty FROM local_daily_meals WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+        const local = await this.db.getFirstAsync<{ sync_state: number }>(
+          "SELECT sync_state FROM local_daily_meals WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
           userId,
           messId,
           yearMonth,
           change.consumerId,
           change.day,
         );
-        if (dirty?.is_dirty === 1) continue;
+        // Only an edit that has not reached the server yet (sync_state 1) may
+        // override the change feed. A row still marked dirty because it is
+        // waiting to be confirmed (sync_state 2) must accept the feed: the
+        // first entry for it is this device's own push, and anything after
+        // that is a newer edit from somebody else.
+        if (local?.sync_state === 1) continue;
         await this.db.runAsync(
-          `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,updated_at,conflict_message) VALUES (?,?,?,?,?,?,?,0,?,NULL) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,base_count=excluded.base_count,is_dirty=0,updated_at=excluded.updated_at,conflict_message=NULL`,
+          `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,sync_state,updated_at,conflict_message) VALUES (?,?,?,?,?,?,?,0,0,?,NULL) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,base_count=excluded.base_count,is_dirty=0,sync_state=0,updated_at=excluded.updated_at,conflict_message=NULL`,
           userId,
           messId,
           yearMonth,
@@ -147,6 +153,20 @@ export class DailyMealsRepository {
           Date.now(),
         );
       }
+
+      // A pushed row that the feed never mentioned is still confirmed: the
+      // server answered 200 for exactly this value. Leaving it dirty would
+      // make every later pull skip the cell forever, so this device would
+      // never again see another member's edit to it.
+      await this.db.runAsync(
+        `UPDATE local_daily_meals
+         SET base_count = count, is_dirty = 0, sync_state = 0, updated_at = ?
+         WHERE user_id=? AND mess_id=? AND year_month=? AND sync_state=2`,
+        Date.now(),
+        userId,
+        messId,
+        yearMonth,
+      );
       await this.db.runAsync(
         `INSERT INTO local_daily_meal_months (user_id,mess_id,year_month,cursor,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(user_id,mess_id,year_month) DO UPDATE SET cursor=excluded.cursor,updated_at=excluded.updated_at`,
         userId,
@@ -197,7 +217,7 @@ export class DailyMealsRepository {
       day,
     );
     const baseCount = Number(existing?.base_count ?? existing?.count ?? 0);
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,sync_state,updated_at,conflict_message) VALUES (?,?,?,?,?,?,?,?,?,?,NULL) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,is_dirty=1,sync_state=1,updated_at=excluded.updated_at,conflict_message=NULL`,
         userId,
@@ -253,7 +273,7 @@ export class DailyMealsRepository {
       operationId,
     );
     if (pending.length > 0) {
-      await this.db.withTransactionAsync(async () => {
+      await runInTransaction(this.db, async () => {
         await this.db.runAsync(
           "UPDATE local_daily_meals SET base_count=?,is_dirty=1,sync_state=1,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
           p.count,
@@ -365,7 +385,7 @@ export class DailyMealsRepository {
       emitDailyMealConflictsChanged();
       return conflict.localCount;
     }
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         "UPDATE local_daily_meals SET count=base_count,is_dirty=0,sync_state=0,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
         Date.now(),

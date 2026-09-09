@@ -2,6 +2,7 @@ import * as Crypto from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 import type { DepositEntry } from "@/lib/api";
 import { OutboxRepository } from "../../repositories/outboxRepository";
+import { runInTransaction } from "../../database/transaction";
 
 type Row = {
   local_id: string;
@@ -48,7 +49,7 @@ export class DepositRepository {
     yearMonth: string,
     entries: DepositEntry[],
   ) {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       for (const entry of entries) {
         await this.db.runAsync(
           `INSERT INTO local_deposit_entries(local_id,server_id,user_id,mess_id,consumer_id,amount,deposited_at,note,local_updated_at,is_dirty,is_deleted) VALUES(?,?,?,?,?,?,?,?,?,0,0) ON CONFLICT(mess_id,server_id) WHERE server_id IS NOT NULL DO UPDATE SET consumer_id=excluded.consumer_id,amount=excluded.amount,deposited_at=excluded.deposited_at,note=excluded.note,is_deleted=0 WHERE local_deposit_entries.is_dirty=0`,
@@ -99,7 +100,7 @@ export class DepositRepository {
   ) {
     const localId = Crypto.randomUUID(),
       now = Date.now();
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         "INSERT INTO local_deposit_entries VALUES(?,NULL,?,?,?,?,?,?,?,1,0)",
         localId,
@@ -139,7 +140,7 @@ export class DepositRepository {
       operationId,
     );
     if (pending.length > 0) {
-      await this.db.withTransactionAsync(async () => {
+      await runInTransaction(this.db, async () => {
         await this.db.runAsync(
           "UPDATE local_deposit_entries SET server_id=? WHERE local_id=?",
           entry.id,

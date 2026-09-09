@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from "expo-sqlite";
+import { runInTransaction } from "../../database/transaction";
 
 import type {
   ApiConsumer,
@@ -138,7 +139,7 @@ export class ReferenceDataRepository implements ReferenceDataStore {
       ? selectedId
       : null;
 
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `INSERT INTO reference_users (
           user_id, email, name, mobile_number, updated_at
@@ -306,7 +307,7 @@ export class ReferenceDataRepository implements ReferenceDataStore {
     consumers: ApiConsumer[],
   ): Promise<LocalConsumerSnapshot> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const membership = await this.database.getFirstAsync<{ found: number }>(
         `SELECT 1 AS found FROM reference_memberships
          WHERE user_id = ? AND mess_id = ?`,
@@ -374,7 +375,7 @@ export class ReferenceDataRepository implements ReferenceDataStore {
         ? current.mobile_number
         : update.mobileNumber;
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `UPDATE reference_users
          SET email = ?, name = ?, mobile_number = ?, updated_at = ?
@@ -419,7 +420,7 @@ export class ReferenceDataRepository implements ReferenceDataStore {
   }
 
   async clear(): Promise<void> {
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.execAsync(`
         DELETE FROM local_member_requests;
         DELETE FROM local_dashboard_statements;

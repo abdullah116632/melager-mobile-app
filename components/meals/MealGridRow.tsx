@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, View } from "react-native";
 import type { Consumer } from "@/types/mess";
 import { formatMealValue } from "@/utils/meal";
 
@@ -10,7 +10,6 @@ interface MealGridRowProps {
   counts: number[];
   total: number;
   selectedDay: number | null;
-  isAdmin: boolean;
   tableWidth: number;
   dayCellWidth: number;
   /** Width of the day columns that have not been staged in yet. */
@@ -18,9 +17,19 @@ interface MealGridRowProps {
   yearMonth: string;
   /** Day-of-month that is today, or null when this month is not the current one. */
   todayDay: number | null;
-  onCellPress: (consumerId: string, day: number) => void;
 }
 
+/**
+ * Cells are plain views, not touchables.
+ *
+ * Each cell used to build its own press handler and animated opacity node —
+ * thousands of them for a grid where only one cell can ever be pressed at a
+ * time. `MealsGrid` now works out which cell was pressed from the tap
+ * coordinates, which is possible because every cell is the same size.
+ *
+ * The selected-cell styling below is untouched: it is driven by `selectedDay`,
+ * which never had anything to do with how the press was detected.
+ */
 export const MealGridRow = memo(
   ({
     consumer,
@@ -29,12 +38,10 @@ export const MealGridRow = memo(
     counts,
     total,
     selectedDay,
-    isAdmin,
     tableWidth,
     dayCellWidth,
     trailingWidth,
     todayDay,
-    onCellPress,
   }: MealGridRowProps) => (
     <View
       className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
@@ -47,9 +54,8 @@ export const MealGridRow = memo(
         const count = counts[dayIndex] ?? 0;
         const selected = selectedDay === day;
         return (
-          <TouchableOpacity
+          <View
             key={day}
-            disabled={!isAdmin}
             className={`h-[52px] items-center justify-center ${
               count > 0 ? "bg-[#E5FAF3]" : ""
             } ${
@@ -69,8 +75,6 @@ export const MealGridRow = memo(
                   }
                 : { width: dayCellWidth }
             }
-            onPress={() => onCellPress(consumer.id, day)}
-            activeOpacity={isAdmin ? 0.65 : 1}
             accessibilityLabel={`${consumer.name}, day ${day}, meal ${count}`}
           >
             <Text
@@ -82,7 +86,7 @@ export const MealGridRow = memo(
             >
               {formatMealValue(count)}
             </Text>
-          </TouchableOpacity>
+          </View>
         );
       })}
       {trailingWidth > 0 ? (
@@ -102,13 +106,11 @@ export const MealGridRow = memo(
     previous.days === next.days &&
     previous.total === next.total &&
     previous.selectedDay === next.selectedDay &&
-    previous.isAdmin === next.isAdmin &&
     previous.tableWidth === next.tableWidth &&
     previous.dayCellWidth === next.dayCellWidth &&
     previous.trailingWidth === next.trailingWidth &&
     previous.yearMonth === next.yearMonth &&
     previous.todayDay === next.todayDay &&
-    previous.onCellPress === next.onCellPress &&
     previous.counts.length === next.counts.length &&
     previous.counts.every((count, index) => count === next.counts[index]),
 );

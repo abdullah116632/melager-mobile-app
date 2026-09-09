@@ -56,9 +56,7 @@ export const registerMessageSync = (
       ctx.messId,
     );
     const hasSavedCursor =
-      cursor !== null &&
-      Number.isSafeInteger(savedCursor) &&
-      savedCursor >= 0;
+      cursor !== null && Number.isSafeInteger(savedCursor) && savedCursor >= 0;
     // Once a durable cursor exists it is authoritative. A newer realtime row
     // in SQLite must not jump the cursor over messages missed while offline.
     const afterId = hasSavedCursor ? savedCursor : localCursor;

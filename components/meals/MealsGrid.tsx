@@ -28,6 +28,8 @@ import {
 } from "@/constants/meal";
 import { useAppDispatch, useAuth, useMeals, useNetwork } from "@/redux/hooks";
 import { offlineActionFailed } from "@/redux/slice/networkSlice";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+
 import type { ActiveMealCell } from "@/types/meal";
 import { formatMealValue, getTodayDayInMonth } from "@/utils/meal";
 import { MealGridRow } from "./MealGridRow";
@@ -264,6 +266,29 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       [keepDayVisible, preserveVerticalPosition],
     );
 
+    // One tap target for the whole grid instead of one per cell. Every cell is
+    // the same size, so the pressed cell is just arithmetic on the coordinates,
+    // which arrive relative to the wrapper this is attached to — inside the
+    // scrolled content, so no scroll offset has to be added back.
+    const cellTap = useMemo(
+      () =>
+        Gesture.Tap()
+          // Reanimated is installed, so gesture callbacks are workletised and
+          // run on the UI thread by default. This one dispatches Redux state,
+          // so it has to stay on the JS thread.
+          .runOnJS(true)
+          .onEnd((event, success) => {
+            if (!success || !isAdmin || !isMonthReady) return;
+            const column = Math.floor((event.x - NAME_COL_W) / dayCellWidth);
+            const row = Math.floor(event.y / DAY_CELL_H);
+            if (column < 0 || column >= daysCount) return;
+            const consumer = consumers[row];
+            if (!consumer) return;
+            onCellPress(consumer.id, column + 1);
+          }),
+      [consumers, dayCellWidth, daysCount, isAdmin, isMonthReady, onCellPress],
+    );
+
     const handleRefresh = useCallback(async () => {
       setRefreshing(true);
       try {
@@ -409,81 +434,84 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
               contentContainerStyle={{ width: tableWidth }}
               style={{ width: "100%", height: tableBodyHeight }}
             >
-              {leadingRowHeight > 0 ? (
-                <View style={{ height: leadingRowHeight }} />
-              ) : null}
-              {isMonthReady
-                ? consumers
-                    .slice(rowWindow.start, rowWindow.end)
-                    .map((consumer, offset) => {
-                      const counts = mountedDays.map((day) =>
-                        getMealCount(yearMonth, consumer.id, day),
-                      );
-                      return (
-                        <MealGridRow
-                          key={consumer.id}
-                          consumer={consumer}
-                          index={rowWindow.start + offset}
-                          days={mountedDays}
-                          counts={counts}
-                          total={getConsumerTotal(yearMonth, consumer.id)}
-                          selectedDay={
-                            selectedCell?.consumerId === consumer.id
-                              ? selectedCell.day
-                              : null
-                          }
-                          isAdmin={isAdmin}
-                          tableWidth={tableWidth}
-                          dayCellWidth={dayCellWidth}
-                          trailingWidth={pendingDayWidth}
-                          yearMonth={yearMonth}
-                          todayDay={todayDay}
-                          onCellPress={onCellPress}
-                        />
-                      );
-                    })
-                : PLACEHOLDER_ROWS.slice(rowWindow.start, rowWindow.end).map(
-                    (row) => (
-                      <View
-                        key={row}
-                        className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
-                          row % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
-                        }`}
-                        style={{ width: tableWidth }}
-                      >
-                        <View className="h-[52px] w-[110px] border-r border-slate-200" />
-                        {mountedDays.map((day) => (
-                          <View
-                            key={day}
-                            className={`h-[52px] items-center justify-center border-r-[0.5px] border-slate-200 ${
-                              day === todayDay
-                                ? "border-b-2 border-b-teal-500"
-                                : ""
-                            }`}
-                            style={{ width: dayCellWidth }}
-                          >
-                            <Text className="font-inter text-[13px] text-slate-300">
+              <GestureDetector gesture={cellTap}>
+                <View style={{ width: tableWidth }}>
+                  {leadingRowHeight > 0 ? (
+                    <View style={{ height: leadingRowHeight }} />
+                  ) : null}
+                  {isMonthReady
+                    ? consumers
+                        .slice(rowWindow.start, rowWindow.end)
+                        .map((consumer, offset) => {
+                          const counts = mountedDays.map((day) =>
+                            getMealCount(yearMonth, consumer.id, day),
+                          );
+                          return (
+                            <MealGridRow
+                              key={consumer.id}
+                              consumer={consumer}
+                              index={rowWindow.start + offset}
+                              days={mountedDays}
+                              counts={counts}
+                              total={getConsumerTotal(yearMonth, consumer.id)}
+                              selectedDay={
+                                selectedCell?.consumerId === consumer.id
+                                  ? selectedCell.day
+                                  : null
+                              }
+                              tableWidth={tableWidth}
+                              dayCellWidth={dayCellWidth}
+                              trailingWidth={pendingDayWidth}
+                              yearMonth={yearMonth}
+                              todayDay={todayDay}
+                            />
+                          );
+                        })
+                    : PLACEHOLDER_ROWS.slice(
+                        rowWindow.start,
+                        rowWindow.end,
+                      ).map((row) => (
+                        <View
+                          key={row}
+                          className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
+                            row % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
+                          }`}
+                          style={{ width: tableWidth }}
+                        >
+                          <View className="h-[52px] w-[110px] border-r border-slate-200" />
+                          {mountedDays.map((day) => (
+                            <View
+                              key={day}
+                              className={`h-[52px] items-center justify-center border-r-[0.5px] border-slate-200 ${
+                                day === todayDay
+                                  ? "border-b-2 border-b-teal-500"
+                                  : ""
+                              }`}
+                              style={{ width: dayCellWidth }}
+                            >
+                              <Text className="font-inter text-[13px] text-slate-300">
+                                -
+                              </Text>
+                            </View>
+                          ))}
+                          {pendingDayWidth > 0 ? (
+                            <View
+                              className="h-[52px]"
+                              style={{ width: pendingDayWidth }}
+                            />
+                          ) : null}
+                          <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
+                            <Text className="font-inter-bold text-sm text-slate-300">
                               -
                             </Text>
                           </View>
-                        ))}
-                        {pendingDayWidth > 0 ? (
-                          <View
-                            className="h-[52px]"
-                            style={{ width: pendingDayWidth }}
-                          />
-                        ) : null}
-                        <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
-                          <Text className="font-inter-bold text-sm text-slate-300">
-                            -
-                          </Text>
                         </View>
-                      </View>
-                    ),
-                  )}
-              {trailingRowHeight > 0 ? (
-                <View style={{ height: trailingRowHeight }} />
-              ) : null}
+                      ))}
+                  {trailingRowHeight > 0 ? (
+                    <View style={{ height: trailingRowHeight }} />
+                  ) : null}
+                </View>
+              </GestureDetector>
 
               <View
                 className="h-[52px] flex-row bg-[#08766E]"

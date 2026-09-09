@@ -5,6 +5,7 @@ import type { ApiNotice } from "@/lib/api";
 
 import { OutboxRepository } from "../../repositories/outboxRepository";
 import type { NoticeMutationPayload, NoticesSnapshot } from "./types";
+import { runInTransaction } from "../../database/transaction";
 
 interface NoticeRow {
   local_id: string;
@@ -110,7 +111,7 @@ export class NoticeRepository {
     unreadCount: number,
   ): Promise<number> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const local = await this.database.getFirstAsync<{ read_pending: number }>(
         `SELECT read_pending FROM local_notice_read_state
          WHERE user_id = ? AND mess_id = ?`,
@@ -142,7 +143,7 @@ export class NoticeRepository {
     unreadCount: number,
   ): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const localRows = await this.database.getAllAsync<NoticeRow>(
         "SELECT * FROM local_notices WHERE mess_id = ?",
         messId,
@@ -232,7 +233,7 @@ export class NoticeRepository {
     const displayId = tempId();
     const now = Date.now();
     const createdAt = new Date(now).toISOString();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         "UPDATE local_notices SET serial_no = serial_no + 1 WHERE mess_id = ? AND is_deleted = 0",
         messId,
@@ -273,7 +274,7 @@ export class NoticeRepository {
   ): Promise<void> {
     const row = await this.require(messId, displayId);
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         "UPDATE local_notices SET title = ?, body = ?, color = ?, local_updated_at = ?, is_dirty = 1 WHERE local_id = ?",
         input.title,
@@ -322,7 +323,7 @@ export class NoticeRepository {
   ): Promise<void> {
     const row = await this.require(messId, displayId);
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       if (row.server_id === null) {
         await this.database.runAsync(
           "DELETE FROM local_notices WHERE local_id = ?",
@@ -401,7 +402,7 @@ export class NoticeRepository {
     const localIds = localRows.flatMap((row) => (row ? [row.local_id] : []));
     if (localIds.length !== notices.length)
       throw new Error("Notice order contains an unknown notice.");
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       for (const [index, notice] of notices.entries()) {
         await this.database.runAsync(
           "UPDATE local_notices SET serial_no = ?, local_updated_at = ?, is_dirty = 1 WHERE mess_id = ? AND display_id = ?",
@@ -435,7 +436,7 @@ export class NoticeRepository {
       messId,
     );
     const lastReadNoticeId = Math.max(0, Number(latest?.id ?? 0));
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         `INSERT INTO local_notice_read_state
           (user_id, mess_id, unread_count, read_pending, updated_at)
@@ -471,7 +472,7 @@ export class NoticeRepository {
       operationId,
     );
     if (Number(other?.total ?? 0) > 0) {
-      await this.database.withTransactionAsync(async () => {
+      await runInTransaction(this.database, async () => {
         await this.database.runAsync(
           "UPDATE local_notices SET server_id = ?, display_id = ?, server_updated_at = ? WHERE local_id = ?",
           notice.id,
@@ -532,7 +533,7 @@ export class NoticeRepository {
   }
 
   async discardReorder(operationId: string, messId: number): Promise<void> {
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       await this.database.runAsync(
         "DELETE FROM offline_outbox WHERE id = ?",
         operationId,
@@ -554,7 +555,7 @@ export class NoticeRepository {
     messId: number,
     notices: ApiNotice[],
   ): Promise<void> {
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       for (const [index, notice] of notices.entries()) {
         await this.database.runAsync(
           `UPDATE local_notices SET server_id = ?, display_id = ?, serial_no = ?, title = ?, body = ?, color = ?,

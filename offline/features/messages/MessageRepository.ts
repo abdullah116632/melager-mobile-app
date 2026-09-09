@@ -9,6 +9,7 @@ import type {
 } from "@/lib/api";
 
 import { OutboxRepository } from "../../repositories/outboxRepository";
+import { runInTransaction } from "../../database/transaction";
 import {
   emitMessageLifecycle,
   type MessageDeliveryState,
@@ -37,7 +38,7 @@ export class MessageRepository {
   }
 
   async merge(userId: number, messages: ApiMessage[]): Promise<void> {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       for (const message of messages) {
         const localId = message.clientMutationId ?? String(message.id);
         if (message.clientMutationId) {
@@ -208,7 +209,7 @@ export class MessageRepository {
   ): Promise<MessageItem> {
     const localId = Crypto.randomUUID();
     const now = new Date().toISOString();
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `INSERT INTO local_messages
           (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor)
@@ -282,7 +283,7 @@ export class MessageRepository {
     messageServerId: number,
     reaction: MessageReactionKind | null,
   ): Promise<void> {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       if (reaction === null) {
         await this.db.runAsync(
           "DELETE FROM local_message_reactions WHERE message_server_id=? AND user_id=?",
@@ -367,7 +368,7 @@ export class MessageRepository {
   }
 
   async acknowledge(localId: string, message: ApiMessage): Promise<void> {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         "DELETE FROM local_messages WHERE mess_id=? AND server_id=? AND local_id<>?",
         message.messId,
@@ -398,7 +399,7 @@ export class MessageRepository {
 
   async markRead(userId: number, messId: number): Promise<number> {
     const lastReadServerId = await this.highestServerId(userId, messId);
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `INSERT INTO local_message_read_state
           (user_id,mess_id,last_read_server_id,unread_count,read_pending)

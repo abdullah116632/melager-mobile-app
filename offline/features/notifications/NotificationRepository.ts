@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { ApiServerNotification } from "@/lib/api";
 import { OutboxRepository } from "../../repositories/outboxRepository";
+import { runInTransaction } from "../../database/transaction";
 
 interface NotificationRow {
   server_id: number;
@@ -71,7 +72,7 @@ export class NotificationRepository {
         notification.type !== "message" &&
         notification.type !== "notice",
     );
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `DELETE FROM local_notifications
          WHERE user_id = ? AND mess_id = ? AND read_pending = 0`,
@@ -121,7 +122,7 @@ export class NotificationRepository {
   }
 
   async markRead(userId: number, messId: number, serverId: number) {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `UPDATE local_notifications
          SET read_at = ?, read_pending = 1
@@ -136,7 +137,7 @@ export class NotificationRepository {
   }
 
   async markAllRead(userId: number, messId: number): Promise<void> {
-    await this.db.withTransactionAsync(async () => {
+    await runInTransaction(this.db, async () => {
       const rows = await this.db.getAllAsync<{ server_id: number }>(
         `SELECT server_id FROM local_notifications
          WHERE user_id = ? AND mess_id = ? AND read_at IS NULL`,

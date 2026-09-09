@@ -6,6 +6,7 @@ import type {
   TodaySchedule,
 } from "@/lib/api";
 import type { MealScheduleMutation, MealScheduleSnapshot } from "./types";
+import { runInTransaction } from "../../database/transaction";
 
 interface ScheduleRow {
   payload_json: string;
@@ -199,7 +200,7 @@ export class MealScheduleRepository {
     mutation: MealScheduleMutation,
   ): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const existing = parsePayload(await this.getRow(userId, messId, date));
       const payload: StoredSchedulePayload = {
         schedule: {
@@ -233,7 +234,7 @@ export class MealScheduleRepository {
     fallbackSchedule: TodaySchedule,
   ): Promise<void> {
     const now = Date.now();
-    await this.database.withTransactionAsync(async () => {
+    await runInTransaction(this.database, async () => {
       const existing = parsePayload(await this.getRow(userId, messId, date));
       const current = existing?.schedule ?? fallbackSchedule;
       const wasOptedOut = current.myOptOuts.includes(mealType);
