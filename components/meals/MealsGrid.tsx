@@ -29,7 +29,7 @@ import {
 import { useAppDispatch, useAuth, useMeals, useNetwork } from "@/redux/hooks";
 import { offlineActionFailed } from "@/redux/slice/networkSlice";
 import type { ActiveMealCell } from "@/types/meal";
-import { formatMealValue, isMealDayToday } from "@/utils/meal";
+import { formatMealValue, getTodayDayInMonth } from "@/utils/meal";
 import { MealGridRow } from "./MealGridRow";
 import { MealsConsumerColumn } from "./MealsConsumerColumn";
 import { MealsEmptyState } from "./MealsEmptyState";
@@ -49,6 +49,65 @@ const PLACEHOLDER_ROWS = Array.from(
   { length: PLACEHOLDER_ROW_COUNT },
   (_, index) => index,
 );
+
+// Rows are the unbounded axis — a mess can hold any number of members — so only
+// they are windowed. The off-screen rows are replaced by one spacer of exactly
+// the height they would have occupied, which keeps every scroll offset and the
+// sticky name column where they were.
+//
+// Day columns are deliberately NOT windowed. A month is only ever 28-31 columns
+// wide, and swapping them in and out as the grid scrolls sideways cost more than
+// it saved: the header is a separate ScrollView kept in sync with `scrollTo`, so
+// changing its children made Android re-layout it and lose that offset, and a
+// fast fling outran the JS thread and showed empty cells. Columns are staged in
+// instead (see MOUNTED_COLUMN_*), which keeps the first paint cheap without ever
+// removing a column once it is on screen.
+// Sized for headroom rather than for the smallest possible window: a row
+// entering the window costs 31 cells, and a hard fling can cross ~75 rows per
+// second, so the buffer has to cover the time React needs to catch up. Ten rows
+// is a little over 500px, which is ~130ms at fling speed. Raise it if empty rows
+// ever appear mid-fling in a large mess; lower it only to save memory.
+const ROW_OVERSCAN = 10;
+
+// Rows snap to blocks of this size so scrolling only re-renders every few rows
+// rather than on every crossed row boundary.
+const WINDOW_BLOCK = 3;
+
+// The first paint only builds this many day columns; the rest arrive over the
+// next few frames. Opening the tab is what felt slow, and this keeps that first
+// frame small without changing what the grid eventually renders.
+const INITIAL_COLUMN_MOUNT = 10;
+const COLUMN_MOUNT_STEP = 11;
+
+interface ItemWindow {
+  start: number;
+  end: number;
+}
+
+const computeWindow = (
+  offset: number,
+  extent: number,
+  itemSize: number,
+  overscan: number,
+): ItemWindow => {
+  const firstVisible = Math.floor(offset / itemSize);
+  const lastVisible = Math.ceil((offset + extent) / itemSize);
+  return {
+    start: Math.max(
+      0,
+      Math.floor((firstVisible - overscan) / WINDOW_BLOCK) * WINDOW_BLOCK,
+    ),
+    end: Math.ceil((lastVisible + overscan) / WINDOW_BLOCK) * WINDOW_BLOCK,
+  };
+};
+
+const clampWindow = (window: ItemWindow, count: number): ItemWindow => {
+  const start = Math.min(Math.max(0, window.start), count);
+  return { start, end: Math.min(Math.max(start, window.end), count) };
+};
+
+const isSameWindow = (a: ItemWindow, b: ItemWindow) =>
+  a.start === b.start && a.end === b.end;
 
 export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
   ({ selectedCell, onCellPress }, ref) => {
@@ -79,6 +138,20 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     const preservedVerticalScrollYRef = useRef<number | null>(null);
     const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isSyncingRef = useRef(false);
+    const [viewportHeight, setViewportHeight] = useState(
+      () => Dimensions.get("window").height,
+    );
+    const [rawRowWindow, setRawRowWindow] = useState<ItemWindow>(() =>
+      computeWindow(
+        0,
+        Dimensions.get("window").height,
+        DAY_CELL_H,
+        ROW_OVERSCAN,
+      ),
+    );
+    const [mountedColumnCount, setMountedColumnCount] =
+      useState(INITIAL_COLUMN_MOUNT);
+    const rowWindowRef = useRef(rawRowWindow);
     const daysCount = getDaysInMonth(yearMonth);
     const dayCellWidth = Math.min(
       DAY_CELL_W,
@@ -88,16 +161,43 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       () => Array.from({ length: daysCount }, (_, index) => index + 1),
       [daysCount],
     );
+    // Deliberately not memoised: the old per-cell check also re-read the clock
+    // on every render, and one `Date` per render is already ~680x fewer.
+    const todayDay = getTodayDayInMonth(yearMonth);
     const isMonthReady = currentMonthLoaded && !dataLoading;
     const displayedRowCount = isMonthReady
       ? consumers.length
       : PLACEHOLDER_ROW_COUNT;
     const tableWidth = NAME_COL_W + days.length * dayCellWidth + TOTAL_COL_W;
     const tableBodyHeight = displayedRowCount * DAY_CELL_H + 52;
+
+    const rowWindow = clampWindow(rawRowWindow, displayedRowCount);
+    const leadingRowHeight = rowWindow.start * DAY_CELL_H;
+    const trailingRowHeight = (displayedRowCount - rowWindow.end) * DAY_CELL_H;
+
+    // Header and footer always render the full month so their child lists never
+    // change; only the data rows are staged, and only while filling in.
+    const mountedDays = useMemo(
+      () =>
+        mountedColumnCount >= daysCount
+          ? days
+          : days.slice(0, mountedColumnCount),
+      [days, daysCount, mountedColumnCount],
+    );
+    const pendingDayWidth = (daysCount - mountedDays.length) * dayCellWidth;
     const extraVerticalScrollSpace =
       Platform.OS === "web"
         ? 96
         : Math.max(240, Dimensions.get("screen").height * 0.5);
+
+    // Re-rendering on every scroll frame would cost more than it saves, so the
+    // window is only pushed to state when the visible slice actually changes.
+    const updateRowWindow = useCallback((offsetY: number, extent: number) => {
+      const next = computeWindow(offsetY, extent, DAY_CELL_H, ROW_OVERSCAN);
+      if (isSameWindow(next, rowWindowRef.current)) return;
+      rowWindowRef.current = next;
+      setRawRowWindow(next);
+    }, []);
 
     const handleBodyScroll = useCallback(
       (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -179,6 +279,19 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       }
     }, [dispatch, isOnline, refreshMonth]);
 
+    // Fill the remaining columns in over the following frames, so the month is
+    // complete well before anyone can scroll sideways but the first frame is
+    // not paying for all 31 of them.
+    useEffect(() => {
+      if (mountedColumnCount >= daysCount) return;
+      const handle = requestAnimationFrame(() => {
+        setMountedColumnCount((current) =>
+          Math.min(daysCount, current + COLUMN_MOUNT_STEP),
+        );
+      });
+      return () => cancelAnimationFrame(handle);
+    }, [daysCount, mountedColumnCount]);
+
     useEffect(() => {
       const showSubscription = Keyboard.addListener(
         "keyboardDidShow",
@@ -210,9 +323,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
               <View
                 key={day}
                 className={`h-[40px] items-center justify-center border-l border-white/10 ${
-                  isMealDayToday(yearMonth, day)
-                    ? "bg-teal-500"
-                    : "bg-[#08766E]"
+                  day === todayDay ? "bg-teal-500" : "bg-[#08766E]"
                 }`}
                 style={{ width: dayCellWidth }}
               >
@@ -249,11 +360,18 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
           keyboardShouldPersistTaps="always"
           automaticallyAdjustKeyboardInsets={false}
           scrollEventThrottle={16}
+          onLayout={(event) => {
+            const height = event.nativeEvent.layout.height;
+            if (height > 0 && Math.abs(height - viewportHeight) > 0.5) {
+              setViewportHeight(height);
+              updateRowWindow(verticalScrollYRef.current, height);
+            }
+          }}
           onScroll={(event) => {
-            verticalScrollYRef.current = Math.max(
-              0,
-              event.nativeEvent.contentOffset.y,
-            );
+            const { contentOffset, layoutMeasurement } = event.nativeEvent;
+            const y = Math.max(0, contentOffset.y);
+            verticalScrollYRef.current = y;
+            updateRowWindow(y, layoutMeasurement.height);
           }}
           contentContainerClassName={
             Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"
@@ -291,63 +409,81 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
               contentContainerStyle={{ width: tableWidth }}
               style={{ width: "100%", height: tableBodyHeight }}
             >
+              {leadingRowHeight > 0 ? (
+                <View style={{ height: leadingRowHeight }} />
+              ) : null}
               {isMonthReady
-                ? consumers.map((consumer, index) => {
-                    const counts = days.map((day) =>
-                      getMealCount(yearMonth, consumer.id, day),
-                    );
-                    return (
-                      <MealGridRow
-                        key={consumer.id}
-                        consumer={consumer}
-                        index={index}
-                        days={days}
-                        counts={counts}
-                        total={getConsumerTotal(yearMonth, consumer.id)}
-                        selectedDay={
-                          selectedCell?.consumerId === consumer.id
-                            ? selectedCell.day
-                            : null
-                        }
-                        isAdmin={isAdmin}
-                        tableWidth={tableWidth}
-                        dayCellWidth={dayCellWidth}
-                        yearMonth={yearMonth}
-                        onCellPress={onCellPress}
-                      />
-                    );
-                  })
-                : PLACEHOLDER_ROWS.map((row) => (
-                    <View
-                      key={row}
-                      className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
-                        row % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
-                      }`}
-                      style={{ width: tableWidth }}
-                    >
-                      <View className="h-[52px] w-[110px] border-r border-slate-200" />
-                      {days.map((day) => (
-                        <View
-                          key={day}
-                          className={`h-[52px] items-center justify-center border-r-[0.5px] border-slate-200 ${
-                            isMealDayToday(yearMonth, day)
-                              ? "border-b-2 border-b-teal-500"
-                              : ""
-                          }`}
-                          style={{ width: dayCellWidth }}
-                        >
-                          <Text className="font-inter text-[13px] text-slate-300">
+                ? consumers
+                    .slice(rowWindow.start, rowWindow.end)
+                    .map((consumer, offset) => {
+                      const counts = mountedDays.map((day) =>
+                        getMealCount(yearMonth, consumer.id, day),
+                      );
+                      return (
+                        <MealGridRow
+                          key={consumer.id}
+                          consumer={consumer}
+                          index={rowWindow.start + offset}
+                          days={mountedDays}
+                          counts={counts}
+                          total={getConsumerTotal(yearMonth, consumer.id)}
+                          selectedDay={
+                            selectedCell?.consumerId === consumer.id
+                              ? selectedCell.day
+                              : null
+                          }
+                          isAdmin={isAdmin}
+                          tableWidth={tableWidth}
+                          dayCellWidth={dayCellWidth}
+                          trailingWidth={pendingDayWidth}
+                          yearMonth={yearMonth}
+                          todayDay={todayDay}
+                          onCellPress={onCellPress}
+                        />
+                      );
+                    })
+                : PLACEHOLDER_ROWS.slice(rowWindow.start, rowWindow.end).map(
+                    (row) => (
+                      <View
+                        key={row}
+                        className={`h-[52px] flex-row border-b-[0.5px] border-slate-200 ${
+                          row % 2 === 0 ? "bg-white" : "bg-[#FAFCFD]"
+                        }`}
+                        style={{ width: tableWidth }}
+                      >
+                        <View className="h-[52px] w-[110px] border-r border-slate-200" />
+                        {mountedDays.map((day) => (
+                          <View
+                            key={day}
+                            className={`h-[52px] items-center justify-center border-r-[0.5px] border-slate-200 ${
+                              day === todayDay
+                                ? "border-b-2 border-b-teal-500"
+                                : ""
+                            }`}
+                            style={{ width: dayCellWidth }}
+                          >
+                            <Text className="font-inter text-[13px] text-slate-300">
+                              -
+                            </Text>
+                          </View>
+                        ))}
+                        {pendingDayWidth > 0 ? (
+                          <View
+                            className="h-[52px]"
+                            style={{ width: pendingDayWidth }}
+                          />
+                        ) : null}
+                        <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
+                          <Text className="font-inter-bold text-sm text-slate-300">
                             -
                           </Text>
                         </View>
-                      ))}
-                      <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
-                        <Text className="font-inter-bold text-sm text-slate-300">
-                          -
-                        </Text>
                       </View>
-                    </View>
-                  ))}
+                    ),
+                  )}
+              {trailingRowHeight > 0 ? (
+                <View style={{ height: trailingRowHeight }} />
+              ) : null}
 
               <View
                 className="h-[52px] flex-row bg-[#08766E]"
@@ -357,8 +493,8 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                 {days.map((day) => (
                   <View
                     key={day}
-                        className="h-[52px] items-center justify-center border-l border-white/10"
-                        style={{ width: dayCellWidth }}
+                    className="h-[52px] items-center justify-center border-l border-white/10"
+                    style={{ width: dayCellWidth }}
                   >
                     <Text className="font-inter-semibold text-xs text-white">
                       {formatMealValue(
@@ -380,6 +516,8 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
             <MealsConsumerColumn
               loading={!isMonthReady}
               placeholderCount={PLACEHOLDER_ROW_COUNT}
+              rowStart={rowWindow.start}
+              rowEnd={rowWindow.end}
             />
           </View>
           <View

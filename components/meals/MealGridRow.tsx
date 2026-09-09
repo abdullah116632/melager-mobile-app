@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import type { Consumer } from "@/types/mess";
-import { formatMealValue, isMealDayToday } from "@/utils/meal";
+import { formatMealValue } from "@/utils/meal";
 
 interface MealGridRowProps {
   consumer: Consumer;
@@ -13,7 +13,11 @@ interface MealGridRowProps {
   isAdmin: boolean;
   tableWidth: number;
   dayCellWidth: number;
+  /** Width of the day columns that have not been staged in yet. */
+  trailingWidth: number;
   yearMonth: string;
+  /** Day-of-month that is today, or null when this month is not the current one. */
+  todayDay: number | null;
   onCellPress: (consumerId: string, day: number) => void;
 }
 
@@ -28,7 +32,8 @@ export const MealGridRow = memo(
     isAdmin,
     tableWidth,
     dayCellWidth,
-    yearMonth,
+    trailingWidth,
+    todayDay,
     onCellPress,
   }: MealGridRowProps) => (
     <View
@@ -51,9 +56,7 @@ export const MealGridRow = memo(
               selected
                 ? "z-10 border-2 border-teal-700 bg-teal-100"
                 : `border-r-[0.5px] border-slate-200 ${
-                    isMealDayToday(yearMonth, day)
-                      ? "border-b-2 border-b-teal-500"
-                      : ""
+                    day === todayDay ? "border-b-2 border-b-teal-500" : ""
                   }`
             }`}
             style={
@@ -82,6 +85,9 @@ export const MealGridRow = memo(
           </TouchableOpacity>
         );
       })}
+      {trailingWidth > 0 ? (
+        <View className="h-[52px]" style={{ width: trailingWidth }} />
+      ) : null}
       <View className="h-[52px] w-[54px] items-center justify-center bg-slate-100">
         <Text className="font-inter-bold text-sm text-teal-700">
           {formatMealValue(total)}
@@ -99,7 +105,9 @@ export const MealGridRow = memo(
     previous.isAdmin === next.isAdmin &&
     previous.tableWidth === next.tableWidth &&
     previous.dayCellWidth === next.dayCellWidth &&
+    previous.trailingWidth === next.trailingWidth &&
     previous.yearMonth === next.yearMonth &&
+    previous.todayDay === next.todayDay &&
     previous.onCellPress === next.onCellPress &&
     previous.counts.length === next.counts.length &&
     previous.counts.every((count, index) => count === next.counts[index]),

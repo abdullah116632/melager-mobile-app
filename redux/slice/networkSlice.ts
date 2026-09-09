@@ -1,6 +1,7 @@
 import { createAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import { flushQueue } from "@/lib/offlineQueue";
+import { runManualSync } from "@/offline/runtime/manualSync";
 
 export interface NetworkState {
   isOnline: boolean;
@@ -30,9 +31,9 @@ export const networkStatusChanged = createAction<boolean | null>(
 export const offlineQueueSizeChanged = createAction<number>(
   "network/offlineQueueSizeChanged",
 );
-export const offlineActionFailed = createAction<
-  "refresh" | "entry" | "update"
->("network/offlineActionFailed");
+export const offlineActionFailed = createAction<"refresh" | "entry" | "update">(
+  "network/offlineActionFailed",
+);
 export const apiActionFailed = createAction<string>("network/apiActionFailed");
 export const clearOfflineActionError = createAction(
   "network/clearOfflineActionError",
@@ -42,9 +43,19 @@ export const syncOfflineQueue = createAsyncThunk<
   number,
   void,
   { state: NetworkRootState }
->("network/syncOfflineQueue", async () => flushQueue(), {
-  condition: (_arg, { getState }) => !getState().network.isSyncing,
-});
+>(
+  "network/syncOfflineQueue",
+  async () => {
+    // Queued work now lives in the SQLite outbox, so a manual retry has to
+    // drive the real sync engine. `flushQueue` only purges the retired
+    // AsyncStorage queue, and stays here so web keeps behaving as before.
+    await runManualSync();
+    return flushQueue();
+  },
+  {
+    condition: (_arg, { getState }) => !getState().network.isSyncing,
+  },
+);
 
 const networkSlice = createSlice({
   name: "network",

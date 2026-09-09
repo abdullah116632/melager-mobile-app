@@ -2,6 +2,7 @@ import * as Crypto from "expo-crypto";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import { runInTransaction } from "../database/transaction";
+import { notifyOutboxChanged } from "../outbox/outboxChangeNotifier";
 import type {
   DeadLetterOperation,
   EnqueueOperationInput,
@@ -128,6 +129,7 @@ export class OutboxRepository {
       dedupeKey,
     );
     if (!saved) throw new Error("Could not persist the offline operation.");
+    notifyOutboxChanged();
     return toOperation(saved) as OutboxOperation<TPayload>;
   }
 
@@ -145,6 +147,7 @@ export class OutboxRepository {
       entityType,
       entityId,
     );
+    notifyOutboxChanged();
   }
 
   async listReady(
@@ -242,6 +245,7 @@ export class OutboxRepository {
 
   async removeSynced(id: string): Promise<void> {
     await this.database.runAsync("DELETE FROM offline_outbox WHERE id = ?", id);
+    notifyOutboxChanged();
   }
 
   /**
@@ -328,6 +332,7 @@ export class OutboxRepository {
         id,
       );
     });
+    notifyOutboxChanged();
   }
 
   async listDeadLetters(
@@ -375,6 +380,7 @@ export class OutboxRepository {
         id,
       );
     });
+    notifyOutboxChanged();
   }
 
   async discardDeadLetter(id: string): Promise<void> {

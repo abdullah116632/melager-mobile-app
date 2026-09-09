@@ -55,3 +55,38 @@ export const getConsumerDepositEntries = (
 
 export const getDepositTotal = (entries: DepositEntry[]): number =>
   entries.reduce((sum, entry) => sum + entry.amount, 0);
+
+/**
+ * Splits a deposit timestamp into the local year-month and day-of-month keys
+ * used by `MonthData.deposits`. Returns null for an unparsable timestamp so
+ * callers can skip the entry instead of writing a `NaN` bucket.
+ */
+export const getDepositEntryDateParts = (entry: DepositEntry) => {
+  const date = new Date(entry.depositedAt);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+    day: date.getDate().toString(),
+  };
+};
+
+/**
+ * Rebuilds the `consumerId -> day -> amount` map that the dashboard accounting
+ * reads. Both the deposits screen and the month snapshot derive their totals
+ * from here so the two can never disagree about the same local rows.
+ */
+export const buildMonthlyDepositMap = (
+  entries: DepositEntry[],
+  yearMonth: string,
+): Record<string, Record<string, number>> => {
+  const month: Record<string, Record<string, number>> = {};
+  for (const entry of entries) {
+    const dateParts = getDepositEntryDateParts(entry);
+    if (!dateParts || dateParts.yearMonth !== yearMonth) continue;
+    const consumerId = entry.consumerId.toString();
+    month[consumerId] ??= {};
+    month[consumerId][dateParts.day] =
+      (month[consumerId][dateParts.day] ?? 0) + entry.amount;
+  }
+  return month;
+};

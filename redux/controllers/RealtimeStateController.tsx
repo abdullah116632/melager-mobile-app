@@ -1,7 +1,11 @@
 import { AppState, type AppStateStatus } from "react-native";
 import { useEffect, type ReactNode } from "react";
 
-import { clearApiCache, type ApiServerNotification } from "@/lib/api";
+import {
+  clearApiCache,
+  invalidateApiCache,
+  type ApiServerNotification,
+} from "@/lib/api";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import { MessageRepository } from "@/offline/features/messages/MessageRepository";
 import { subscribeToMessageLifecycle } from "@/offline/features/messages/messageLifecycle";
@@ -37,6 +41,13 @@ import {
   ingestServerNotification,
   refreshNotifications,
 } from "@/redux/slice/notificationSlice";
+
+/**
+ * Window used to fold a burst of month events into a single refetch. Short
+ * enough that a single edit still feels immediate, long enough to absorb the
+ * events several members produce while filling in the same month.
+ */
+const MONTH_REFRESH_DEBOUNCE_MS = 600;
 
 /** Keeps a single authenticated, active-mess Socket.IO connection alive. */
 export const RealtimeStateController = ({
@@ -84,7 +95,11 @@ export const RealtimeStateController = ({
   useEffect(
     () =>
       subscribeToRealtimeMessages((message) => {
-        clearApiCache();
+        // Every `/mess/messages*` GET is stale once a message arrives, but
+        // nothing else is. Clearing the whole response cache here meant a busy
+        // conversation kept it permanently empty, so every other screen paid
+        // for a fresh round trip on each navigation.
+        invalidateApiCache("/mess/messages");
         if (user?.id)
           void getOfflineDatabase()
             .then((db) => new MessageRepository(db).merge(user.id, [message]))
@@ -107,9 +122,70 @@ export const RealtimeStateController = ({
     }
 
     let isActive = AppState.currentState === "active";
+    const monthRefreshes = new Map<string, Promise<unknown>>();
+    const pendingMonthRefreshes = new Map<
+      string,
+      { timer: ReturnType<typeof setTimeout>; refreshEntries: boolean }
+    >();
+
     const connect = () => {
       const socket = connectRealtime(token, messId);
-      const monthRefreshes = new Map<string, Promise<unknown>>();
+
+      const runMonthRefresh = (
+        refreshKey: string,
+        yearMonth: string,
+        refreshEntries: boolean,
+      ) => {
+        const previousRefresh =
+          monthRefreshes.get(refreshKey) ?? Promise.resolve();
+        const nextRefresh = previousRefresh
+          .catch(() => undefined)
+          .then(() =>
+            Promise.all([
+              dispatch(loadMonth({ messId, yearMonth, force: true })),
+              refreshEntries
+                ? dispatch(
+                    loadDepositEntries({ messId, yearMonth, force: true }),
+                  )
+                : Promise.resolve(),
+            ]),
+          )
+          .finally(() => {
+            if (monthRefreshes.get(refreshKey) === nextRefresh) {
+              monthRefreshes.delete(refreshKey);
+            }
+          });
+        monthRefreshes.set(refreshKey, nextRefresh);
+      };
+
+      /**
+       * Coalesces a burst of month events into one refetch.
+       *
+       * Every member editing a meal cell emits an event to every device, and
+       * each one used to queue a full month GET plus a whole-month SQLite
+       * merge. They were already serialised, so a busy evening built a long
+       * chain of refetches that all produce the same final state. The trailing
+       * timer still fires after the last event, so nothing is skipped.
+       */
+      const scheduleMonthRefresh = (
+        refreshKey: string,
+        yearMonth: string,
+        refreshEntries: boolean,
+      ) => {
+        const pending = pendingMonthRefreshes.get(refreshKey);
+        if (pending) clearTimeout(pending.timer);
+        const mergedRefreshEntries =
+          refreshEntries || (pending?.refreshEntries ?? false);
+        const timer = setTimeout(() => {
+          pendingMonthRefreshes.delete(refreshKey);
+          runMonthRefresh(refreshKey, yearMonth, mergedRefreshEntries);
+        }, MONTH_REFRESH_DEBOUNCE_MS);
+        pendingMonthRefreshes.set(refreshKey, {
+          timer,
+          refreshEntries: mergedRefreshEntries,
+        });
+      };
+
       const refreshMonthFromEvent = (payload: unknown) => {
         if (
           !payload ||
@@ -119,7 +195,8 @@ export const RealtimeStateController = ({
         ) {
           return;
         }
-        clearApiCache();
+        invalidateApiCache("/mess/data/");
+        invalidateApiCache("/mess/deposit-entries");
         const event = payload as {
           yearMonth?: unknown;
           yearMonths?: unknown;
@@ -134,26 +211,11 @@ export const RealtimeStateController = ({
             : [];
         yearMonths.forEach((yearMonth) => {
           const refreshKey = `${messId}:${yearMonth}`;
-          const previousRefresh =
-            monthRefreshes.get(refreshKey) ?? Promise.resolve();
-          const nextRefresh = previousRefresh
-            .catch(() => undefined)
-            .then(() =>
-              Promise.all([
-                dispatch(loadMonth({ messId, yearMonth, force: true })),
-                event.refreshEntries
-                  ? dispatch(
-                      loadDepositEntries({ messId, yearMonth, force: true }),
-                    )
-                  : Promise.resolve(),
-              ]),
-            )
-            .finally(() => {
-              if (monthRefreshes.get(refreshKey) === nextRefresh) {
-                monthRefreshes.delete(refreshKey);
-              }
-            });
-          monthRefreshes.set(refreshKey, nextRefresh);
+          scheduleMonthRefresh(
+            refreshKey,
+            yearMonth,
+            Boolean(event.refreshEntries),
+          );
         });
       };
       clearApiCache();
@@ -206,6 +268,10 @@ export const RealtimeStateController = ({
     return () => {
       subscription.remove();
       disconnectRealtime();
+      for (const { timer } of pendingMonthRefreshes.values()) {
+        clearTimeout(timer);
+      }
+      pendingMonthRefreshes.clear();
     };
   }, [dispatch, token, messId]);
 

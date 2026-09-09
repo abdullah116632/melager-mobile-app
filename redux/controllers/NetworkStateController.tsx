@@ -1,14 +1,12 @@
 import NetInfo from "@react-native-community/netinfo";
 import { useEffect, useRef, type ReactNode } from "react";
 
-import { subscribeQueueSize } from "@/lib/offlineQueue";
 import { useAppDispatch } from "@/redux/hooks";
 import { useAppSelector } from "@/redux/hooks";
 import { selectActiveMess } from "@/redux/slice/authSlice";
 import { loadBazar } from "@/redux/slice/bazarSlice";
 import {
   networkStatusChanged,
-  offlineQueueSizeChanged,
   syncOfflineQueue,
 } from "@/redux/slice/networkSlice";
 
@@ -21,14 +19,6 @@ export const NetworkStateController = ({
   const activeMess = useAppSelector(selectActiveMess);
   const wasOfflineRef = useRef(false);
   const didInitialSyncRef = useRef(false);
-
-  useEffect(
-    () =>
-      subscribeQueueSize((count) => {
-        dispatch(offlineQueueSizeChanged(count));
-      }),
-    [dispatch],
-  );
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {

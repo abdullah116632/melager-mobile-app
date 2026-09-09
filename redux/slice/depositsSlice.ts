@@ -22,6 +22,10 @@ import {
   updateDepositEntry as updateDepositEntryRequest,
 } from "@/services/depositService";
 import type { DepositEntry, DepositEntryInput } from "@/types/deposit";
+import {
+  buildMonthlyDepositMap,
+  getDepositEntryDateParts as getEntryDateParts,
+} from "@/utils/deposit";
 
 export type DepositData = Record<
   string,
@@ -54,26 +58,11 @@ const createInitialState = (
   scopeMessId,
 });
 
-const getEntryDateParts = (entry: DepositEntry) => {
-  const date = new Date(entry.depositedAt);
-  if (Number.isNaN(date.getTime())) return null;
-  return {
-    yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-    day: date.getDate().toString(),
-  };
-};
-
 const rebuildMonthlyDeposits = (state: DepositsState, yearMonth: string) => {
-  const month: Record<string, Record<string, number>> = {};
-  for (const entry of state.entriesByMonth[yearMonth] ?? []) {
-    const dateParts = getEntryDateParts(entry);
-    if (!dateParts || dateParts.yearMonth !== yearMonth) continue;
-    const consumerId = entry.consumerId.toString();
-    month[consumerId] ??= {};
-    month[consumerId][dateParts.day] =
-      (month[consumerId][dateParts.day] ?? 0) + entry.amount;
-  }
-  state.months[yearMonth] = month;
+  state.months[yearMonth] = buildMonthlyDepositMap(
+    state.entriesByMonth[yearMonth] ?? [],
+    yearMonth,
+  );
 };
 
 const createDepositsAsyncThunk = createAsyncThunk.withTypes<{

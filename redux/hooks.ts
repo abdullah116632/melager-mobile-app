@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useDispatch, useSelector, useStore } from "react-redux";
 
 import {
@@ -295,50 +296,107 @@ export const useMess = () => {
   };
 };
 
+interface MonthMealTotals {
+  byConsumer: Record<string, number>;
+  byDay: Record<string, number>;
+}
+
+/**
+ * Sums a month once, per consumer and per day.
+ *
+ * The meal grid asks for one consumer total per row and one day total per
+ * footer cell. Each of those used to re-reduce the same rows, so a 20 x 31
+ * grid walked the month roughly forty times and allocated an array per call.
+ */
+const computeMonthMealTotals = (
+  month: Record<string, Record<string, number>> | undefined,
+): MonthMealTotals => {
+  const byConsumer: Record<string, number> = {};
+  const byDay: Record<string, number> = {};
+  for (const [consumerId, days] of Object.entries(month ?? {})) {
+    let consumerTotal = 0;
+    for (const [day, value] of Object.entries(days)) {
+      consumerTotal += value;
+      byDay[day] = (byDay[day] ?? 0) + value;
+    }
+    byConsumer[consumerId] = consumerTotal;
+  }
+  return { byConsumer, byDay };
+};
+
 export const useMeals = () => {
   const dispatch = useAppDispatch();
   const shared = useMess();
   const { isOnline } = useAppSelector(selectNetworkState);
   const state = useAppSelector(selectMealsState);
+  const months = state.months;
+  const { consumers } = shared;
 
-  const getMealCount = (yearMonth: string, consumerId: string, day: number) =>
-    state.months[yearMonth]?.[consumerId]?.[day.toString()] ?? 0;
+  // Immer gives `months` a new identity on every meal write, so a cache keyed
+  // to that identity can never serve a stale total.
+  const totalsByMonth = useMemo(
+    () => new Map<string, MonthMealTotals>(),
+    [months],
+  );
+  const getMonthTotals = useCallback(
+    (yearMonth: string): MonthMealTotals => {
+      const cached = totalsByMonth.get(yearMonth);
+      if (cached) return cached;
+      const totals = computeMonthMealTotals(months[yearMonth]);
+      totalsByMonth.set(yearMonth, totals);
+      return totals;
+    },
+    [months, totalsByMonth],
+  );
 
-  const getConsumerTotal = (yearMonth: string, consumerId: string) =>
-    Object.values(state.months[yearMonth]?.[consumerId] ?? {}).reduce(
-      (sum, value) => sum + value,
-      0,
-    );
+  const getMealCount = useCallback(
+    (yearMonth: string, consumerId: string, day: number) =>
+      months[yearMonth]?.[consumerId]?.[day.toString()] ?? 0,
+    [months],
+  );
 
-  const getDayTotal = (yearMonth: string, day: number) =>
-    Object.values(state.months[yearMonth] ?? {}).reduce(
-      (sum, consumerDays) => sum + (consumerDays[day.toString()] ?? 0),
-      0,
-    );
+  const getConsumerTotal = useCallback(
+    (yearMonth: string, consumerId: string) =>
+      getMonthTotals(yearMonth).byConsumer[consumerId] ?? 0,
+    [getMonthTotals],
+  );
 
-  const getGrandTotal = (yearMonth: string) =>
-    shared.consumers.reduce(
-      (sum, consumer) => sum + getConsumerTotal(yearMonth, consumer.id),
-      0,
-    );
+  const getDayTotal = useCallback(
+    (yearMonth: string, day: number) =>
+      getMonthTotals(yearMonth).byDay[day.toString()] ?? 0,
+    [getMonthTotals],
+  );
 
-  return {
-    ...shared,
-    meals: state.months,
-    getMealCount,
-    getConsumerTotal,
-    getDayTotal,
-    getGrandTotal,
-    setMeal: (
-      yearMonth: string,
-      consumerId: string,
-      day: number,
-      count: number,
-    ) => {
+  // Still driven by the current consumer list, not by whatever consumer ids
+  // the month happens to contain, so a removed member stays excluded.
+  const getGrandTotal = useCallback(
+    (yearMonth: string) => {
+      const { byConsumer } = getMonthTotals(yearMonth);
+      return consumers.reduce(
+        (sum, consumer) => sum + (byConsumer[consumer.id] ?? 0),
+        0,
+      );
+    },
+    [consumers, getMonthTotals],
+  );
+
+  const setMeal = useCallback(
+    (yearMonth: string, consumerId: string, day: number, count: number) => {
       void dispatch(
         setMealAction({ yearMonth, consumerId, day, count, isOnline }),
       );
     },
+    [dispatch, isOnline],
+  );
+
+  return {
+    ...shared,
+    meals: months,
+    getMealCount,
+    getConsumerTotal,
+    getDayTotal,
+    getGrandTotal,
+    setMeal,
   };
 };
 

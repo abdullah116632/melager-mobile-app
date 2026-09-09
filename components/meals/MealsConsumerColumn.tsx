@@ -29,11 +29,22 @@ const getConsumerNameColor = (consumerId: string) => {
 interface MealsConsumerColumnProps {
   loading?: boolean;
   placeholderCount?: number;
+  /**
+   * Rows the grid is currently rendering. The names must line up with those
+   * rows, so this column skips the same off-screen rows and replaces them with
+   * spacers of exactly the height they would have occupied.
+   */
+  rowStart?: number;
+  rowEnd?: number;
 }
+
+const ROW_H = 52;
 
 export const MealsConsumerColumn = ({
   loading = false,
   placeholderCount = 8,
+  rowStart,
+  rowEnd,
 }: MealsConsumerColumnProps) => {
   const { role } = useAuth();
   const {
@@ -74,14 +85,28 @@ export const MealsConsumerColumn = ({
     }
   };
 
+  const rowCount = loading ? placeholderCount : consumers.length;
+  const start = Math.min(Math.max(0, rowStart ?? 0), rowCount);
+  const end = Math.min(Math.max(start, rowEnd ?? rowCount), rowCount);
+  const leadingHeight = start * ROW_H;
+  const trailingHeight = (rowCount - end) * ROW_H;
+  const placeholderRows = Array.from(
+    { length: end - start },
+    (_, offset) => start + offset,
+  );
+  const visibleConsumers = consumers
+    .slice(start, end)
+    .map((consumer, offset) => ({ consumer, index: start + offset }));
+
   return (
     <>
       <View
         pointerEvents="box-none"
         className="absolute left-0 top-0 z-30 w-[110px] shadow-md shadow-black/10"
       >
+        {leadingHeight > 0 ? <View style={{ height: leadingHeight }} /> : null}
         {loading
-          ? Array.from({ length: placeholderCount }, (_, index) => (
+          ? placeholderRows.map((index) => (
               <View
                 key={index}
                 className={`h-[52px] w-[110px] justify-center border-b-[0.5px] border-r border-slate-200 px-3 ${
@@ -91,7 +116,7 @@ export const MealsConsumerColumn = ({
                 <View className="h-2.5 w-16 rounded-full bg-slate-200" />
               </View>
             ))
-          : consumers.map((consumer, index) => (
+          : visibleConsumers.map(({ consumer, index }) => (
               <TouchableOpacity
                 key={consumer.id}
                 className={`h-[52px] w-[110px] flex-row items-center overflow-hidden border-b-[0.5px] border-r border-slate-200 px-3 ${
@@ -100,8 +125,7 @@ export const MealsConsumerColumn = ({
                 onPress={() => setSelectedConsumer(consumer)}
                 onLongPress={
                   isAdmin
-                    ? () =>
-                        removeSelectedConsumer(consumer.id, consumer.name)
+                    ? () => removeSelectedConsumer(consumer.id, consumer.name)
                     : undefined
                 }
                 activeOpacity={0.7}
@@ -117,6 +141,9 @@ export const MealsConsumerColumn = ({
                 </Text>
               </TouchableOpacity>
             ))}
+        {trailingHeight > 0 ? (
+          <View style={{ height: trailingHeight }} />
+        ) : null}
         <View className="h-[52px] w-[110px] items-center justify-center border-r border-white/20 bg-[#08766E]">
           <Text className="font-inter-bold text-xs text-white">Total</Text>
         </View>

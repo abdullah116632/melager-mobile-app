@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { isOfflineDatabaseSupported } from "@/offline/database/connection";
 import type {
   ApiBazarAssignment,
   ApiBazarItem,
@@ -297,6 +299,11 @@ export async function patchCachedConsumerProfile(
     const patched = patchConsumerProfile(data, update);
     if (patched.changed) memoryCache.set(key, patched.data);
   }
+
+  // Native reads consumer names from SQLite, and no longer writes month blobs
+  // here, so re-reading and re-encoding every persisted month would cost a
+  // multi-megabyte scan to patch data nothing renders.
+  if (isOfflineDatabaseSupported()) return;
 
   try {
     const keys = (await AsyncStorage.getAllKeys()).filter((key) =>

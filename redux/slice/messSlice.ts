@@ -21,13 +21,18 @@ import {
   saveLocalConsumers,
 } from "@/offline/features/reference/storage";
 import { updateProfileName, type AuthState } from "@/redux/slice/authSlice";
-import { getOfflineDatabase } from "@/offline/database/connection";
+import {
+  getOfflineDatabase,
+  isOfflineDatabaseSupported,
+} from "@/offline/database/connection";
 import { OutboxRepository } from "@/offline/repositories/outboxRepository";
 import { DailyMealsRepository } from "@/offline/features/dailyMeals/DailyMealsRepository";
 import { ExpenseRepository } from "@/offline/features/expenses/ExpenseRepository";
+import { DepositRepository } from "@/offline/features/deposits/DepositRepository";
 import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { NetworkState } from "@/redux/slice/networkSlice";
 import type { Consumer } from "@/types/mess";
+import { buildMonthlyDepositMap } from "@/utils/deposit";
 
 export interface MessState {
   consumers: Consumer[];
@@ -149,6 +154,94 @@ interface LoadMonthResult extends LoadMonthArgs {
   data: MonthData | null;
 }
 
+/**
+ * Builds the local month snapshot that renders before the authoritative GET.
+ *
+ * SQLite owns every row on native; the legacy AsyncStorage month blob is only
+ * read when a table still has no snapshot, so a user upgrading while offline
+ * keeps seeing their data until the first sync fills SQLite. Web has no SQLite
+ * and keeps using that cache as its only local source.
+ */
+const readLocalMonth = async (
+  userId: number,
+  messId: number,
+  yearMonth: string,
+): Promise<MonthData> => {
+  const database = await getOfflineDatabase().catch(() => null);
+
+  if (!database) {
+    const cached = (await loadFromCache(messId, yearMonth)) as MonthData | null;
+    const localConsumers = await getLocalConsumers(userId, messId).catch(
+      () => null,
+    );
+    return {
+      consumers: localConsumers?.consumers ?? cached?.consumers ?? [],
+      meals: cached?.meals ?? {},
+      expenses: cached?.expenses ?? {},
+      deposits: cached?.deposits ?? {},
+    };
+  }
+
+  const dailyMeals = new DailyMealsRepository(database);
+  const expenses = new ExpenseRepository(database);
+  const deposits = new DepositRepository(database);
+
+  // These four reads are independent, so paying for them one after another
+  // would delay the first paint for no reason.
+  const [localConsumers, sqliteMeals, hasExpenseSnapshot, depositEntries] =
+    await Promise.all([
+      getLocalConsumers(userId, messId).catch(() => null),
+      dailyMeals
+        .getMonth(userId, messId, yearMonth)
+        .catch((): MonthData["meals"] => ({})),
+      expenses.hasMonthSnapshot(userId, messId, yearMonth).catch(() => false),
+      deposits.list(userId, messId, yearMonth).catch(() => []),
+    ]);
+
+  const needsLegacySeed =
+    !localConsumers ||
+    Object.keys(sqliteMeals).length === 0 ||
+    !hasExpenseSnapshot ||
+    depositEntries.length === 0;
+  const cached = needsLegacySeed
+    ? ((await loadFromCache(messId, yearMonth)) as MonthData | null)
+    : null;
+
+  const localMonth: MonthData = {
+    consumers: localConsumers?.consumers ?? cached?.consumers ?? [],
+    meals: sqliteMeals,
+    expenses: {},
+    deposits: buildMonthlyDepositMap(depositEntries, yearMonth),
+  };
+
+  try {
+    if (Object.keys(sqliteMeals).length === 0 && cached?.meals) {
+      await dailyMeals.mergeRemote(userId, messId, yearMonth, cached.meals);
+      localMonth.meals = await dailyMeals.getMonth(userId, messId, yearMonth);
+    }
+  } catch {
+    localMonth.meals = cached?.meals ?? sqliteMeals;
+  }
+
+  try {
+    if (!hasExpenseSnapshot && cached?.expenses) {
+      await expenses.mergeRemote(userId, messId, yearMonth, cached.expenses);
+    }
+    localMonth.expenses = await expenses.getMonth(userId, messId, yearMonth);
+  } catch {
+    localMonth.expenses = cached?.expenses ?? {};
+  }
+
+  // Cached deposits are day totals, not entries, so they cannot seed SQLite.
+  // Fall back to them only while this month has no local rows at all, which is
+  // exactly the pre-migration state the cache was written for.
+  if (depositEntries.length === 0 && cached?.deposits) {
+    localMonth.deposits = cached.deposits;
+  }
+
+  return localMonth;
+};
+
 export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
   "mess/loadMonth",
   async ({ messId, yearMonth, force = false }, { dispatch, getState }) => {
@@ -164,63 +257,7 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
     // airplane mode. Never wait for the fetch timeout when NetInfo already
     // knows the device is offline.
     if (!alreadyLoaded && !force) {
-      const cached = (await loadFromCache(
-        messId,
-        yearMonth,
-      )) as MonthData | null;
-      const localConsumers = await getLocalConsumers(user.id, messId).catch(
-        () => null,
-      );
-      const localMonth: MonthData = {
-        consumers: localConsumers?.consumers ?? cached?.consumers ?? [],
-        meals: cached?.meals ?? {},
-        expenses: cached?.expenses ?? {},
-        deposits: cached?.deposits ?? {},
-      };
-      try {
-        const repository = new DailyMealsRepository(await getOfflineDatabase());
-        const sqliteMeals = await repository.getMonth(
-          user.id,
-          messId,
-          yearMonth,
-        );
-        if (Object.keys(sqliteMeals).length === 0 && cached?.meals) {
-          await repository.mergeRemote(
-            user.id,
-            messId,
-            yearMonth,
-            cached.meals,
-          );
-        }
-        localMonth.meals = await repository.getMonth(
-          user.id,
-          messId,
-          yearMonth,
-        );
-      } catch {
-        // SQLite is native-only; preserve the compatibility cache on web.
-      }
-      try {
-        const repository = new ExpenseRepository(await getOfflineDatabase());
-        if (
-          !(await repository.hasMonthSnapshot(user.id, messId, yearMonth)) &&
-          cached?.expenses
-        ) {
-          await repository.mergeRemote(
-            user.id,
-            messId,
-            yearMonth,
-            cached.expenses,
-          );
-        }
-        localMonth.expenses = await repository.getMonth(
-          user.id,
-          messId,
-          yearMonth,
-        );
-      } catch {
-        // SQLite is native-only; preserve the compatibility cache on web.
-      }
+      const localMonth = await readLocalMonth(user.id, messId, yearMonth);
       dispatch(monthDataReceived({ messId, yearMonth, data: localMonth }));
     }
 
@@ -274,7 +311,16 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
         // Web and pre-migration builds retain the existing cache path.
       }
       await Promise.all([
-        saveToCache(messId, yearMonth, { ...data, expenses: serverExpenses }),
+        // Native keeps every month row in SQLite, so re-serialising the whole
+        // month into AsyncStorage would only duplicate it — and that write is
+        // awaited before the UI receives `loadMonth.fulfilled`. Web has no
+        // SQLite, so it still needs the compatibility cache.
+        isOfflineDatabaseSupported()
+          ? Promise.resolve()
+          : saveToCache(messId, yearMonth, {
+              ...data,
+              expenses: serverExpenses,
+            }),
         saveLocalConsumers(user.id, messId, data.consumers),
       ]);
     }
