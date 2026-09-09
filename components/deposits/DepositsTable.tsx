@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   RefreshControl,
@@ -17,12 +17,9 @@ import {
 import { useAuth, useDeposits } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import type { Consumer } from "@/types/mess";
-import {
-  formatDepositAmount,
-  getConsumerDepositEntries,
-  getDepositTotal,
-} from "@/utils/deposit";
+import { formatDepositAmount } from "@/utils/deposit";
 import { AddDepositModal } from "./AddDepositModal";
+import { DepositRow } from "./DepositRow";
 import { DepositConsumerDetailModal } from "./DepositConsumerDetailModal";
 import { DepositHistoryModal } from "./DepositHistoryModal";
 
@@ -31,6 +28,9 @@ interface DepositsTableProps {
 }
 
 const DEPOSIT_PLACEHOLDER_ROWS = Array.from({ length: 8 }, (_, index) => index);
+
+/** Shared so a member with no deposits keeps the same array between renders. */
+const NO_CONSUMER_ENTRIES: DepositEntry[] = [];
 
 export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
   const { role } = useAuth();
@@ -55,7 +55,28 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
   const [removing, setRemoving] = useState(false);
   const isAdmin = role === "admin";
   const ready = entriesReady;
-  const grandTotal = ready ? getDepositTotal(entries) : 0;
+  // Every row used to filter the whole month's entries for its own member,
+  // which is O(members x entries) per render and allocated an array per row.
+  // One grouping pass gives each row a stable array to memoise on.
+  const { entriesByConsumer, totalsByConsumer, entriesTotal } = useMemo(() => {
+    const byConsumer = new Map<string, DepositEntry[]>();
+    const totals = new Map<string, number>();
+    let sum = 0;
+    for (const entry of entries) {
+      const key = entry.consumerId.toString();
+      const list = byConsumer.get(key);
+      if (list) list.push(entry);
+      else byConsumer.set(key, [entry]);
+      totals.set(key, (totals.get(key) ?? 0) + entry.amount);
+      sum += entry.amount;
+    }
+    return {
+      entriesByConsumer: byConsumer,
+      totalsByConsumer: totals,
+      entriesTotal: sum,
+    };
+  }, [entries]);
+  const grandTotal = ready ? entriesTotal : 0;
   // A consumer row's serial id is assigned when that person joins the mess.
   // Do not rely on the incidental order returned by SQLite, a cache, or an
   // API query: that made rows jump around after a refresh. Temporary offline
@@ -84,10 +105,27 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
     }
   };
 
-  const remove = (consumerId: string, consumerName: string) => {
-    if (!isAdmin || !ready) return;
-    setPendingRemoval({ id: consumerId, name: consumerName });
-  };
+  // Stable so a row only re-renders when its own member's deposits change.
+  const remove = useCallback(
+    (consumerId: string, consumerName: string) => {
+      if (!isAdmin || !ready) return;
+      setPendingRemoval({ id: consumerId, name: consumerName });
+    },
+    [isAdmin, ready],
+  );
+
+  const openConsumer = useCallback(
+    (consumer: Consumer) => setSelectedConsumer(consumer),
+    [],
+  );
+  const openHistory = useCallback(
+    (consumerId: string) => setHistoryConsumerId(consumerId),
+    [],
+  );
+  const openAdd = useCallback(
+    (consumerId: string) => setAddingConsumerId(consumerId),
+    [],
+  );
 
   const confirmRemoval = async () => {
     if (!pendingRemoval || removing) return;
@@ -113,10 +151,10 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
         <View className="flex-1 items-center justify-center gap-3 pb-20">
           <Feather name="users" size={48} color="#64748B" />
           <Text className="font-inter-bold text-lg text-slate-900">
-            No consumers yet
+            No members yet
           </Text>
           <Text className="px-8 text-center font-inter text-sm text-slate-500">
-            Add consumers from the Meals tab or tap + above
+            Add members from the Meals tab or tap + above
           </Text>
         </View>
       ) : (
@@ -124,7 +162,7 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
           <View className="h-[38px] flex-row items-center border-b border-slate-200 bg-[#0A5954]">
             <View className="w-[120px] justify-center border-r border-white/20">
               <Text className="px-2.5 font-inter-semibold text-xs text-white">
-                Consumers{ready ? ` (${orderedConsumers.length})` : ""}
+                Members{ready ? ` (${orderedConsumers.length})` : ""}
               </Text>
             </View>
             <View className="w-[118px] justify-center border-r px-2.5">
@@ -182,91 +220,22 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
               ))}
 
             {ready &&
-              orderedConsumers.map((consumer, index) => {
-                const consumerEntries = getConsumerDepositEntries(
-                  entries,
-                  consumer.id,
-                );
-                const total = getDepositTotal(consumerEntries);
-                return (
-                  <View
-                    key={consumer.id}
-                    className={`min-h-[52px] flex-row border-b border-slate-200 ${index % 2 === 0 ? "bg-white" : "bg-slate-50"}`}
-                  >
-                    <TouchableOpacity
-                      className="w-[120px] justify-center border-r border-slate-200"
-                      onPress={() => setSelectedConsumer(consumer)}
-                      onLongPress={
-                        isAdmin
-                          ? () => remove(consumer.id, consumer.name)
-                          : undefined
-                      }
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityLabel={`View deposits for ${consumer.name}`}
-                    >
-                      <Text
-                        className="px-2.5 py-2 font-inter-medium text-[13px] text-slate-900"
-                        numberOfLines={2}
-                      >
-                        {consumer.name}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <View className="w-[118px] justify-center border-r border-slate-200 px-2.5">
-                      <Text
-                        className={`text-right font-inter-semibold text-[13px] ${total > 0 ? "text-teal-700" : total < 0 ? "text-red-600" : "text-slate-500"}`}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.7}
-                      >
-                        ৳{formatDepositAmount(total)}
-                      </Text>
-                    </View>
-
-                    <View className="min-h-[52px] flex-1 flex-row items-center px-2 py-1.5">
-                      <TouchableOpacity
-                        className="min-h-9 flex-1 flex-row flex-wrap items-center pr-1"
-                        onPress={() =>
-                          consumerEntries.length > 0
-                            ? setHistoryConsumerId(consumer.id)
-                            : undefined
-                        }
-                        activeOpacity={consumerEntries.length > 0 ? 0.7 : 1}
-                      >
-                        {consumerEntries.length === 0 ? (
-                          <Text
-                            className="font-inter text-xs italic text-slate-500"
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.75}
-                          >
-                            No deposits
-                          </Text>
-                        ) : (
-                          <View className="flex-row flex-wrap items-center gap-[5px]">
-                            {consumerEntries.map((entry) => (
-                              <View
-                                key={entry.id}
-                                className="h-2.5 w-2.5 rounded-full bg-teal-500"
-                              />
-                            ))}
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                      {isAdmin && (
-                        <TouchableOpacity
-                          className="ml-1.5 h-[30px] w-[30px] items-center justify-center rounded-full border-2 border-white/80 bg-teal-700"
-                          onPress={() => setAddingConsumerId(consumer.id)}
-                          activeOpacity={0.8}
-                        >
-                          <Feather name="plus" size={18} color="#fff" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </View>
-                );
-              })}
+              orderedConsumers.map((consumer, index) => (
+                <DepositRow
+                  key={consumer.id}
+                  consumer={consumer}
+                  index={index}
+                  entries={
+                    entriesByConsumer.get(consumer.id) ?? NO_CONSUMER_ENTRIES
+                  }
+                  total={totalsByConsumer.get(consumer.id) ?? 0}
+                  isAdmin={isAdmin}
+                  onOpenConsumer={openConsumer}
+                  onRemove={remove}
+                  onOpenHistory={openHistory}
+                  onAdd={openAdd}
+                />
+              ))}
 
             <View className="h-[50px] flex-row items-center bg-[#0A5954]">
               <View className="w-[120px] justify-center border-r border-white/20">
@@ -307,9 +276,7 @@ export const DepositsTable = ({ onRefresh }: DepositsTableProps) => {
         monthLabel={currentMonthLabel}
         totalDeposits={
           selectedConsumer
-            ? getDepositTotal(
-                getConsumerDepositEntries(entries, selectedConsumer.id),
-              )
+            ? (totalsByConsumer.get(selectedConsumer.id) ?? 0)
             : 0
         }
         onClose={() => setSelectedConsumer(null)}

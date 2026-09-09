@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -13,8 +12,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// Not React Native's KeyboardAvoidingView: React Native puts
+// SOFT_INPUT_ADJUST_RESIZE on every modal window, but Android ignores that
+// under edge-to-edge (the default since Expo SDK 54), so the sheet was left
+// behind the keyboard on some OS versions and lifted on others. This one
+// reads the IME inset from the modal dialog's own window instead.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { EXPENSE_PRIMARY } from "@/constants/expense";
-import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
 import { useExpenses } from "@/redux/hooks";
 import type { ExpenseDraftItem } from "@/types/expense";
 import {
@@ -41,7 +45,6 @@ export const ExpenseEditorModal = ({
   const [drafts, setDrafts] = useState<ExpenseDraftItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const keyboardOffset = useKeyboardSheetOffset();
   const amountInputRefs = useRef<Record<string, TextInput | null>>({});
   const nameInputRefs = useRef<Record<string, TextInput | null>>({});
   const hasFocusedForSession = useRef(false);
@@ -161,22 +164,14 @@ export const ExpenseEditorModal = ({
       animationType="slide"
       onRequestClose={close}
     >
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView className="flex-1" behavior="padding">
         <View className="flex-1 justify-end bg-black/45">
           <TouchableOpacity
             className="flex-1"
             activeOpacity={1}
             onPress={() => Keyboard.dismiss()}
           />
-          <View
-            className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-6 pt-3"
-            style={{
-              marginBottom: keyboardOffset,
-            }}
-          >
+          <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-6 pt-3">
             <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
 
             <View className="mb-3.5 flex-row items-start justify-between">
@@ -187,7 +182,7 @@ export const ExpenseEditorModal = ({
                   adjustsFontSizeToFit
                   minimumFontScale={0.75}
                 >
-                  {`${focusItemId ? "Edit expenses" : "Add expense"} · Day ${day} · ${currentMonthLabel}`}
+                  {`${focusItemId ? "Edit expenses" : "Add expense"} · ${day} ${currentMonthLabel}`}
                 </Text>
                 {total > 0 && (
                   <Text className="mt-0.5 font-inter-semibold text-[13px] text-teal-700">

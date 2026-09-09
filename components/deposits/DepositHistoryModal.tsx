@@ -95,7 +95,7 @@ export const DepositHistoryModal = ({
               className="flex-1 font-inter-bold text-lg text-slate-900"
               numberOfLines={1}
             >
-              Deposits — {consumerName}
+              Deposits · {consumerName}
             </Text>
             <Text className="font-inter-bold text-lg text-teal-700">
               ৳{formatDepositAmount(getDepositTotal(historyEntries))}

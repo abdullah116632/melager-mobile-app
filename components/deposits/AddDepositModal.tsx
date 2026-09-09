@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -13,8 +12,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// Not React Native's KeyboardAvoidingView: React Native puts
+// SOFT_INPUT_ADJUST_RESIZE on every modal window, but Android ignores that
+// under edge-to-edge (the default since Expo SDK 54), so the sheet was left
+// behind the keyboard on some OS versions and lifted on others. This one
+// reads the IME inset from the modal dialog's own window instead.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { DEPOSIT_PRIMARY } from "@/constants/deposit";
-import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
 import { useAuth, useDeposits } from "@/redux/hooks";
 import type { DepositEntry } from "@/types/deposit";
 import {
@@ -45,7 +49,6 @@ export const AddDepositModal = ({
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const keyboardOffset = useKeyboardSheetOffset();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const amountInputRef = useRef<TextInput | null>(null);
@@ -165,22 +168,14 @@ export const AddDepositModal = ({
         animationType="slide"
         onRequestClose={close}
       >
-        <KeyboardAvoidingView
-          className="flex-1"
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
+        <KeyboardAvoidingView className="flex-1" behavior="padding">
           <View className="flex-1 justify-end bg-black/40">
             <TouchableOpacity
               className="flex-1"
               activeOpacity={1}
               onPress={() => Keyboard.dismiss()}
             />
-            <View
-              className="rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10"
-              style={{
-                marginBottom: keyboardOffset,
-              }}
-            >
+            <View className="rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10">
               <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
               <View className="mb-1 flex-row items-center justify-between">
                 <Text className="font-inter-bold text-lg text-slate-900">
@@ -218,7 +213,15 @@ export const AddDepositModal = ({
                       setAmount(nextAmount);
                     }
                   }}
-                  keyboardType="default"
+                  // A number-first keypad that still offers the minus sign and
+                  // the decimal point, both of which this field accepts. On
+                  // Android "numeric" is NUMBER|DECIMAL|SIGNED, but on iOS it
+                  // maps to the decimal pad, which has no minus key.
+                  keyboardType={
+                    Platform.OS === "ios"
+                      ? "numbers-and-punctuation"
+                      : "numeric"
+                  }
                 />
                 <Text className="mt-1 font-inter text-[11px] text-slate-500">
                   Start with - for a negative entry. Up to 3 decimal places.

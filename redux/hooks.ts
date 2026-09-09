@@ -73,7 +73,7 @@ import {
   selectNotificationState,
 } from "@/redux/slice/notificationSlice";
 import type { AppDispatch, AppStore, RootState } from "@/redux/store";
-import type { DepositEntryInput } from "@/types/deposit";
+import type { DepositEntry, DepositEntryInput } from "@/types/deposit";
 import type { DayExpenseItem } from "@/types/mess";
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
@@ -398,28 +398,98 @@ export const useMeals = () => {
   };
 };
 
+interface DayExpenseSummary {
+  items: DayExpenseItem[];
+  conflictMessage: string | null;
+  total: number;
+}
+
+interface MonthExpenseSummary {
+  byDay: Record<string, DayExpenseSummary>;
+  monthTotal: number;
+}
+
+/** Shared so a day with no expenses keeps the same identity between renders. */
+const EMPTY_DAY_EXPENSE: DayExpenseSummary = {
+  items: [],
+  conflictMessage: null,
+  total: 0,
+};
+
+/**
+ * Sums a month once, per day and overall.
+ *
+ * The expense table asks for a day's total on every row, again while counting
+ * recorded days, and once more for the month — each of which used to re-reduce
+ * the same items and hand back a freshly built object, so nothing downstream
+ * could be memoised on it.
+ */
+const computeMonthExpenses = (
+  month:
+    | Record<
+        string,
+        { items?: DayExpenseItem[]; conflictMessage?: string | null }
+      >
+    | undefined,
+): MonthExpenseSummary => {
+  const byDay: Record<string, DayExpenseSummary> = {};
+  let monthTotal = 0;
+  for (const [day, value] of Object.entries(month ?? {})) {
+    const items = value.items ?? [];
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    byDay[day] = {
+      items,
+      conflictMessage: value.conflictMessage ?? null,
+      total,
+    };
+    monthTotal += total;
+  }
+  return { byDay, monthTotal };
+};
+
 export const useExpenses = () => {
   const dispatch = useAppDispatch();
   const shared = useMess();
   const { isOnline } = useAppSelector(selectNetworkState);
   const state = useAppSelector(selectExpenseState);
+  const months = state.months;
 
-  const getExpense = (yearMonth: string, day: number) => {
-    const expense = state.months[yearMonth]?.[day.toString()];
-    const items = expense?.items ?? [];
-    return {
-      items,
-      conflictMessage: expense?.conflictMessage ?? null,
-      total: items.reduce((sum, item) => sum + item.amount, 0),
-    };
-  };
+  // Immer gives `months` a new identity on every expense write, so a cache
+  // keyed to that identity can never serve a stale total.
+  const summaryByMonth = useMemo(
+    () => new Map<string, MonthExpenseSummary>(),
+    [months],
+  );
+  const getMonthSummary = useCallback(
+    (yearMonth: string): MonthExpenseSummary => {
+      const cached = summaryByMonth.get(yearMonth);
+      if (cached) return cached;
+      const summary = computeMonthExpenses(months[yearMonth]);
+      summaryByMonth.set(yearMonth, summary);
+      return summary;
+    },
+    [months, summaryByMonth],
+  );
 
-  const getMonthExpenseTotal = (yearMonth: string) =>
-    Object.values(state.months[yearMonth] ?? {}).reduce(
-      (total, day) =>
-        total + (day.items ?? []).reduce((sum, item) => sum + item.amount, 0),
-      0,
-    );
+  const getExpense = useCallback(
+    (yearMonth: string, day: number): DayExpenseSummary =>
+      getMonthSummary(yearMonth).byDay[day.toString()] ?? EMPTY_DAY_EXPENSE,
+    [getMonthSummary],
+  );
+
+  const getMonthExpenseTotal = useCallback(
+    (yearMonth: string) => getMonthSummary(yearMonth).monthTotal,
+    [getMonthSummary],
+  );
+
+  const setExpense = useCallback(
+    async (yearMonth: string, day: number, items: DayExpenseItem[]) => {
+      await unwrapAsyncResult(
+        dispatch(setExpenseAction({ yearMonth, day, items, isOnline })),
+      );
+    },
+    [dispatch, isOnline],
+  );
 
   return {
     ...shared,
@@ -428,22 +498,17 @@ export const useExpenses = () => {
       shared.currentMonthLoaded,
     dataLoading:
       !state.loadedMonths[shared.currentYearMonth] && shared.dataLoading,
-    expenses: state.months,
+    expenses: months,
     expenseRequestStatus: state.requestStatus,
     expenseRequestError: state.requestError,
     getExpense,
     getMonthExpenseTotal,
-    setExpense: async (
-      yearMonth: string,
-      day: number,
-      items: DayExpenseItem[],
-    ) => {
-      await unwrapAsyncResult(
-        dispatch(setExpenseAction({ yearMonth, day, items, isOnline })),
-      );
-    },
+    setExpense,
   };
 };
+
+/** Shared so a month with no entries keeps the same array between renders. */
+const NO_DEPOSIT_ENTRIES: DepositEntry[] = [];
 
 export const useDeposits = () => {
   const dispatch = useAppDispatch();
@@ -484,7 +549,7 @@ export const useDeposits = () => {
     ...shared,
     depositsScopeMessId: state.scopeMessId,
     deposits: state.months,
-    entries: state.entriesByMonth[yearMonth] ?? [],
+    entries: state.entriesByMonth[yearMonth] ?? NO_DEPOSIT_ENTRIES,
     entriesLoaded: Boolean(state.loadedEntryMonths[yearMonth]),
     entriesLoading: Boolean(state.loadingEntryMonths[yearMonth]),
     entriesError: state.entryErrors[yearMonth] ?? "",

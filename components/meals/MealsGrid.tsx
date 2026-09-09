@@ -31,7 +31,8 @@ import { offlineActionFailed } from "@/redux/slice/networkSlice";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import type { ActiveMealCell } from "@/types/meal";
-import { formatMealValue, getTodayDayInMonth } from "@/utils/meal";
+import { formatMealValue } from "@/utils/meal";
+import { getTodayDayInMonth } from "@/utils/monthDay";
 import { MealGridRow } from "./MealGridRow";
 import { MealsConsumerColumn } from "./MealsConsumerColumn";
 import { MealsEmptyState } from "./MealsEmptyState";

@@ -4,15 +4,19 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+// Not React Native's KeyboardAvoidingView: React Native puts
+// SOFT_INPUT_ADJUST_RESIZE on every modal window, but Android ignores that
+// under edge-to-edge (the default since Expo SDK 54), so the sheet was left
+// behind the keyboard on some OS versions and lifted on others. This one
+// reads the IME inset from the modal dialog's own window instead.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useConsumerUserLookup } from "@/hooks/useConsumerUserLookup";
 import { useDeposits, useNetwork } from "@/redux/hooks";
 import { isValidEmail } from "@/utils/email";
@@ -33,7 +37,6 @@ export const AddDepositConsumerModal = ({
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const emailInputRef = useRef<TextInput | null>(null);
   const lookup = useConsumerUserLookup(email, visible);
   const lookupPending =
@@ -45,23 +48,6 @@ export const AddDepositConsumerModal = ({
   useEffect(() => {
     if (lookup.status === "found" && lookup.name) setName(lookup.name);
   }, [lookup.name, lookup.status]);
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSubscription = Keyboard.addListener(showEvent, (event) =>
-      setKeyboardHeight(event.endCoordinates.height),
-    );
-    const hideSubscription = Keyboard.addListener(hideEvent, () =>
-      setKeyboardHeight(0),
-    );
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -141,22 +127,14 @@ export const AddDepositConsumerModal = ({
       animationType="slide"
       onRequestClose={close}
     >
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView className="flex-1" behavior="padding">
         <View className="flex-1 justify-end bg-black/40">
           <TouchableOpacity
             className="flex-1"
             activeOpacity={1}
             onPress={() => Keyboard.dismiss()}
           />
-          <View
-            className="max-h-[90%] rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10"
-            style={{
-              marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
-            }}
-          >
+          <View className="max-h-[90%] rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10">
             <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
             <View className="mb-1 flex-row items-center justify-between">
               <Text className="font-inter-bold text-lg text-slate-900">

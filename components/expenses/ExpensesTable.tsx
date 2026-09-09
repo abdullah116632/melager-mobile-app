@@ -1,24 +1,23 @@
-import Feather from "@expo/vector-icons/Feather";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
-import {
-  Platform,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import {
   EXPENSE_AMOUNT_COLUMN_WIDTH,
   EXPENSE_DAY_COLUMN_WIDTH,
   EXPENSE_PRIMARY,
 } from "@/constants/expense";
-import { useAppDispatch, useAuth, useExpenses, useNetwork } from "@/redux/hooks";
+import {
+  useAppDispatch,
+  useAuth,
+  useExpenses,
+  useNetwork,
+} from "@/redux/hooks";
 import { offlineActionFailed } from "@/redux/slice/networkSlice";
-import { formatExpenseAmount, isExpenseDayToday } from "@/utils/expense";
+import { formatExpenseAmount } from "@/utils/expense";
+import { getTodayDayInMonth } from "@/utils/monthDay";
 import { ExpenseDetailModal } from "./ExpenseDetailModal";
 import { ExpenseEditorModal } from "./ExpenseEditorModal";
+import { ExpenseRow } from "./ExpenseRow";
 
 export const ExpensesTable = () => {
   const dispatch = useAppDispatch();
@@ -39,17 +38,26 @@ export const ExpensesTable = () => {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const isAdmin = role === "admin";
   const isMonthReady = currentMonthLoaded && !dataLoading;
-  const days = Array.from(
-    { length: getDaysInMonth(currentYearMonth) },
-    (_, index) => index + 1,
+  const daysInMonth = getDaysInMonth(currentYearMonth);
+  const days = useMemo(
+    () => Array.from({ length: daysInMonth }, (_, index) => index + 1),
+    [daysInMonth],
   );
+  // Resolved once per render instead of once per row. Not memoised, so it stays
+  // exactly as fresh as the old per-row clock read.
+  const todayDay = getTodayDayInMonth(currentYearMonth);
   const monthTotal = isMonthReady ? getMonthExpenseTotal(currentYearMonth) : 0;
   const amountColumnRight =
     EXPENSE_DAY_COLUMN_WIDTH + EXPENSE_AMOUNT_COLUMN_WIDTH;
-  const recordedDays = isMonthReady
-    ? days.filter((day) => getExpense(currentYearMonth, day).items.length > 0)
-        .length
-    : 0;
+  const recordedDays = useMemo(
+    () =>
+      isMonthReady
+        ? days.filter(
+            (day) => getExpense(currentYearMonth, day).items.length > 0,
+          ).length
+        : 0,
+    [currentYearMonth, days, getExpense, isMonthReady],
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -66,12 +74,18 @@ export const ExpensesTable = () => {
     }
   };
 
-  const openEditor = (day: number) => {
-    if (!isAdmin || !isMonthReady) return;
-    if (Platform.OS !== "web") void Haptics.selectionAsync();
-    setEditingItemId(null);
-    setEditingDay(day);
-  };
+  // Stable so a row only re-renders when its own day's data changes.
+  const openEditor = useCallback(
+    (day: number) => {
+      if (!isAdmin || !isMonthReady) return;
+      if (Platform.OS !== "web") void Haptics.selectionAsync();
+      setEditingItemId(null);
+      setEditingDay(day);
+    },
+    [isAdmin, isMonthReady],
+  );
+
+  const openDetail = useCallback((day: number) => setViewingDay(day), []);
 
   const closeEditor = () => {
     setEditingDay(null);
@@ -124,130 +138,19 @@ export const ExpensesTable = () => {
         }
       >
         <View className="relative">
-          {days.map((day, index) => {
-            const expense = getExpense(currentYearMonth, day);
-            const hasData = isMonthReady && expense.items.length > 0;
-            const isToday = isExpenseDayToday(currentYearMonth, day);
-            const itemSummary = isMonthReady
-              ? expense.items
-                  .map((item) => item.name)
-                  .filter(Boolean)
-                  .join(", ")
-              : "";
-
-            return (
-              <View
-                key={day}
-                className={`min-h-[50px] flex-row items-center border-b border-slate-300 ${isToday ? "border-l-[3px] border-l-teal-500 bg-[#DDF7F2]" : index % 2 === 0 ? "bg-white" : "bg-slate-50"}`}
-              >
-                <View
-                  className="shrink-0 items-center justify-center py-2"
-                  style={{ width: EXPENSE_DAY_COLUMN_WIDTH }}
-                >
-                  <Text
-                    className={`text-sm ${isToday ? "font-inter-bold text-[#0A5954]" : "font-inter-medium text-slate-900"}`}
-                  >
-                    {day}
-                  </Text>
-                  {isToday && (
-                    <Text className="mt-px font-inter-semibold text-[9px] text-teal-700">
-                      Today
-                    </Text>
-                  )}
-                </View>
-
-                <View
-                  className="shrink-0 items-end justify-center py-2 pr-2.5"
-                  style={{ width: EXPENSE_AMOUNT_COLUMN_WIDTH }}
-                >
-                  {!isMonthReady ? (
-                    <Text className="font-inter text-[13px] text-slate-300">
-                      -
-                    </Text>
-                  ) : hasData ? (
-                    <Text
-                      className="font-inter-semibold text-[13px] text-[#0A5954]"
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.7}
-                    >
-                      ৳{formatExpenseAmount(expense.total)}
-                    </Text>
-                  ) : (
-                    <Text className="font-inter text-[13px] text-slate-500">
-                      ৳0
-                    </Text>
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  className="min-w-0 flex-1 justify-center px-3 py-2"
-                  onPress={() => setViewingDay(day)}
-                  disabled={!isMonthReady}
-                  activeOpacity={0.7}
-                >
-                  {!isMonthReady ? (
-                    <View className="h-2.5 w-24 rounded-full bg-slate-200" />
-                  ) : expense.conflictMessage && !hasData ? (
-                    <View className="flex-row items-center gap-1.5">
-                      <Feather
-                        name="alert-triangle"
-                        size={14}
-                        color="#D97706"
-                      />
-                      <Text className="font-inter-semibold text-xs text-amber-700">
-                        Sync conflict
-                      </Text>
-                    </View>
-                  ) : hasData ? (
-                    <View className="flex-row items-center gap-1.5">
-                      {expense.conflictMessage ? (
-                        <Feather
-                          name="alert-triangle"
-                          size={14}
-                          color="#D97706"
-                        />
-                      ) : null}
-                      <Text
-                        className="flex-1 font-inter text-[13px] text-slate-900"
-                        numberOfLines={1}
-                      >
-                        {itemSummary ||
-                          `${expense.items.length} item${expense.items.length !== 1 ? "s" : ""}`}
-                      </Text>
-                      <View className="min-w-[22px] items-center rounded-[10px] border border-teal-700/10 bg-slate-100 px-1.5 py-0.5">
-                        <Text className="font-inter-bold text-[11px] text-[#0A5954]">
-                          {expense.items.length}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text
-                      className="font-inter text-xs italic text-slate-500"
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.75}
-                    >
-                      No expenses
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                {isAdmin && (
-                  <TouchableOpacity
-                    className={`ml-1.5 mr-2.5 h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-white/80 bg-teal-700 ${isMonthReady ? "opacity-100" : "opacity-40"}`}
-                    onPress={() => openEditor(day)}
-                    disabled={!isMonthReady}
-                    activeOpacity={0.8}
-                    hitSlop={6}
-                    accessibilityLabel={`Add expense for day ${day}`}
-                  >
-                    <Feather name="plus" size={16} color="#fff" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
+          {days.map((day, index) => (
+            <ExpenseRow
+              key={day}
+              day={day}
+              index={index}
+              expense={getExpense(currentYearMonth, day)}
+              isMonthReady={isMonthReady}
+              isToday={day === todayDay}
+              isAdmin={isAdmin}
+              onView={openDetail}
+              onAdd={openEditor}
+            />
+          ))}
 
           <View className="h-[50px] flex-row items-center bg-[#0A5954]">
             <View

@@ -1,12 +1,35 @@
 import type { ExpenseDraftItem, ExpenseItem } from "@/types/expense";
 
+// `Number.prototype.toLocaleString` builds a fresh formatter on every call,
+// which the expense table pays for once per row plus the month total. Two
+// shared formatters produce the same strings; runtimes without Intl fall back
+// to the per-call form.
+const buildFormatter = (options?: Intl.NumberFormatOptions) => {
+  try {
+    return new Intl.NumberFormat("en-IN", options);
+  } catch {
+    return null;
+  }
+};
+
+const integerFormatter = buildFormatter();
+const decimalFormatter = buildFormatter({
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+
 export const formatExpenseAmount = (amount: number): string => {
   if (amount <= 0) return "";
-  if (Number.isInteger(amount)) return amount.toLocaleString("en-IN");
-  return amount.toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  });
+  if (Number.isInteger(amount)) {
+    return integerFormatter?.format(amount) ?? amount.toLocaleString("en-IN");
+  }
+  return (
+    decimalFormatter?.format(amount) ??
+    amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 3,
+    })
+  );
 };
 
 export const createExpenseDraftItem = (): ExpenseDraftItem => ({
@@ -39,13 +62,3 @@ export const getExpenseDraftTotal = (drafts: ExpenseDraftItem[]): number =>
     (total, draft) => total + (parseFloat(draft.amountString) || 0),
     0,
   );
-
-export const isExpenseDayToday = (yearMonth: string, day: number): boolean => {
-  const now = new Date();
-  const [year, month] = yearMonth.split("-").map(Number);
-  return (
-    now.getFullYear() === year &&
-    now.getMonth() + 1 === month &&
-    now.getDate() === day
-  );
-};

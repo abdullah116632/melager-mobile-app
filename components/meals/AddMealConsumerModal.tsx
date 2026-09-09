@@ -1,11 +1,9 @@
 import Feather from "@expo/vector-icons/Feather";
 import * as Haptics from "expo-haptics";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Text,
@@ -13,6 +11,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// Not React Native's KeyboardAvoidingView: React Native puts
+// SOFT_INPUT_ADJUST_RESIZE on every modal window, but Android ignores that
+// under edge-to-edge (the default since Expo SDK 54), so the sheet was left
+// behind the keyboard on some OS versions and lifted on others. This one
+// reads the IME inset from the modal dialog's own window instead.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useConsumerUserLookup } from "@/hooks/useConsumerUserLookup";
 import { useMeals, useNetwork } from "@/redux/hooks";
@@ -32,12 +36,12 @@ export const AddMealConsumerModal = ({
   const { bottom: bottomInset } = useSafeAreaInsets();
   const { addConsumer } = useMeals();
   const { isOnline } = useNetwork();
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const emailInputRef = useRef<TextInput | null>(null);
   const lookup = useConsumerUserLookup(email, visible);
   const lookupPending =
     isValidEmail(email) &&
@@ -49,20 +53,15 @@ export const AddMealConsumerModal = ({
     if (lookup.status === "found" && lookup.name) setName(lookup.name);
   }, [lookup.name, lookup.status]);
 
+  // Focusing through the prop fires while the modal is still sliding in and
+  // its dialog window is not focusable yet, so the keyboard often never
+  // appeared and the field had to be tapped. Focusing once the animation has
+  // settled brings the keyboard up together with the form every time.
   useEffect(() => {
-    const showSubscription = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (event) => setKeyboardHeight(event.endCoordinates.height),
-    );
-    const hideSubscription = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardHeight(0),
-    );
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
+    if (!visible) return;
+    const timer = setTimeout(() => emailInputRef.current?.focus(), 350);
+    return () => clearTimeout(timer);
+  }, [visible]);
 
   const resetForm = () => {
     setName("");
@@ -144,7 +143,7 @@ export const AddMealConsumerModal = ({
     >
       <KeyboardAvoidingView
         className="flex-1 justify-end bg-black/45"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
       >
         <TouchableOpacity
           className="absolute inset-0"
@@ -154,10 +153,7 @@ export const AddMealConsumerModal = ({
         <View
           className="gap-4 rounded-t-3xl bg-white p-6 pt-3"
           style={{
-            paddingBottom:
-              24 +
-              (Platform.OS === "android" ? keyboardHeight : 0) +
-              (Platform.OS === "android" ? bottomInset : 0),
+            paddingBottom: 24 + (Platform.OS === "android" ? bottomInset : 0),
           }}
         >
           <View className="mb-2 h-1 w-11 self-center rounded-sm bg-slate-200" />
@@ -181,6 +177,7 @@ export const AddMealConsumerModal = ({
             new one.
           </Text>
           <TextInput
+            ref={emailInputRef}
             className="rounded-[10px] border border-slate-200 bg-slate-50 px-3.5 py-3 font-inter text-base text-slate-900"
             placeholder="Email *"
             placeholderTextColor="#64748B"
@@ -193,7 +190,6 @@ export const AddMealConsumerModal = ({
             editable={!submitting}
             keyboardType="email-address"
             autoCapitalize="none"
-            autoFocus
             returnKeyType="next"
           />
           {lookup.status === "loading" ? (

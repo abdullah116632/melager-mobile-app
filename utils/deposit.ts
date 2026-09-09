@@ -1,12 +1,35 @@
 import type { DepositEntry } from "@/types/deposit";
 
+// `Number.prototype.toLocaleString` builds a fresh formatter on every call,
+// which the deposits table pays for once per member plus the month total. Two
+// shared formatters produce the same strings; runtimes without Intl fall back
+// to the per-call form.
+const buildFormatter = (options?: Intl.NumberFormatOptions) => {
+  try {
+    return new Intl.NumberFormat("en-IN", options);
+  } catch {
+    return null;
+  }
+};
+
+const integerFormatter = buildFormatter();
+const decimalFormatter = buildFormatter({
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+
 export const formatDepositAmount = (amount: number): string => {
   if (amount === 0) return "0";
-  if (Number.isInteger(amount)) return amount.toLocaleString("en-IN");
-  return amount.toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  });
+  if (Number.isInteger(amount)) {
+    return integerFormatter?.format(amount) ?? amount.toLocaleString("en-IN");
+  }
+  return (
+    decimalFormatter?.format(amount) ??
+    amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 3,
+    })
+  );
 };
 
 export const formatDepositTimestamp = (isoDate: string): string => {
