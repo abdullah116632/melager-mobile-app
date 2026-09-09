@@ -1,6 +1,6 @@
 import { createAction, createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
-import { api, clearApiCache, type MonthData } from "@/lib/api";
+import { clearApiCache, type MonthData } from "@/lib/api";
 import {
   getOfflineDatabase,
   isOfflineDatabaseSupported,
@@ -74,28 +74,6 @@ const depositEntriesCacheReceived = createAction<{
   yearMonth: string;
   entries: DepositEntry[];
 }>("deposits/entriesCacheReceived");
-
-interface SetDepositArgs {
-  yearMonth: string;
-  consumerId: string;
-  day: number;
-  amount: number;
-  isOnline: boolean;
-}
-
-export const setDeposit = createDepositsAsyncThunk<void, SetDepositArgs>(
-  "deposits/setDeposit",
-  async ({ yearMonth, consumerId, day, amount }, { getState }) => {
-    const { token, activeMess } = getState().auth;
-    if (!token || !activeMess) return;
-    await api
-      .setDeposit(consumerId, yearMonth, day, amount, token, activeMess.id)
-      .catch(() => undefined);
-  },
-  {
-    condition: ({ isOnline }) => isOnline,
-  },
-);
 
 interface LoadDepositEntriesArgs {
   messId: number;
@@ -356,12 +334,6 @@ const depositsSlice = createSlice({
             ...entries.filter((entry) => entry.consumerId !== consumerId),
           );
         });
-      })
-      .addCase(setDeposit.pending, (state, action) => {
-        const { yearMonth, consumerId, day, amount } = action.meta.arg;
-        state.months[yearMonth] ??= {};
-        state.months[yearMonth][consumerId] ??= {};
-        state.months[yearMonth][consumerId][day.toString()] = amount;
       })
       .addCase(loadDepositEntries.pending, (state, action) => {
         const { yearMonth } = action.meta.arg;

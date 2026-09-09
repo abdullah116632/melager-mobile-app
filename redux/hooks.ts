@@ -37,7 +37,6 @@ import {
   deleteDepositEntry as deleteDepositEntryAction,
   loadDepositEntries,
   selectDepositsState,
-  setDeposit as setDepositAction,
   updateDepositEntry as updateDepositEntryAction,
 } from "@/redux/slice/depositsSlice";
 import {
@@ -62,7 +61,6 @@ import {
   formatYearMonth,
 } from "@/redux/slice/messSlice";
 import {
-  offlineActionFailed,
   selectNetworkState,
   syncOfflineQueue,
 } from "@/redux/slice/networkSlice";
@@ -498,26 +496,6 @@ export const useDeposits = () => {
     getConsumerDepositTotal,
     getDayDepositTotal,
     getGrandDepositTotal,
-    setDeposit: (
-      selectedYearMonth: string,
-      consumerId: string,
-      day: number,
-      amount: number,
-    ) => {
-      if (!isOnline) {
-        dispatch(offlineActionFailed("entry"));
-        return;
-      }
-      void dispatch(
-        setDepositAction({
-          yearMonth: selectedYearMonth,
-          consumerId,
-          day,
-          amount,
-          isOnline,
-        }),
-      );
-    },
     loadEntries: async (force = false) => {
       if (state.scopeMessId === null) {
         throw new Error("Please select a mess and sign in again.");

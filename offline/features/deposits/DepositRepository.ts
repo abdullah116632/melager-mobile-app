@@ -197,29 +197,35 @@ export class DepositRepository {
     const row = rows.find((item) => toEntry(item).id === id);
     if (!row) throw new Error("Deposit entry is not available offline.");
     const base = await this.getMutationBase(userId, row);
-    await this.db.runAsync(
-      "UPDATE local_deposit_entries SET amount=?,deposited_at=?,note=?,is_dirty=1,local_updated_at=? WHERE local_id=?",
-      data.amount,
-      data.depositedAt,
-      data.note ?? null,
-      Date.now(),
-      row.local_id,
-    );
-    await this.outbox.enqueue({
-      userId,
-      messId,
-      entityType: "deposit",
-      entityId: row.local_id,
-      operation: "update",
-      dedupeKey: `deposit:${row.local_id}`,
-      payload: {
-        operation: row.server_id ? "update" : "create",
-        localId: row.local_id,
-        serverId: row.server_id,
-        consumerId: row.consumer_id,
-        base,
-        ...data,
-      },
+    // The edited row and the outbox entry that will push it have to commit
+    // together. Apart, an interruption between them leaves an amount that is
+    // changed on this device, marked dirty so no pull may correct it, and
+    // queued nowhere — a ledger entry that silently never reaches the server.
+    await runInTransaction(this.db, async () => {
+      await this.db.runAsync(
+        "UPDATE local_deposit_entries SET amount=?,deposited_at=?,note=?,is_dirty=1,local_updated_at=? WHERE local_id=?",
+        data.amount,
+        data.depositedAt,
+        data.note ?? null,
+        Date.now(),
+        row.local_id,
+      );
+      await this.outbox.enqueue({
+        userId,
+        messId,
+        entityType: "deposit",
+        entityId: row.local_id,
+        operation: "update",
+        dedupeKey: `deposit:${row.local_id}`,
+        payload: {
+          operation: row.server_id ? "update" : "create",
+          localId: row.local_id,
+          serverId: row.server_id,
+          consumerId: row.consumer_id,
+          base,
+          ...data,
+        },
+      });
     });
     return { ...toEntry(row), ...data };
   }
@@ -232,35 +238,44 @@ export class DepositRepository {
     const row = rows.find((item) => toEntry(item).id === id);
     if (!row) throw new Error("Deposit entry is not available offline.");
     if (row.server_id === null) {
-      await this.db.runAsync(
-        "DELETE FROM local_deposit_entries WHERE local_id=?",
-        row.local_id,
-      );
-      await this.db.runAsync(
-        "DELETE FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
-        userId,
-        `deposit:${row.local_id}`,
-      );
+      // Deleting the row without also dropping its queued create would push a
+      // deposit the user has just deleted, so it would reappear for everyone.
+      await runInTransaction(this.db, async () => {
+        await this.db.runAsync(
+          "DELETE FROM local_deposit_entries WHERE local_id=?",
+          row.local_id,
+        );
+        await this.db.runAsync(
+          "DELETE FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
+          userId,
+          `deposit:${row.local_id}`,
+        );
+      });
       return;
     }
     const base = await this.getMutationBase(userId, row);
-    await this.db.runAsync(
-      "UPDATE local_deposit_entries SET is_deleted=1,is_dirty=1 WHERE local_id=?",
-      row.local_id,
-    );
-    await this.outbox.enqueue({
-      userId,
-      messId,
-      entityType: "deposit",
-      entityId: row.local_id,
-      operation: "delete",
-      dedupeKey: `deposit:${row.local_id}`,
-      payload: {
+    // Same pairing as above: hiding the entry locally without queueing the
+    // delete would drop it from this device while it lives on for everyone
+    // else, and the dirty flag keeps any pull from putting it back.
+    await runInTransaction(this.db, async () => {
+      await this.db.runAsync(
+        "UPDATE local_deposit_entries SET is_deleted=1,is_dirty=1 WHERE local_id=?",
+        row.local_id,
+      );
+      await this.outbox.enqueue({
+        userId,
+        messId,
+        entityType: "deposit",
+        entityId: row.local_id,
         operation: "delete",
-        localId: row.local_id,
-        serverId: row.server_id,
-        base,
-      },
+        dedupeKey: `deposit:${row.local_id}`,
+        payload: {
+          operation: "delete",
+          localId: row.local_id,
+          serverId: row.server_id,
+          base,
+        },
+      });
     });
   }
   private async getMutationBase(
