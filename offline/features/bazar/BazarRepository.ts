@@ -354,15 +354,40 @@ export class BazarRepository {
     };
   }
 
+  /** Re-read inside a transaction: an acknowledgement may have changed it. */
+  private async requireFreshItem(found: ItemRow): Promise<ItemRow> {
+    const row = await this.getItemByLocalId(found.local_id);
+    if (!row) throw new Error("Bazar item not found.");
+    return row;
+  }
+
+  /**
+   * A create that may already exist on the server must keep its mutation id;
+   * rewriting it would create the item twice.
+   */
+  private async isCreateMaybeSent(
+    userId: number,
+    row: ItemRow,
+  ): Promise<boolean> {
+    return (
+      row.server_id === null &&
+      (await this.outbox.getDeliveryState(
+        userId,
+        `bazar:item:create:${row.local_id}`,
+      )) === "maybe-sent"
+    );
+  }
+
   async updateItem(
     userId: number,
     messId: number,
     displayId: number,
     input: { name: string; price: number },
   ): Promise<ApiBazarItem> {
-    const row = await this.requireItem(messId, displayId);
+    const found = await this.requireItem(messId, displayId);
     const now = Date.now();
-    await runInTransaction(this.database, async () => {
+    const saved = await runInTransaction(this.database, async () => {
+      const row = await this.requireFreshItem(found);
       await this.database.runAsync(
         `UPDATE local_bazar_items
          SET name = ?, price = ?, local_updated_at = ?, is_dirty = 1
@@ -372,7 +397,10 @@ export class BazarRepository {
         now,
         row.local_id,
       );
-      if (row.server_id === null) {
+      if (
+        row.server_id === null &&
+        !(await this.isCreateMaybeSent(userId, row))
+      ) {
         await this.enqueueItemCreate(userId, messId, row.local_id, {
           bazarDate: row.bazar_date,
           name: input.name,
@@ -380,6 +408,8 @@ export class BazarRepository {
           completed: row.is_completed === 1,
         });
       } else {
+        // Without a server id yet, this waits behind its create, which hands
+        // it the id on acknowledgement.
         await this.outbox.enqueue<BazarMutationPayload>({
           dedupeKey: `bazar:item:update:${row.local_id}`,
           userId,
@@ -392,15 +422,16 @@ export class BazarRepository {
             : null,
           payload: {
             localId: row.local_id,
-            serverId: row.server_id,
+            serverId: row.server_id ?? undefined,
             baseUpdatedAt: row.server_updated_at ?? undefined,
             ...input,
           },
         });
       }
       await this.ensureSyncState(userId, messId, now);
+      return row;
     });
-    return toItem({ ...row, ...input, local_updated_at: now, is_dirty: 1 });
+    return toItem({ ...saved, ...input, local_updated_at: now, is_dirty: 1 });
   }
 
   async updateItemStatus(
@@ -409,9 +440,10 @@ export class BazarRepository {
     displayId: number,
     completed: boolean,
   ): Promise<ApiBazarItem> {
-    const row = await this.requireItem(messId, displayId);
+    const found = await this.requireItem(messId, displayId);
     const now = Date.now();
-    await runInTransaction(this.database, async () => {
+    const saved = await runInTransaction(this.database, async () => {
+      const row = await this.requireFreshItem(found);
       await this.database.runAsync(
         `UPDATE local_bazar_items
          SET is_completed = ?, local_updated_at = ?, is_dirty = 1
@@ -420,7 +452,10 @@ export class BazarRepository {
         now,
         row.local_id,
       );
-      if (row.server_id === null) {
+      if (
+        row.server_id === null &&
+        !(await this.isCreateMaybeSent(userId, row))
+      ) {
         await this.enqueueItemCreate(userId, messId, row.local_id, {
           bazarDate: row.bazar_date,
           name: row.name,
@@ -428,6 +463,8 @@ export class BazarRepository {
           completed,
         });
       } else {
+        // Without a server id yet, this waits behind its create, which hands
+        // it the id on acknowledgement.
         await this.outbox.enqueue<BazarMutationPayload>({
           dedupeKey: `bazar:item:status:${row.local_id}`,
           userId,
@@ -440,16 +477,17 @@ export class BazarRepository {
             : null,
           payload: {
             localId: row.local_id,
-            serverId: row.server_id,
+            serverId: row.server_id ?? undefined,
             baseUpdatedAt: row.server_updated_at ?? undefined,
             completed,
           },
         });
       }
       await this.ensureSyncState(userId, messId, now);
+      return row;
     });
     return toItem({
-      ...row,
+      ...saved,
       is_completed: completed ? 1 : 0,
       local_updated_at: now,
       is_dirty: 1,
@@ -461,9 +499,14 @@ export class BazarRepository {
     messId: number,
     displayId: number,
   ): Promise<void> {
-    const row = await this.requireItem(messId, displayId);
+    const found = await this.requireItem(messId, displayId);
     await runInTransaction(this.database, async () => {
-      if (row.server_id === null) {
+      // Re-read inside the transaction: a create acknowledged since the lookup
+      // now has a server id and must take the normal delete path.
+      const row = await this.getItemByLocalId(found.local_id);
+      if (!row) return;
+      const createMaybeSent = await this.isCreateMaybeSent(userId, row);
+      if (row.server_id === null && !createMaybeSent) {
         await this.database.runAsync(
           "DELETE FROM local_bazar_items WHERE local_id = ?",
           row.local_id,
@@ -473,6 +516,26 @@ export class BazarRepository {
           userId,
           row.local_id,
         );
+      } else if (row.server_id === null) {
+        // The create may already exist on the server. Keep it queued and delete
+        // behind it; acknowledging the create hands this delete the server id.
+        // Edits queued behind the create were never sent, so drop them.
+        await this.database.runAsync(
+          `DELETE FROM offline_outbox
+           WHERE user_id = ? AND entity_type = 'bazar_item' AND entity_id = ?
+             AND dedupe_key <> ?`,
+          userId,
+          row.local_id,
+          `bazar:item:create:${row.local_id}`,
+        );
+        await this.database.runAsync(
+          `UPDATE local_bazar_items
+           SET is_deleted = 1, is_dirty = 1, local_updated_at = ?
+           WHERE local_id = ?`,
+          Date.now(),
+          row.local_id,
+        );
+        await this.enqueueItemDelete(userId, messId, row);
       } else {
         await this.database.runAsync(
           `UPDATE local_bazar_items
@@ -491,6 +554,16 @@ export class BazarRepository {
       }
       await this.ensureSyncState(userId, messId, Date.now());
     });
+  }
+
+  /** Whether a queued create may still hand this item a server id. */
+  async isCreatePending(userId: number, localId: string): Promise<boolean> {
+    return (
+      (await this.outbox.getDeliveryState(
+        userId,
+        `bazar:item:create:${localId}`,
+      )) !== "none"
+    );
   }
 
   async deleteDate(
@@ -644,14 +717,19 @@ export class BazarRepository {
     item: ApiBazarItem,
     operationId: string,
   ): Promise<void> {
-    const other = await this.database.getFirstAsync<{ total: number }>(
-      `SELECT COUNT(*) AS total FROM offline_outbox
-       WHERE entity_type = 'bazar_item' AND entity_id = ? AND id <> ?`,
-      localId,
-      operationId,
-    );
-    if (Number(other?.total ?? 0) > 0) {
-      await runInTransaction(this.database, async () => {
+    // One transaction with the sibling check, so a delete queued while this
+    // create was in flight cannot slip in between and miss the server id.
+    await runInTransaction(this.database, async () => {
+      const pending = await this.database.getAllAsync<{
+        id: string;
+        payload: string;
+      }>(
+        `SELECT id, payload FROM offline_outbox
+         WHERE entity_type = 'bazar_item' AND entity_id = ? AND id <> ?`,
+        localId,
+        operationId,
+      );
+      if (pending.length > 0) {
         await this.database.runAsync(
           `UPDATE local_bazar_items
            SET server_id = ?, display_id = ?, server_updated_at = ?
@@ -661,19 +739,13 @@ export class BazarRepository {
           item.updatedAt,
           localId,
         );
-        const pending = await this.database.getAllAsync<{
-          id: string;
-          payload: string;
-        }>(
-          `SELECT id, payload FROM offline_outbox
-           WHERE entity_type = 'bazar_item' AND entity_id = ? AND id <> ?`,
-          localId,
-          operationId,
-        );
         for (const row of pending) {
           const payload = JSON.parse(row.payload) as BazarMutationPayload;
           await this.database.runAsync(
-            "UPDATE offline_outbox SET operation='update', payload = ?, base_version = ?, updated_at = ? WHERE id = ?",
+            `UPDATE offline_outbox
+             SET operation = CASE WHEN operation = 'delete' THEN 'delete' ELSE 'update' END,
+                 payload = ?, base_version = ?, updated_at = ?
+             WHERE id = ?`,
             JSON.stringify({
               ...payload,
               serverId: item.id,
@@ -684,28 +756,28 @@ export class BazarRepository {
             row.id,
           );
         }
-      });
-      return;
-    }
-    await this.database.runAsync(
-      `UPDATE local_bazar_items SET
-        server_id = ?, display_id = ?, bazar_date = ?, name = ?, price = ?,
-        is_completed = ?, created_by_user_id = ?, created_at = ?,
-        server_updated_at = ?, local_updated_at = ?, is_dirty = 0,
-        is_deleted = 0
-       WHERE local_id = ?`,
-      item.id,
-      item.id,
-      item.bazarDate,
-      item.name,
-      item.price,
-      item.isCompleted ? 1 : 0,
-      item.createdByUserId,
-      item.createdAt,
-      item.updatedAt,
-      Date.now(),
-      localId,
-    );
+        return;
+      }
+      await this.database.runAsync(
+        `UPDATE local_bazar_items SET
+          server_id = ?, display_id = ?, bazar_date = ?, name = ?, price = ?,
+          is_completed = ?, created_by_user_id = ?, created_at = ?,
+          server_updated_at = ?, local_updated_at = ?, is_dirty = 0,
+          is_deleted = 0
+         WHERE local_id = ?`,
+        item.id,
+        item.id,
+        item.bazarDate,
+        item.name,
+        item.price,
+        item.isCompleted ? 1 : 0,
+        item.createdByUserId,
+        item.createdAt,
+        item.updatedAt,
+        Date.now(),
+        localId,
+      );
+    });
   }
 
   async acknowledgeDelete(localId: string): Promise<void> {

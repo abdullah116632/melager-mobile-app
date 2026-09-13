@@ -20,6 +20,8 @@ import { dashboardStatementMigration } from "./016-dashboard-statement";
 import { memberRequestsMigration } from "./017-member-requests";
 import { messageReactionsMigration } from "./018-message-reactions";
 import { bazarDateMigration } from "./019-bazar-date";
+import { depositConflictsMigration } from "./020-deposit-conflicts";
+import { expenseConflictsMigration } from "./021-expense-conflicts";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
@@ -42,6 +44,8 @@ const migrations: DatabaseMigration[] = [
   memberRequestsMigration,
   messageReactionsMigration,
   bazarDateMigration,
+  depositConflictsMigration,
+  expenseConflictsMigration,
 ];
 
 type UserVersionRow = { user_version: number };

@@ -4,6 +4,11 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import type { DayExpenseItem } from "@/types/mess";
 import { OutboxRepository } from "../../repositories/outboxRepository";
 import { runInTransaction } from "../../database/transaction";
+import {
+  emitExpenseConflictsChanged,
+  mergeExpenseItems,
+  type ExpenseConflict,
+} from "./conflicts";
 
 export interface LocalExpenseDay {
   items: DayExpenseItem[];
@@ -18,6 +23,15 @@ interface ExpenseRow {
   conflict_message: string | null;
 }
 
+export interface ExpensePayload {
+  yearMonth: string;
+  day: number;
+  items: DayExpenseItem[];
+  baseHash: string;
+  /** Hashes of replaced lists that may already have reached the server. */
+  sentHashes?: string[];
+}
+
 const canonicalItems = (items: DayExpenseItem[]) =>
   items.map(({ id, name, amount }) => ({
     id: String(id),
@@ -28,7 +42,8 @@ const canonicalItems = (items: DayExpenseItem[]) =>
 const serializeItems = (items: DayExpenseItem[]) =>
   JSON.stringify(canonicalItems(items));
 
-const hashItems = (items: DayExpenseItem[]) =>
+/** The same hash the server computes for a day's items. */
+export const hashItems = (items: DayExpenseItem[]) =>
   Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     serializeItems(items),
@@ -168,17 +183,35 @@ export class ExpenseRepository {
     day: number,
     items: DayExpenseItem[],
   ) {
-    const old = await this.db.getFirstAsync<{ base_hash: string }>(
-      `SELECT base_hash FROM local_expense_days
-       WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
-      userId,
-      messId,
-      yearMonth,
-      day,
-    );
-    const baseHash = old?.base_hash ?? "empty";
     const normalizedItems = canonicalItems(items);
+    const dedupeKey = `expense:${messId}:${yearMonth}:${day}`;
     await runInTransaction(this.db, async () => {
+      const old = await this.db.getFirstAsync<{ base_hash: string }>(
+        `SELECT base_hash FROM local_expense_days
+         WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
+        userId,
+        messId,
+        yearMonth,
+        day,
+      );
+      const baseHash = old?.base_hash ?? "empty";
+      // A replaced list that may already be on the server is remembered, so
+      // finding it there later is not mistaken for another device's edit.
+      const previousRow = await this.db.getFirstAsync<{ payload: string }>(
+        "SELECT payload FROM offline_outbox WHERE user_id = ? AND dedupe_key = ?",
+        userId,
+        dedupeKey,
+      );
+      const previous = previousRow
+        ? (JSON.parse(previousRow.payload) as ExpensePayload)
+        : null;
+      const sentHashes = [...(previous?.sentHashes ?? [])];
+      if (
+        previous &&
+        (await this.outbox.getDeliveryState(userId, dedupeKey)) === "maybe-sent"
+      ) {
+        sentHashes.push(await hashItems(previous.items));
+      }
       await this.db.runAsync(
         `INSERT INTO local_expense_days
            (user_id, mess_id, year_month, day, items_json, base_hash,
@@ -188,6 +221,7 @@ export class ExpenseRepository {
            items_json = excluded.items_json,
            is_dirty = 1,
            conflict_message = NULL,
+           conflict_server_items = NULL,
            updated_at = excluded.updated_at`,
         userId,
         messId,
@@ -197,14 +231,21 @@ export class ExpenseRepository {
         baseHash,
         Date.now(),
       );
+      const payload: ExpensePayload = {
+        yearMonth,
+        day,
+        items: normalizedItems,
+        baseHash,
+        sentHashes,
+      };
       await this.outbox.enqueue({
         userId,
         messId,
         entityType: "expense",
         entityId: `${yearMonth}:${day}`,
         operation: "upsert",
-        dedupeKey: `expense:${messId}:${yearMonth}:${day}`,
-        payload: { yearMonth, day, items: normalizedItems, baseHash },
+        dedupeKey,
+        payload,
       });
       await this.db.runAsync(
         `INSERT INTO local_expense_months(user_id, mess_id, year_month, updated_at)
@@ -223,18 +264,92 @@ export class ExpenseRepository {
     userId: number,
     messId: number,
     payload: { yearMonth: string; day: number; items: DayExpenseItem[] },
+    operationId: string,
   ) {
-    await this.db.runAsync(
-      `UPDATE local_expense_days
-       SET base_hash = ?, is_dirty = 0, conflict_message = NULL, updated_at = ?
-       WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
-      await hashItems(payload.items),
-      Date.now(),
-      userId,
-      messId,
-      payload.yearMonth,
-      payload.day,
-    );
+    const baseHash = await hashItems(payload.items);
+    await runInTransaction(this.db, async () => {
+      const newer = await this.db.getFirstAsync<{
+        id: string;
+        payload: string;
+      }>(
+        `SELECT id, payload FROM offline_outbox
+         WHERE user_id = ? AND dedupe_key = ? AND id <> ?`,
+        userId,
+        `expense:${messId}:${payload.yearMonth}:${payload.day}`,
+        operationId,
+      );
+      if (newer) {
+        // An edit queued while this one was in flight still has to be pushed,
+        // now on top of the list the server just accepted.
+        await this.db.runAsync(
+          `UPDATE local_expense_days SET base_hash = ?
+           WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
+          baseHash,
+          userId,
+          messId,
+          payload.yearMonth,
+          payload.day,
+        );
+        await this.db.runAsync(
+          "UPDATE offline_outbox SET payload = ?, updated_at = ? WHERE id = ?",
+          JSON.stringify({
+            ...(JSON.parse(newer.payload) as ExpensePayload),
+            baseHash,
+          }),
+          Date.now(),
+          newer.id,
+        );
+        return;
+      }
+      await this.db.runAsync(
+        `UPDATE local_expense_days
+         SET base_hash = ?, is_dirty = 0, conflict_message = NULL,
+             conflict_server_items = NULL, updated_at = ?
+         WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
+        baseHash,
+        Date.now(),
+        userId,
+        messId,
+        payload.yearMonth,
+        payload.day,
+      );
+    });
+  }
+
+  /** The server holds a list this device sent earlier: retry on top of it. */
+  async rebase(
+    operationId: string,
+    userId: number,
+    messId: number,
+    payload: { yearMonth: string; day: number },
+    serverHash: string,
+  ) {
+    await runInTransaction(this.db, async () => {
+      await this.db.runAsync(
+        `UPDATE local_expense_days SET base_hash = ?
+         WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
+        serverHash,
+        userId,
+        messId,
+        payload.yearMonth,
+        payload.day,
+      );
+      const row = await this.db.getFirstAsync<{ payload: string }>(
+        "SELECT payload FROM offline_outbox WHERE id = ?",
+        operationId,
+      );
+      if (!row) return;
+      await this.db.runAsync(
+        "UPDATE offline_outbox SET payload = ?, updated_at = ? WHERE id = ?",
+        JSON.stringify({
+          ...(JSON.parse(row.payload) as ExpensePayload),
+          baseHash: serverHash,
+          sentHashes: [],
+        }),
+        Date.now(),
+        operationId,
+      );
+    });
   }
 
   async markConflict(
@@ -246,15 +361,101 @@ export class ExpenseRepository {
   ) {
     await this.db.runAsync(
       `UPDATE local_expense_days
-       SET base_hash = ?, conflict_message = ?, is_dirty = 1, updated_at = ?
+       SET base_hash = ?, conflict_message = ?, conflict_server_items = ?,
+           is_dirty = 1, updated_at = ?
        WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
       await hashItems(serverItems),
       message,
+      serializeItems(serverItems),
       Date.now(),
       userId,
       messId,
       payload.yearMonth,
       payload.day,
     );
+    emitExpenseConflictsChanged();
+  }
+
+  async getConflicts(
+    userId: number,
+    messId: number,
+  ): Promise<ExpenseConflict[]> {
+    const rows = await this.db.getAllAsync<{
+      year_month: string;
+      day: number;
+      items_json: string;
+      conflict_server_items: string;
+    }>(
+      `SELECT year_month, day, items_json, conflict_server_items
+       FROM local_expense_days
+       WHERE user_id = ? AND mess_id = ?
+         AND conflict_message IS NOT NULL AND conflict_server_items IS NOT NULL
+       ORDER BY year_month, day`,
+      userId,
+      messId,
+    );
+    return rows.map((row) => ({
+      yearMonth: row.year_month,
+      day: row.day,
+      localItems: parseItems(row.items_json),
+      serverItems: parseItems(row.conflict_server_items),
+    }));
+  }
+
+  /**
+   * "local" pushes this device's list over the server's, "both" pushes every
+   * item from both lists, and "server" adopts the server's list here.
+   */
+  async resolveConflict(
+    userId: number,
+    messId: number,
+    yearMonth: string,
+    day: number,
+    resolution: "local" | "server" | "both",
+  ) {
+    const row = await this.db.getFirstAsync<{
+      items_json: string;
+      conflict_server_items: string | null;
+    }>(
+      `SELECT items_json, conflict_server_items FROM local_expense_days
+       WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?
+         AND conflict_message IS NOT NULL`,
+      userId,
+      messId,
+      yearMonth,
+      day,
+    );
+    if (!row?.conflict_server_items) return;
+    const localItems = parseItems(row.items_json);
+    const serverItems = parseItems(row.conflict_server_items);
+    if (resolution === "server") {
+      const serverHash = await hashItems(serverItems);
+      await this.db.runAsync(
+        `UPDATE local_expense_days
+         SET items_json = ?, base_hash = ?, is_dirty = 0,
+             conflict_message = NULL, conflict_server_items = NULL,
+             updated_at = ?
+         WHERE user_id = ? AND mess_id = ? AND year_month = ? AND day = ?`,
+        serializeItems(serverItems),
+        serverHash,
+        Date.now(),
+        userId,
+        messId,
+        yearMonth,
+        day,
+      );
+    } else {
+      // base_hash already holds the server's hash, so this save replaces it.
+      await this.save(
+        userId,
+        messId,
+        yearMonth,
+        day,
+        resolution === "both"
+          ? mergeExpenseItems(serverItems, localItems)
+          : localItems,
+      );
+    }
+    emitExpenseConflictsChanged();
   }
 }

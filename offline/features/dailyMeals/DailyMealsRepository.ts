@@ -205,19 +205,40 @@ export class DailyMealsRepository {
     day: number,
     count: number,
   ): Promise<void> {
-    const existing = await this.db.getFirstAsync<{
-      count: number;
-      base_count: number;
-    }>(
-      "SELECT count,base_count FROM local_daily_meals WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
-      userId,
-      messId,
-      yearMonth,
-      consumerId,
-      day,
-    );
-    const baseCount = Number(existing?.base_count ?? existing?.count ?? 0);
+    const dedupeKey = `daily-meal:${messId}:${yearMonth}:${consumerId}:${day}`;
     await runInTransaction(this.db, async () => {
+      const existing = await this.db.getFirstAsync<{
+        count: number;
+        base_count: number;
+      }>(
+        "SELECT count,base_count FROM local_daily_meals WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+        userId,
+        messId,
+        yearMonth,
+        consumerId,
+        day,
+      );
+      const baseCount = Number(existing?.base_count ?? existing?.count ?? 0);
+      // A replaced value that may already be on the server is remembered, so
+      // finding it there later is not mistaken for another device's edit.
+      const previousRow = await this.db.getFirstAsync<{ payload: string }>(
+        "SELECT payload FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
+        userId,
+        dedupeKey,
+      );
+      const previous = previousRow
+        ? (JSON.parse(previousRow.payload) as {
+            count: number;
+            sentCounts?: number[];
+          })
+        : null;
+      const sentCounts = [...(previous?.sentCounts ?? [])];
+      if (
+        previous &&
+        (await this.outbox.getDeliveryState(userId, dedupeKey)) === "maybe-sent"
+      ) {
+        sentCounts.push(Number(previous.count));
+      }
       await this.db.runAsync(
         `INSERT INTO local_daily_meals (user_id,mess_id,year_month,consumer_id,day,count,base_count,is_dirty,sync_state,updated_at,conflict_message) VALUES (?,?,?,?,?,?,?,?,?,?,NULL) ON CONFLICT(user_id,mess_id,year_month,consumer_id,day) DO UPDATE SET count=excluded.count,is_dirty=1,sync_state=1,updated_at=excluded.updated_at,conflict_message=NULL`,
         userId,
@@ -238,7 +259,7 @@ export class DailyMealsRepository {
         entityId: `${yearMonth}:${consumerId}:${day}`,
         operation: "upsert",
         dedupeKey: `daily-meal:${messId}:${yearMonth}:${consumerId}:${day}`,
-        payload: { yearMonth, consumerId, day, count, baseCount },
+        payload: { yearMonth, consumerId, day, count, baseCount, sentCounts },
       });
       // A month created entirely offline still needs a reconnect pull. Without
       // this marker it was absent from the daily-meal puller's tracked months.
@@ -263,17 +284,22 @@ export class DailyMealsRepository {
     p: { yearMonth: string; consumerId: string; day: number; count: number },
   ): Promise<void> {
     const entityId = `${p.yearMonth}:${p.consumerId}:${p.day}`;
-    const pending = await this.db.getAllAsync<{ id: string; payload: string }>(
-      `SELECT id,payload FROM offline_outbox
-       WHERE user_id=? AND mess_id=? AND entity_type='daily_meal'
-         AND entity_id=? AND id<>?`,
-      userId,
-      messId,
-      entityId,
-      operationId,
-    );
-    if (pending.length > 0) {
-      await runInTransaction(this.db, async () => {
+    // One transaction with the sibling check, so an edit queued while this
+    // one was in flight cannot slip in between and keep a stale base.
+    await runInTransaction(this.db, async () => {
+      const pending = await this.db.getAllAsync<{
+        id: string;
+        payload: string;
+      }>(
+        `SELECT id,payload FROM offline_outbox
+         WHERE user_id=? AND mess_id=? AND entity_type='daily_meal'
+           AND entity_id=? AND id<>?`,
+        userId,
+        messId,
+        entityId,
+        operationId,
+      );
+      if (pending.length > 0) {
         await this.db.runAsync(
           "UPDATE local_daily_meals SET base_count=?,is_dirty=1,sync_state=1,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
           p.count,
@@ -293,20 +319,55 @@ export class DailyMealsRepository {
             row.id,
           );
         }
-      });
-      return;
-    }
-    await this.db.runAsync(
-      "UPDATE local_daily_meals SET count=?,base_count=?,is_dirty=1,sync_state=2,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
-      p.count,
-      p.count,
-      Date.now(),
-      userId,
-      messId,
-      p.yearMonth,
-      p.consumerId,
-      p.day,
-    );
+        return;
+      }
+      await this.db.runAsync(
+        "UPDATE local_daily_meals SET count=?,base_count=?,is_dirty=1,sync_state=2,conflict_message=NULL,updated_at=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+        p.count,
+        p.count,
+        Date.now(),
+        userId,
+        messId,
+        p.yearMonth,
+        p.consumerId,
+        p.day,
+      );
+    });
+  }
+  /** The server holds a value this device sent earlier: retry on top of it. */
+  async rebase(
+    operationId: string,
+    userId: number,
+    messId: number,
+    p: { yearMonth: string; consumerId: string; day: number },
+    serverCount: number,
+  ): Promise<void> {
+    await runInTransaction(this.db, async () => {
+      await this.db.runAsync(
+        "UPDATE local_daily_meals SET base_count=? WHERE user_id=? AND mess_id=? AND year_month=? AND consumer_id=? AND day=?",
+        serverCount,
+        userId,
+        messId,
+        p.yearMonth,
+        p.consumerId,
+        p.day,
+      );
+      const row = await this.db.getFirstAsync<{ payload: string }>(
+        "SELECT payload FROM offline_outbox WHERE id=?",
+        operationId,
+      );
+      if (!row) return;
+      await this.db.runAsync(
+        "UPDATE offline_outbox SET payload=?,updated_at=? WHERE id=?",
+        JSON.stringify({
+          ...(JSON.parse(row.payload) as Record<string, unknown>),
+          baseCount: serverCount,
+          sentCounts: [],
+        }),
+        Date.now(),
+        operationId,
+      );
+    });
   }
   async markConflict(
     userId: number,
@@ -340,10 +401,11 @@ export class DailyMealsRepository {
     );
     return Number(row?.total ?? 0);
   }
+  /** Conflicts for one month, or across every month when none is given. */
   async getConflicts(
     userId: number,
     messId: number,
-    yearMonth: string,
+    yearMonth?: string,
   ): Promise<DailyMealConflict[]> {
     const rows = await this.db.getAllAsync<{
       year_month: string;
@@ -353,10 +415,10 @@ export class DailyMealsRepository {
       base_count: number;
       conflict_message: string;
     }>(
-      "SELECT year_month,consumer_id,day,count,base_count,conflict_message FROM local_daily_meals WHERE user_id=? AND mess_id=? AND year_month=? AND conflict_message IS NOT NULL ORDER BY day,consumer_id",
-      userId,
-      messId,
-      yearMonth,
+      `SELECT year_month,consumer_id,day,count,base_count,conflict_message FROM local_daily_meals WHERE user_id=? AND mess_id=? ${
+        yearMonth ? "AND year_month=? " : ""
+      }AND conflict_message IS NOT NULL ORDER BY year_month,day,consumer_id`,
+      ...(yearMonth ? [userId, messId, yearMonth] : [userId, messId]),
     );
     return rows.map((row) => ({
       yearMonth: row.year_month,

@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Platform, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Platform } from "react-native";
 import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
 import {
   DailyMealsRepository,
@@ -13,6 +13,7 @@ import { useAppDispatch, useAuth, useMeals, useNetwork } from "@/redux/hooks";
 import { dailyMealConflictResolved } from "@/redux/slice/mealsSlice";
 import type { ActiveMealCell, MealCellDirection } from "@/types/meal";
 import { MealCellEditor, type MealCellEditorHandle } from "./MealCellEditor";
+import { MealConflictModal } from "./MealConflictModal";
 import { MealsGrid, type MealsGridHandle } from "./MealsGrid";
 
 export const MealsTableSection = () => {
@@ -45,10 +46,10 @@ export const MealsTableSection = () => {
   const refreshConflicts = useCallback(() => {
     if (!database || !user?.id || !mess?.id) return;
     void new DailyMealsRepository(database)
-      .getConflicts(user.id, mess.id, currentYearMonth)
+      .getConflicts(user.id, mess.id)
       .then(setConflicts)
       .catch(() => undefined);
-  }, [database, currentYearMonth, mess?.id, user?.id]);
+  }, [database, mess?.id, user?.id]);
 
   useEffect(() => {
     refreshConflicts();
@@ -165,55 +166,14 @@ export const MealsTableSection = () => {
         cellNavEnabled={isAdmin && !!selectedCell}
       />
 
-      {conflicts.length > 0 && (
-        <View className="mx-3 mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-          <Text className="font-inter-medium text-xs text-amber-800">
-            {conflicts.length} meal update needs review because it was changed
-            on another device.
-          </Text>
-          {conflicts.map((conflict) => {
-            const conflictKey = `${conflict.consumerId}:${conflict.day}`;
-            const consumerName =
-              consumers.find((consumer) => consumer.id === conflict.consumerId)
-                ?.name ?? `Consumer ${conflict.consumerId}`;
-            const resolving = resolvingConflict === conflictKey;
-            return (
-              <View
-                key={conflictKey}
-                className="mt-2 rounded-lg border border-amber-200 bg-white px-3 py-2"
-              >
-                <Text className="font-inter-semibold text-xs text-slate-800">
-                  {consumerName} · Day {conflict.day}
-                </Text>
-                <Text className="mt-1 font-inter text-xs text-slate-600">
-                  This device: {conflict.localCount} · Server:{" "}
-                  {conflict.serverCount}
-                </Text>
-                <View className="mt-2 flex-row gap-2">
-                  <TouchableOpacity
-                    disabled={resolving}
-                    className="rounded-lg bg-teal-700 px-3 py-2"
-                    onPress={() => void resolveConflict(conflict, "local")}
-                  >
-                    <Text className="font-inter-semibold text-xs text-white">
-                      Keep this device
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    disabled={resolving}
-                    className="rounded-lg bg-slate-200 px-3 py-2"
-                    onPress={() => void resolveConflict(conflict, "server")}
-                  >
-                    <Text className="font-inter-semibold text-xs text-slate-800">
-                      Use server value
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )}
+      <MealConflictModal
+        conflicts={conflicts}
+        consumers={consumers}
+        resolvingKey={resolvingConflict}
+        onResolve={(conflict, resolution) =>
+          void resolveConflict(conflict, resolution)
+        }
+      />
 
       {isAdmin && selectedCell && (
         <MealCellEditor

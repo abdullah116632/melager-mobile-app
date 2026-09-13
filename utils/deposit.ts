@@ -1,4 +1,5 @@
 import type { DepositEntry } from "@/types/deposit";
+import { getDhakaDate } from "@/utils/dashboard";
 
 // `Number.prototype.toLocaleString` builds a fresh formatter on every call,
 // which the deposits table pays for once per member plus the month total. Two
@@ -80,16 +81,37 @@ export const getDepositTotal = (entries: DepositEntry[]): number =>
   entries.reduce((sum, entry) => sum + entry.amount, 0);
 
 /**
- * Splits a deposit timestamp into the local year-month and day-of-month keys
- * used by `MonthData.deposits`. Returns null for an unparsable timestamp so
- * callers can skip the entry instead of writing a `NaN` bucket.
+ * Splits a deposit timestamp into the Dhaka year-month and day-of-month keys
+ * used by `MonthData.deposits`, matching how the server buckets deposits.
+ * Returns null for an unparsable timestamp so callers can skip the entry
+ * instead of writing a `NaN` bucket.
  */
-export const getDepositEntryDateParts = (entry: DepositEntry) => {
+export const getDepositEntryDateParts = (
+  entry: Pick<DepositEntry, "depositedAt">,
+) => {
   const date = new Date(entry.depositedAt);
   if (Number.isNaN(date.getTime())) return null;
+  const dhakaDate = getDhakaDate(date);
   return {
-    yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-    day: date.getDate().toString(),
+    yearMonth: dhakaDate.slice(0, 7),
+    day: Number(dhakaDate.slice(8, 10)).toString(),
+  };
+};
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * UTC ISO bounds, with a one-day buffer on each side, that contain every
+ * deposit of a Dhaka calendar month. `deposited_at` is stored as a UTC ISO
+ * string, so its first seven characters are the UTC month — a deposit at
+ * 00:00–05:59 on the 1st (Dhaka) would otherwise fall into the previous month.
+ * Callers must still filter with `getDepositEntryDateParts`.
+ */
+export const getDepositMonthScanRange = (yearMonth: string) => {
+  const [year, month] = yearMonth.split("-").map(Number);
+  return {
+    from: new Date(Date.UTC(year!, month! - 1, 1) - ONE_DAY_MS).toISOString(),
+    to: new Date(Date.UTC(year!, month!, 1) + ONE_DAY_MS).toISOString(),
   };
 };
 

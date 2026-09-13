@@ -19,9 +19,10 @@ export async function initializeOfflineDatabase(
   // A terminated app may leave an operation marked as syncing. It is safe to
   // retry because future server mutations must use the outbox id as their
   // idempotency key.
+  // The interrupted attempt may have reached the server, so it counts.
   await database.runAsync(
     `UPDATE offline_outbox
-     SET status = 'pending', updated_at = ?
+     SET status = 'pending', attempt_count = attempt_count + 1, updated_at = ?
      WHERE status = 'syncing'`,
     Date.now(),
   );

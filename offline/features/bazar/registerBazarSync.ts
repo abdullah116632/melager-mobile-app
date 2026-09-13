@@ -37,6 +37,17 @@ export function registerBazarSync(
     const payload = getPayload(operation);
     const localId = payload.localId;
     if (!localId) throw new Error("Bazar outbox item has no local id.");
+    if (operation.operation !== "create" && !payload.serverId) {
+      // Queued before its create was confirmed: wait for the create to hand
+      // over a server id. If the create never landed there is nothing to
+      // change server-side, and a delete only has to settle locally.
+      if (await repository.isCreatePending(context.userId, localId)) {
+        throw new Error("Bazar change is waiting for its create to sync.");
+      }
+      if (operation.operation === "delete")
+        await repository.acknowledgeDelete(localId);
+      return;
+    }
     if (operation.operation !== "create" && !payload.baseUpdatedAt) {
       const local = await repository.getItemByLocalId(localId);
       if (local?.server_updated_at)
@@ -66,13 +77,17 @@ export function registerBazarSync(
         throw new Error("Server returned no bazar item.");
       }
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.status === 404 &&
-        operation.operation !== "create"
-      ) {
-        await repository.acknowledgeDelete(localId);
-        return;
+      if (error instanceof ApiError && error.status === 404) {
+        // A bare 404 (no JSON body) means the sync route itself is missing or
+        // a proxy answered, not that the item is gone. Keep the edit queued
+        // and retry instead of deleting or dead-lettering local work.
+        if (!error.hasErrorBody) {
+          throw new Error("Bazar sync is temporarily unavailable.");
+        }
+        if (operation.operation !== "create") {
+          await repository.acknowledgeDelete(localId);
+          return;
+        }
       }
       throw error;
     }

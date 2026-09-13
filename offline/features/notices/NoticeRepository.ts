@@ -272,9 +272,13 @@ export class NoticeRepository {
     displayId: number,
     input: { title: string; body: string; color: string },
   ): Promise<void> {
-    const row = await this.require(messId, displayId);
+    const found = await this.require(messId, displayId);
     const now = Date.now();
     await runInTransaction(this.database, async () => {
+      // Re-read inside the transaction: a create acknowledged since the lookup
+      // now has a server id and must not be queued as a create again.
+      const row = await this.getByLocalId(found.local_id);
+      if (!row) throw new Error("Notice not found.");
       await this.database.runAsync(
         "UPDATE local_notices SET title = ?, body = ?, color = ?, local_updated_at = ?, is_dirty = 1 WHERE local_id = ?",
         input.title,
@@ -283,7 +287,10 @@ export class NoticeRepository {
         now,
         row.local_id,
       );
-      if (row.server_id === null) {
+      if (
+        row.server_id === null &&
+        !(await this.isCreateMaybeSent(userId, row))
+      ) {
         await this.outbox.enqueue<NoticeMutationPayload>({
           dedupeKey: `notice:create:${row.local_id}`,
           userId,
@@ -294,6 +301,8 @@ export class NoticeRepository {
           payload: { localId: row.local_id, ...input },
         });
       } else {
+        // Without a server id yet, this waits behind its create, which hands
+        // it the id on acknowledgement.
         await this.outbox.enqueue<NoticeMutationPayload>({
           dedupeKey: `notice:update:${row.local_id}`,
           userId,
@@ -306,7 +315,7 @@ export class NoticeRepository {
             : null,
           payload: {
             localId: row.local_id,
-            serverId: row.server_id,
+            serverId: row.server_id ?? undefined,
             baseUpdatedAt: row.server_updated_at ?? undefined,
             ...input,
           },
@@ -316,15 +325,37 @@ export class NoticeRepository {
     });
   }
 
+  /**
+   * A create that may already exist on the server must keep its mutation id;
+   * rewriting it would create the notice twice.
+   */
+  private async isCreateMaybeSent(
+    userId: number,
+    row: NoticeRow,
+  ): Promise<boolean> {
+    return (
+      row.server_id === null &&
+      (await this.outbox.getDeliveryState(
+        userId,
+        `notice:create:${row.local_id}`,
+      )) === "maybe-sent"
+    );
+  }
+
   async remove(
     userId: number,
     messId: number,
     displayId: number,
   ): Promise<void> {
-    const row = await this.require(messId, displayId);
+    const found = await this.require(messId, displayId);
     const now = Date.now();
     await runInTransaction(this.database, async () => {
-      if (row.server_id === null) {
+      // Re-read inside the transaction: a create acknowledged since the lookup
+      // now has a server id and must take the normal delete path.
+      const row = await this.getByLocalId(found.local_id);
+      if (!row) return;
+      const createMaybeSent = await this.isCreateMaybeSent(userId, row);
+      if (row.server_id === null && !createMaybeSent) {
         await this.database.runAsync(
           "DELETE FROM local_notices WHERE local_id = ?",
           row.local_id,
@@ -334,6 +365,32 @@ export class NoticeRepository {
           userId,
           row.local_id,
         );
+      } else if (row.server_id === null) {
+        // The create may already exist on the server. Keep it queued and delete
+        // behind it; acknowledging the create hands this delete the server id.
+        // Edits queued behind the create were never sent, so drop them.
+        await this.database.runAsync(
+          `DELETE FROM offline_outbox
+           WHERE user_id = ? AND entity_type = 'notice' AND entity_id = ?
+             AND dedupe_key <> ?`,
+          userId,
+          row.local_id,
+          `notice:create:${row.local_id}`,
+        );
+        await this.database.runAsync(
+          "UPDATE local_notices SET is_deleted = 1, is_dirty = 1, local_updated_at = ? WHERE local_id = ?",
+          now,
+          row.local_id,
+        );
+        await this.outbox.enqueue<NoticeMutationPayload>({
+          dedupeKey: `notice:delete:${row.local_id}`,
+          userId,
+          messId,
+          entityType: "notice",
+          entityId: row.local_id,
+          operation: "delete",
+          payload: { localId: row.local_id },
+        });
       } else {
         await this.database.runAsync(
           "UPDATE local_notices SET is_deleted = 1, is_dirty = 1, local_updated_at = ? WHERE local_id = ?",
@@ -365,6 +422,16 @@ export class NoticeRepository {
       await this.queueReorderAfterDelete(userId, messId);
       await this.ensureSyncState(userId, messId, now);
     });
+  }
+
+  /** Whether a queued create may still hand this notice a server id. */
+  async isCreatePending(userId: number, localId: string): Promise<boolean> {
+    return (
+      (await this.outbox.getDeliveryState(
+        userId,
+        `notice:create:${localId}`,
+      )) !== "none"
+    );
   }
 
   async reorder(
@@ -465,14 +532,19 @@ export class NoticeRepository {
     notice: ApiNotice,
     operationId: string,
   ): Promise<void> {
-    const other = await this.database.getFirstAsync<{ total: number }>(
-      `SELECT COUNT(*) AS total FROM offline_outbox
-       WHERE entity_type = 'notice' AND entity_id = ? AND id <> ?`,
-      localId,
-      operationId,
-    );
-    if (Number(other?.total ?? 0) > 0) {
-      await runInTransaction(this.database, async () => {
+    // One transaction with the sibling check, so a delete queued while this
+    // create was in flight cannot slip in between and miss the server id.
+    await runInTransaction(this.database, async () => {
+      const pending = await this.database.getAllAsync<{
+        id: string;
+        payload: string;
+      }>(
+        `SELECT id,payload FROM offline_outbox
+         WHERE entity_type='notice' AND entity_id=? AND id<>?`,
+        localId,
+        operationId,
+      );
+      if (pending.length > 0) {
         await this.database.runAsync(
           "UPDATE local_notices SET server_id = ?, display_id = ?, server_updated_at = ? WHERE local_id = ?",
           notice.id,
@@ -480,20 +552,12 @@ export class NoticeRepository {
           notice.updatedAt,
           localId,
         );
-        const pending = await this.database.getAllAsync<{
-          id: string;
-          payload: string;
-        }>(
-          `SELECT id,payload FROM offline_outbox
-           WHERE entity_type='notice' AND entity_id=? AND id<>?`,
-          localId,
-          operationId,
-        );
         for (const row of pending) {
           const payload = JSON.parse(row.payload) as NoticeMutationPayload;
           await this.database.runAsync(
             `UPDATE offline_outbox
-             SET operation='update',payload=?,base_version=?,updated_at=? WHERE id=?`,
+             SET operation=CASE WHEN operation='delete' THEN 'delete' ELSE 'update' END,
+                 payload=?,base_version=?,updated_at=? WHERE id=?`,
             JSON.stringify({
               ...payload,
               serverId: notice.id,
@@ -504,25 +568,25 @@ export class NoticeRepository {
             row.id,
           );
         }
-      });
-      return;
-    }
-    await this.database.runAsync(
-      `UPDATE local_notices SET server_id = ?, display_id = ?, serial_no = ?, title = ?, body = ?, color = ?,
-        created_by_user_id = ?, created_at = ?, server_updated_at = ?, local_updated_at = ?, is_dirty = 0, is_deleted = 0
-       WHERE local_id = ?`,
-      notice.id,
-      notice.id,
-      notice.serialNo,
-      notice.title,
-      notice.body,
-      notice.color,
-      notice.createdByUserId,
-      notice.createdAt,
-      notice.updatedAt,
-      Date.now(),
-      localId,
-    );
+        return;
+      }
+      await this.database.runAsync(
+        `UPDATE local_notices SET server_id = ?, display_id = ?, serial_no = ?, title = ?, body = ?, color = ?,
+          created_by_user_id = ?, created_at = ?, server_updated_at = ?, local_updated_at = ?, is_dirty = 0, is_deleted = 0
+         WHERE local_id = ?`,
+        notice.id,
+        notice.id,
+        notice.serialNo,
+        notice.title,
+        notice.body,
+        notice.color,
+        notice.createdByUserId,
+        notice.createdAt,
+        notice.updatedAt,
+        Date.now(),
+        localId,
+      );
+    });
   }
 
   async acknowledgeDelete(localId: string): Promise<void> {

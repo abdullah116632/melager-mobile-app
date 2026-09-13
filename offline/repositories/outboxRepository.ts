@@ -150,6 +150,37 @@ export class OutboxRepository {
     notifyOutboxChanged();
   }
 
+  async getById(id: string): Promise<OutboxOperation | null> {
+    const row = await this.database.getFirstAsync<OutboxRow>(
+      "SELECT * FROM offline_outbox WHERE id = ?",
+      id,
+    );
+    return row ? toOperation(row) : null;
+  }
+
+  /**
+   * An operation handed to the network may have been applied server-side even
+   * if its response never arrived, so it can no longer simply be dropped.
+   */
+  async getDeliveryState(
+    userId: number,
+    dedupeKey: string,
+  ): Promise<"none" | "unsent" | "maybe-sent"> {
+    const row = await this.database.getFirstAsync<{
+      status: OutboxStatus;
+      attempt_count: number;
+    }>(
+      `SELECT status, attempt_count FROM offline_outbox
+       WHERE user_id = ? AND dedupe_key = ?`,
+      userId,
+      dedupeKey,
+    );
+    if (!row) return "none";
+    return row.status === "syncing" || row.attempt_count > 0
+      ? "maybe-sent"
+      : "unsent";
+  }
+
   async listReady(
     userId: number,
     messId: number | null,
@@ -189,8 +220,10 @@ export class OutboxRepository {
       messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
     const parameters = messId === null ? [userId] : [userId, messId];
     await this.database.runAsync(
+      // The interrupted attempt may have reached the server, so it counts.
       `UPDATE offline_outbox
-       SET status = 'pending', next_attempt_at = 0, updated_at = ?
+       SET status = 'pending', attempt_count = attempt_count + 1,
+           next_attempt_at = 0, updated_at = ?
        WHERE user_id = ? AND ${scopeClause} AND status = 'syncing'`,
       Date.now(),
       ...parameters,

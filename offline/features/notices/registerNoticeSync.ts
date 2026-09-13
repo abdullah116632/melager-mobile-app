@@ -20,6 +20,17 @@ export function registerNoticeSync(
     const payload = getPayload(operation);
     const localId = payload.localId;
     if (!localId) throw new Error("Notice outbox item has no local id.");
+    if (operation.operation !== "create" && !payload.serverId) {
+      // Queued before its create was confirmed: wait for the create to hand
+      // over a server id. If the create never landed there is nothing to
+      // change server-side, and a delete only has to settle locally.
+      if (await repository.isCreatePending(context.userId, localId)) {
+        throw new Error("Notice change is waiting for its create to sync.");
+      }
+      if (operation.operation === "delete")
+        await repository.acknowledgeDelete(localId);
+      return;
+    }
     if (operation.operation !== "create" && !payload.baseUpdatedAt) {
       const local = await repository.getByLocalId(localId);
       if (local?.server_updated_at) {

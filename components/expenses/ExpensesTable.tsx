@@ -1,28 +1,49 @@
 import * as Haptics from "expo-haptics";
-import { useCallback, useMemo, useState } from "react";
-import { Platform, RefreshControl, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import {
   EXPENSE_AMOUNT_COLUMN_WIDTH,
   EXPENSE_DAY_COLUMN_WIDTH,
   EXPENSE_PRIMARY,
 } from "@/constants/expense";
+import { ExpenseRepository } from "@/offline/features/expenses/ExpenseRepository";
+import {
+  subscribeToExpenseConflicts,
+  type ExpenseConflict,
+} from "@/offline/features/expenses/conflicts";
+import { useOfflineDatabase } from "@/offline/provider/OfflineDatabaseProvider";
+import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import {
   useAppDispatch,
   useAuth,
   useExpenses,
   useNetwork,
 } from "@/redux/hooks";
+import { hydrateExpenseMonth } from "@/redux/slice/expenseSlice";
 import { offlineActionFailed } from "@/redux/slice/networkSlice";
 import { formatExpenseAmount } from "@/utils/expense";
 import { getTodayDayInMonth } from "@/utils/monthDay";
+import {
+  ExpenseConflictModal,
+  expenseConflictKey,
+  type ExpenseResolution,
+} from "./ExpenseConflictModal";
 import { ExpenseDetailModal } from "./ExpenseDetailModal";
 import { ExpenseEditorModal } from "./ExpenseEditorModal";
 import { ExpenseRow } from "./ExpenseRow";
 
 export const ExpensesTable = () => {
   const dispatch = useAppDispatch();
-  const { role } = useAuth();
+  const { role, user, mess, token } = useAuth();
   const { isOnline } = useNetwork();
+  const { database } = useOfflineDatabase();
   const {
     currentYearMonth,
     currentMonthLoaded,
@@ -36,6 +57,10 @@ export const ExpensesTable = () => {
   const [viewingDay, setViewingDay] = useState<number | null>(null);
   const [editingDay, setEditingDay] = useState<number | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<ExpenseConflict[]>([]);
+  const [resolvingConflict, setResolvingConflict] = useState<string | null>(
+    null,
+  );
   const isAdmin = role === "admin";
   const isMonthReady = currentMonthLoaded && !dataLoading;
   const daysInMonth = getDaysInMonth(currentYearMonth);
@@ -57,6 +82,57 @@ export const ExpensesTable = () => {
           ).length
         : 0,
     [currentYearMonth, days, getExpense, isMonthReady],
+  );
+
+  const refreshConflicts = useCallback(() => {
+    if (!database || !user?.id || !mess?.id) return;
+    void new ExpenseRepository(database)
+      .getConflicts(user.id, mess.id)
+      .then(setConflicts)
+      .catch(() => undefined);
+  }, [database, mess?.id, user?.id]);
+
+  useEffect(() => {
+    refreshConflicts();
+    return subscribeToExpenseConflicts(refreshConflicts);
+  }, [refreshConflicts]);
+
+  const resolveConflict = useCallback(
+    async (conflict: ExpenseConflict, resolution: ExpenseResolution) => {
+      if (!database || !user?.id || !mess?.id) return;
+      setResolvingConflict(expenseConflictKey(conflict));
+      try {
+        await new ExpenseRepository(database).resolveConflict(
+          user.id,
+          mess.id,
+          conflict.yearMonth,
+          conflict.day,
+          resolution,
+        );
+        await dispatch(
+          hydrateExpenseMonth({
+            messId: mess.id,
+            yearMonth: conflict.yearMonth,
+          }),
+        );
+        if (resolution !== "server" && token && isOnline) {
+          void getOfflineRuntime(database)
+            .engine.sync(
+              { userId: user.id, messId: mess.id, token },
+              { collections: ["expenses"], force: true },
+            )
+            .catch(() => undefined);
+        }
+      } catch (error) {
+        Alert.alert(
+          "Could not resolve conflict",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      } finally {
+        setResolvingConflict(null);
+      }
+    },
+    [database, dispatch, isOnline, mess?.id, token, user?.id],
   );
 
   const handleRefresh = async () => {
@@ -201,6 +277,13 @@ export const ExpensesTable = () => {
         day={editingDay}
         focusItemId={editingItemId}
         onClose={closeEditor}
+      />
+      <ExpenseConflictModal
+        conflicts={conflicts}
+        resolvingKey={resolvingConflict}
+        onResolve={(conflict, resolution) =>
+          void resolveConflict(conflict, resolution)
+        }
       />
     </>
   );

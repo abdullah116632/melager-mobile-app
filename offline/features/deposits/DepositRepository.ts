@@ -3,6 +3,15 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import type { DepositEntry } from "@/lib/api";
 import { OutboxRepository } from "../../repositories/outboxRepository";
 import { runInTransaction } from "../../database/transaction";
+import {
+  getDepositEntryDateParts,
+  getDepositMonthScanRange,
+} from "@/utils/deposit";
+import {
+  emitDepositConflictsChanged,
+  type DepositConflict,
+  type DepositSnapshot,
+} from "./conflicts";
 
 type Row = {
   local_id: string;
@@ -14,6 +23,10 @@ type Row = {
   deposited_at: string;
   note: string | null;
   is_deleted: number;
+};
+type ConflictRow = Row & {
+  conflict_kind: string | null;
+  conflict_server: string | null;
 };
 type DepositBaseSnapshot = {
   amount: number;
@@ -35,13 +48,38 @@ export class DepositRepository {
     this.outbox = new OutboxRepository(db);
   }
   async list(userId: number, messId: number, yearMonth: string) {
-    const rows = await this.db.getAllAsync<Row>(
-      "SELECT * FROM local_deposit_entries WHERE user_id=? AND mess_id=? AND is_deleted=0 AND substr(deposited_at,1,7)=? ORDER BY deposited_at DESC, local_updated_at DESC",
+    const rows = await this.getMonthRows(
       userId,
       messId,
       yearMonth,
+      "AND is_deleted=0",
     );
     return rows.map(toEntry);
+  }
+  /**
+   * Rows of one Dhaka calendar month, the same month rule the server uses.
+   * `deposited_at` is a UTC ISO string, so `substr(deposited_at,1,7)` put a
+   * deposit made at 00:00–05:59 on the 1st into the previous month.
+   */
+  private async getMonthRows(
+    userId: number,
+    messId: number,
+    yearMonth: string,
+    extraWhere: string,
+  ) {
+    const { from, to } = getDepositMonthScanRange(yearMonth);
+    const rows = await this.db.getAllAsync<Row>(
+      `SELECT * FROM local_deposit_entries WHERE user_id=? AND mess_id=? AND deposited_at>=? AND deposited_at<? ${extraWhere} ORDER BY deposited_at DESC, local_updated_at DESC`,
+      userId,
+      messId,
+      from,
+      to,
+    );
+    return rows.filter(
+      (row) =>
+        getDepositEntryDateParts({ depositedAt: row.deposited_at })
+          ?.yearMonth === yearMonth,
+    );
   }
   async replace(
     userId: number,
@@ -50,6 +88,28 @@ export class DepositRepository {
     entries: DepositEntry[],
   ) {
     await runInTransaction(this.db, async () => {
+      // A dirty row with no outbox entry lost its mutation (the sync engine
+      // dead-lettered it). The upserts below skip dirty rows, so it would
+      // shadow the server copy forever; let the server win instead.
+      const orphanedDirtyRows = await this.getMonthRows(
+        userId,
+        messId,
+        yearMonth,
+        `AND is_dirty=1 AND conflict_kind IS NULL AND NOT EXISTS (
+          SELECT 1 FROM offline_outbox
+          WHERE offline_outbox.entity_type='deposit'
+            AND offline_outbox.entity_id=local_deposit_entries.local_id
+        )`,
+      );
+      for (const row of orphanedDirtyRows) {
+        await this.db.runAsync(
+          row.server_id === null
+            ? "DELETE FROM local_deposit_entries WHERE local_id=?"
+            : "UPDATE local_deposit_entries SET is_dirty=0,is_deleted=0 WHERE local_id=?",
+          row.local_id,
+        );
+      }
+
       for (const entry of entries) {
         await this.db.runAsync(
           `INSERT INTO local_deposit_entries(local_id,server_id,user_id,mess_id,consumer_id,amount,deposited_at,note,local_updated_at,is_dirty,is_deleted) VALUES(?,?,?,?,?,?,?,?,?,0,0) ON CONFLICT(mess_id,server_id) WHERE server_id IS NOT NULL DO UPDATE SET consumer_id=excluded.consumer_id,amount=excluded.amount,deposited_at=excluded.deposited_at,note=excluded.note,is_deleted=0 WHERE local_deposit_entries.is_dirty=0`,
@@ -68,22 +128,20 @@ export class DepositRepository {
       // The remote month is authoritative. Preserve dirty rows because they
       // represent an unsynced local write, but remove clean server rows that
       // no longer exist remotely (for example, deleted on another device).
-      const serverIds = entries.map((entry) => entry.id);
-      const baseSql = `DELETE FROM local_deposit_entries
-        WHERE user_id = ? AND mess_id = ?
-          AND substr(deposited_at, 1, 7) = ?
-          AND server_id IS NOT NULL
-          AND is_dirty = 0 AND is_deleted = 0`;
-      if (serverIds.length === 0) {
-        await this.db.runAsync(baseSql, userId, messId, yearMonth);
-      } else {
-        const placeholders = serverIds.map(() => "?").join(", ");
+      // The month has to match the server's Dhaka month exactly, or a
+      // boundary deposit returned for one month is deleted by the other.
+      const serverIds = new Set(entries.map((entry) => entry.id));
+      const staleRows = await this.getMonthRows(
+        userId,
+        messId,
+        yearMonth,
+        "AND server_id IS NOT NULL AND is_dirty=0 AND is_deleted=0",
+      );
+      for (const row of staleRows) {
+        if (serverIds.has(row.server_id!)) continue;
         await this.db.runAsync(
-          `${baseSql} AND server_id NOT IN (${placeholders})`,
-          userId,
-          messId,
-          yearMonth,
-          ...serverIds,
+          "DELETE FROM local_deposit_entries WHERE local_id=?",
+          row.local_id,
         );
       }
     });
@@ -102,7 +160,7 @@ export class DepositRepository {
       now = Date.now();
     await runInTransaction(this.db, async () => {
       await this.db.runAsync(
-        "INSERT INTO local_deposit_entries VALUES(?,NULL,?,?,?,?,?,?,?,1,0)",
+        "INSERT INTO local_deposit_entries(local_id,server_id,user_id,mess_id,consumer_id,amount,deposited_at,note,local_updated_at,is_dirty,is_deleted) VALUES(?,NULL,?,?,?,?,?,?,?,1,0)",
         localId,
         userId,
         data.messId,
@@ -133,14 +191,19 @@ export class DepositRepository {
     entry: DepositEntry,
     operationId: string,
   ) {
-    const pending = await this.db.getAllAsync<{ id: string; payload: string }>(
-      `SELECT id, payload FROM offline_outbox
-       WHERE entity_type='deposit' AND entity_id=? AND id<>?`,
-      localId,
-      operationId,
-    );
-    if (pending.length > 0) {
-      await runInTransaction(this.db, async () => {
+    // One transaction with the sibling check, so a delete queued while this
+    // create was in flight cannot slip in between and miss the server id.
+    await runInTransaction(this.db, async () => {
+      const pending = await this.db.getAllAsync<{
+        id: string;
+        payload: string;
+      }>(
+        `SELECT id, payload FROM offline_outbox
+         WHERE entity_type='deposit' AND entity_id=? AND id<>?`,
+        localId,
+        operationId,
+      );
+      if (pending.length > 0) {
         await this.db.runAsync(
           "UPDATE local_deposit_entries SET server_id=? WHERE local_id=?",
           entry.id,
@@ -165,17 +228,17 @@ export class DepositRepository {
             row.id,
           );
         }
-      });
-      return;
-    }
-    await this.db.runAsync(
-      "UPDATE local_deposit_entries SET server_id=?,amount=?,deposited_at=?,note=?,is_dirty=0 WHERE local_id=?",
-      entry.id,
-      entry.amount,
-      entry.depositedAt,
-      entry.note ?? null,
-      localId,
-    );
+        return;
+      }
+      await this.db.runAsync(
+        "UPDATE local_deposit_entries SET server_id=?,amount=?,deposited_at=?,note=?,is_dirty=0 WHERE local_id=?",
+        entry.id,
+        entry.amount,
+        entry.depositedAt,
+        entry.note ?? null,
+        localId,
+      );
+    });
   }
   async acknowledgeDelete(localId: string) {
     await this.db.runAsync(
@@ -194,14 +257,21 @@ export class DepositRepository {
       userId,
       messId,
     );
-    const row = rows.find((item) => toEntry(item).id === id);
-    if (!row) throw new Error("Deposit entry is not available offline.");
-    const base = await this.getMutationBase(userId, row);
+    const found = rows.find((item) => toEntry(item).id === id);
+    if (!found) throw new Error("Deposit entry is not available offline.");
     // The edited row and the outbox entry that will push it have to commit
     // together. Apart, an interruption between them leaves an amount that is
     // changed on this device, marked dirty so no pull may correct it, and
     // queued nowhere — a ledger entry that silently never reaches the server.
     await runInTransaction(this.db, async () => {
+      // Re-read inside the transaction: a create acknowledged since the lookup
+      // now has a server id and must not be queued as a create again.
+      const row = await this.db.getFirstAsync<Row>(
+        "SELECT * FROM local_deposit_entries WHERE local_id=?",
+        found.local_id,
+      );
+      if (!row) throw new Error("Deposit entry is not available offline.");
+      const base = await this.getMutationBase(userId, row);
       await this.db.runAsync(
         "UPDATE local_deposit_entries SET amount=?,deposited_at=?,note=?,is_dirty=1,local_updated_at=? WHERE local_id=?",
         data.amount,
@@ -210,6 +280,33 @@ export class DepositRepository {
         Date.now(),
         row.local_id,
       );
+      if (
+        row.server_id === null &&
+        (await this.outbox.getDeliveryState(
+          userId,
+          `deposit:${row.local_id}`,
+        )) === "maybe-sent"
+      ) {
+        // The create may already exist on the server. Rewriting it would give
+        // it a new mutation id and create the deposit twice, so queue the edit
+        // behind it; acknowledging the create hands over the server id and base.
+        await this.outbox.enqueue({
+          userId,
+          messId,
+          entityType: "deposit",
+          entityId: row.local_id,
+          operation: "update",
+          dedupeKey: `deposit:update:${row.local_id}`,
+          payload: {
+            operation: "update",
+            localId: row.local_id,
+            serverId: null,
+            consumerId: row.consumer_id,
+            ...data,
+          },
+        });
+        return;
+      }
       await this.outbox.enqueue({
         userId,
         messId,
@@ -227,7 +324,7 @@ export class DepositRepository {
         },
       });
     });
-    return { ...toEntry(row), ...data };
+    return { ...toEntry(found), ...data };
   }
   async deleteById(userId: number, messId: number, id: number) {
     const rows = await this.db.getAllAsync<Row>(
@@ -235,29 +332,62 @@ export class DepositRepository {
       userId,
       messId,
     );
-    const row = rows.find((item) => toEntry(item).id === id);
-    if (!row) throw new Error("Deposit entry is not available offline.");
-    if (row.server_id === null) {
-      // Deleting the row without also dropping its queued create would push a
-      // deposit the user has just deleted, so it would reappear for everyone.
-      await runInTransaction(this.db, async () => {
-        await this.db.runAsync(
-          "DELETE FROM local_deposit_entries WHERE local_id=?",
-          row.local_id,
-        );
-        await this.db.runAsync(
-          "DELETE FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
+    const found = rows.find((item) => toEntry(item).id === id);
+    if (!found) throw new Error("Deposit entry is not available offline.");
+    await runInTransaction(this.db, async () => {
+      // Re-read inside the transaction: a create acknowledged since the lookup
+      // now has a server id and must take the normal delete path.
+      const row = await this.db.getFirstAsync<Row>(
+        "SELECT * FROM local_deposit_entries WHERE local_id=?",
+        found.local_id,
+      );
+      if (!row) return;
+      if (row.server_id === null) {
+        const delivery = await this.outbox.getDeliveryState(
           userId,
           `deposit:${row.local_id}`,
         );
-      });
-      return;
-    }
-    const base = await this.getMutationBase(userId, row);
-    // Same pairing as above: hiding the entry locally without queueing the
-    // delete would drop it from this device while it lives on for everyone
-    // else, and the dirty flag keeps any pull from putting it back.
-    await runInTransaction(this.db, async () => {
+        if (delivery !== "maybe-sent") {
+          // Deleting the row without also dropping its queued create would push
+          // a deposit the user has just deleted, so it would reappear for everyone.
+          await this.db.runAsync(
+            "DELETE FROM local_deposit_entries WHERE local_id=?",
+            row.local_id,
+          );
+          await this.db.runAsync(
+            "DELETE FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
+            userId,
+            `deposit:${row.local_id}`,
+          );
+          return;
+        }
+        // The create may already exist on the server. Keep it queued and delete
+        // behind it; acknowledging the create hands this delete the server id.
+        // An edit queued behind the create was never sent, so drop it.
+        await this.db.runAsync(
+          "DELETE FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
+          userId,
+          `deposit:update:${row.local_id}`,
+        );
+        await this.db.runAsync(
+          "UPDATE local_deposit_entries SET is_deleted=1,is_dirty=1 WHERE local_id=?",
+          row.local_id,
+        );
+        await this.outbox.enqueue({
+          userId,
+          messId,
+          entityType: "deposit",
+          entityId: row.local_id,
+          operation: "delete",
+          dedupeKey: `deposit:delete:${row.local_id}`,
+          payload: { operation: "delete", localId: row.local_id, serverId: null },
+        });
+        return;
+      }
+      const base = await this.getMutationBase(userId, row);
+      // Same pairing as above: hiding the entry locally without queueing the
+      // delete would drop it from this device while it lives on for everyone
+      // else, and the dirty flag keeps any pull from putting it back.
       await this.db.runAsync(
         "UPDATE local_deposit_entries SET is_deleted=1,is_dirty=1 WHERE local_id=?",
         row.local_id,
@@ -277,6 +407,142 @@ export class DepositRepository {
         },
       });
     });
+  }
+  /** Holds a rejected change for review; `server` is null when it was deleted. */
+  async markConflict(localId: string, server: DepositSnapshot | null) {
+    await this.db.runAsync(
+      "UPDATE local_deposit_entries SET conflict_kind=?,conflict_server=?,is_dirty=1 WHERE local_id=?",
+      server ? "changed" : "deleted",
+      server ? JSON.stringify(server) : null,
+      localId,
+    );
+    emitDepositConflictsChanged();
+  }
+  async getConflicts(
+    userId: number,
+    messId: number,
+  ): Promise<DepositConflict[]> {
+    const rows = await this.db.getAllAsync<ConflictRow>(
+      "SELECT * FROM local_deposit_entries WHERE user_id=? AND mess_id=? AND conflict_kind IS NOT NULL ORDER BY deposited_at DESC",
+      userId,
+      messId,
+    );
+    return rows.map((row) => ({
+      localId: row.local_id,
+      consumerId: row.consumer_id,
+      localAction: row.is_deleted === 1 ? "delete" : "edit",
+      local: {
+        amount: Number(row.amount),
+        depositedAt: row.deposited_at,
+        note: row.note,
+      },
+      server: row.conflict_server
+        ? (JSON.parse(row.conflict_server) as DepositSnapshot)
+        : null,
+    }));
+  }
+  /**
+   * "local" re-sends this device's change on top of the server's version so it
+   * replaces it; "server" adopts the server's version on this device.
+   */
+  async resolveConflict(
+    userId: number,
+    messId: number,
+    localId: string,
+    resolution: "local" | "server",
+  ) {
+    await runInTransaction(this.db, async () => {
+      const row = await this.db.getFirstAsync<ConflictRow>(
+        "SELECT * FROM local_deposit_entries WHERE local_id=?",
+        localId,
+      );
+      if (!row?.conflict_kind) return;
+      const server = row.conflict_server
+        ? (JSON.parse(row.conflict_server) as DepositSnapshot)
+        : null;
+      const cleared = "conflict_kind=NULL,conflict_server=NULL";
+      if (resolution === "server") {
+        if (!server) {
+          await this.db.runAsync(
+            "DELETE FROM local_deposit_entries WHERE local_id=?",
+            localId,
+          );
+          return;
+        }
+        await this.db.runAsync(
+          `UPDATE local_deposit_entries SET amount=?,deposited_at=?,note=?,is_deleted=0,is_dirty=0,${cleared} WHERE local_id=?`,
+          server.amount,
+          server.depositedAt,
+          server.note,
+          localId,
+        );
+        return;
+      }
+      const local = {
+        amount: Number(row.amount),
+        depositedAt: row.deposited_at,
+        note: row.note ?? undefined,
+      };
+      if (!server) {
+        // Deleted on another device: add this device's version back.
+        await this.db.runAsync(
+          `UPDATE local_deposit_entries SET server_id=NULL,${cleared} WHERE local_id=?`,
+          localId,
+        );
+        await this.outbox.enqueue({
+          userId,
+          messId,
+          entityType: "deposit",
+          entityId: localId,
+          operation: "create",
+          dedupeKey: `deposit:${localId}`,
+          payload: {
+            operation: "create",
+            localId,
+            messId,
+            consumerId: row.consumer_id,
+            ...local,
+          },
+        });
+        return;
+      }
+      await this.db.runAsync(
+        `UPDATE local_deposit_entries SET ${cleared} WHERE local_id=?`,
+        localId,
+      );
+      await this.outbox.enqueue({
+        userId,
+        messId,
+        entityType: "deposit",
+        entityId: localId,
+        operation: row.is_deleted === 1 ? "delete" : "update",
+        dedupeKey: `deposit:${localId}`,
+        payload:
+          row.is_deleted === 1
+            ? {
+                operation: "delete",
+                localId,
+                serverId: row.server_id,
+                base: server,
+              }
+            : {
+                operation: "update",
+                localId,
+                serverId: row.server_id,
+                consumerId: row.consumer_id,
+                base: server,
+                ...local,
+              },
+      });
+    });
+    emitDepositConflictsChanged();
+  }
+  /** Whether a queued create may still hand this row a server id. */
+  async isCreatePending(userId: number, localId: string) {
+    return (
+      (await this.outbox.getDeliveryState(userId, `deposit:${localId}`)) !==
+      "none"
+    );
   }
   private async getMutationBase(
     userId: number,

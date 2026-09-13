@@ -144,15 +144,19 @@ export class SyncEngine {
       if (operations.length === 0) break;
 
       let handled = 0;
-      for (const operation of operations) {
-        const heldUntil = blockedUntil.get(operation.entityType);
+      for (const listed of operations) {
+        const heldUntil = blockedUntil.get(listed.entityType);
         if (heldUntil !== undefined) {
           // Wait for the earlier operation instead of overtaking it, and share
           // its retry time so the scheduler does not wake up to do nothing.
-          await this.outbox.deferUntil(operation.id, heldUntil);
+          await this.outbox.deferUntil(listed.id, heldUntil);
           continue;
         }
         handled += 1;
+        // The batch is a snapshot: an earlier acknowledgement may have handed
+        // this row a server id, or the user may have removed it since.
+        const operation = await this.outbox.getById(listed.id);
+        if (!operation) continue;
         const processor = this.registry.getProcessor(operation.entityType);
         if (!processor) {
           await this.outbox.moveToDeadLetter(

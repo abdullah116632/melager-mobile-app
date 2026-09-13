@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, clearApiCache } from "@/lib/api";
 import type { SyncRegistry } from "../../sync/registry";
 import { DailyMealsRepository } from "./DailyMealsRepository";
 
@@ -15,19 +15,71 @@ export const registerDailyMealsSync = (
       day: number;
       count: number;
       baseCount: number;
+      sentCounts?: number[];
     };
-    // Meals use explicit last-write-wins semantics: the device whose request
-    // reaches the server last owns the final cell value. The queued payload is
-    // already deduplicated per cell, so this sends exactly the last local
-    // value instead of rejecting it for a stale base count.
-    await api.setMeal(
-      payload.consumerId,
-      payload.yearMonth,
-      payload.day,
-      payload.count,
-      context.token,
-      context.messId!,
-    );
+    const { sentCounts = [], ...mutation } = payload;
+    try {
+      // The server only applies the count if the cell still holds baseCount,
+      // so an edit made on another device meanwhile is reported, not lost.
+      await api.syncDailyMeal(
+        operation.id,
+        context.messId!,
+        mutation,
+        context.token,
+      );
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+      if (error.status === 404 && !error.hasErrorBody) {
+        // A server without the sync route: fall back to the plain write.
+        await api.setMeal(
+          payload.consumerId,
+          payload.yearMonth,
+          payload.day,
+          payload.count,
+          context.token,
+          context.messId!,
+        );
+      } else if (error.status === 409) {
+        clearApiCache();
+        const month = await api.getMonthData(
+          payload.yearMonth,
+          context.token,
+          context.messId!,
+        );
+        // Servers may omit zero-valued cells.
+        const serverCount = Number(
+          month.meals[payload.consumerId]?.[String(payload.day)] ?? 0,
+        );
+        if (serverCount !== payload.count) {
+          if (serverCount === payload.baseCount) {
+            // Nobody changed the cell: an earlier attempt of this same
+            // mutation is still completing server-side.
+            throw new Error("Meal update is still being confirmed.");
+          }
+          if (sentCounts.includes(serverCount)) {
+            // The server holds this device's own earlier value.
+            await repository.rebase(
+              operation.id,
+              context.userId,
+              context.messId!,
+              payload,
+              serverCount,
+            );
+            throw new Error("Meal update is retrying on the confirmed value.");
+          }
+          await repository.markConflict(
+            context.userId,
+            context.messId!,
+            payload,
+            error.message,
+            serverCount,
+          );
+          return;
+        }
+      } else {
+        throw error;
+      }
+    }
     await repository.acknowledge(
       operation.id,
       context.userId,
