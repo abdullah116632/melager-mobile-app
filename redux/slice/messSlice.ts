@@ -618,6 +618,13 @@ const messSlice = createSlice({
           applyMonthData(state, messId, yearMonth, data);
           if (state.scopeMessId === messId) {
             state.dataSource = "live";
+            // The month response carries the authoritative consumer list, so
+            // this is the point where an empty list genuinely means "no
+            // consumers" rather than "not fetched yet". Screens that have to
+            // tell those two apart could not, because only the local hydration
+            // path ever moved this off "none".
+            state.consumerDataSource = "live";
+            state.consumersLastSyncAt = Date.now();
             state.lastLiveSyncAt = Date.now();
             state.lastRefreshError = null;
           }

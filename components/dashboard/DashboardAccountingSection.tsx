@@ -17,6 +17,7 @@ export const DashboardAccountingSection = forwardRef<
   const {
     currentYearMonth,
     currentMonthLoaded,
+    consumerDataSource,
     dataLoading,
     refreshMonth,
   } = useMess();
@@ -42,7 +43,13 @@ export const DashboardAccountingSection = forwardRef<
       />
       <DashboardPersonalSummary
         consumer={personalConsumer}
-        isLoading={dataLoading || !currentMonthLoaded}
+        // The first visit to a mess renders an empty local snapshot, which used
+        // to mark the month "loaded" while the consumer list was still empty —
+        // long enough for the card to claim the account was not linked. The
+        // consumer list has to have arrived before that verdict is possible.
+        isLoading={
+          dataLoading || !currentMonthLoaded || consumerDataSource === "none"
+        }
       />
       <DashboardSummaryCards accounting={accounting} />
     </>
