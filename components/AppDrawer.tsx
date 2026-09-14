@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import appConfig from "@/app.json";
+import { useLogoutGuard } from "@/hooks/useLogoutGuard";
 import { useAuth } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
 
@@ -47,6 +48,7 @@ const getAvatarColor = (name: string): string => {
 
 export function AppDrawer() {
   const { user, mess, role, logout, exitMess } = useAuth();
+  const guardLogout = useLogoutGuard();
   const { isOpen, closeDrawer } = useDrawer();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -114,16 +116,18 @@ export function AppDrawer() {
     setTimeout(() => router.navigate(path as never), 50);
   };
 
-  const handleLogout = async () => {
-    closeDrawer();
-    setTimeout(async () => {
-      setLoggingOut(true);
-      try {
-        await logout();
-      } finally {
-        setLoggingOut(false);
-      }
-    }, ANIMATION_DURATION + 50);
+  const handleLogout = () => {
+    void guardLogout(() => {
+      closeDrawer();
+      setTimeout(async () => {
+        setLoggingOut(true);
+        try {
+          await logout();
+        } finally {
+          setLoggingOut(false);
+        }
+      }, ANIMATION_DURATION + 50);
+    });
   };
 
   if (!visible) return null;

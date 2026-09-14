@@ -73,6 +73,20 @@ export class NotificationRepository {
         notification.type !== "notice",
     );
     await runInTransaction(this.db, async () => {
+      // A read whose outbox row is gone was rejected and dead-lettered.
+      // Nothing will send it again, so let the server's state win below.
+      await this.db.runAsync(
+        `UPDATE local_notifications SET read_pending = 0
+         WHERE user_id = ? AND mess_id = ? AND read_pending = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM offline_outbox
+             WHERE offline_outbox.user_id = local_notifications.user_id
+               AND offline_outbox.dedupe_key =
+                 'notification:' || local_notifications.server_id
+           )`,
+        userId,
+        messId,
+      );
       await this.db.runAsync(
         `DELETE FROM local_notifications
          WHERE user_id = ? AND mess_id = ? AND read_pending = 0`,

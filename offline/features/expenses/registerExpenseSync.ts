@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import { api, ApiError, clearApiCache } from "@/lib/api";
+import { SyncRejectionRepository } from "../../repositories/syncRejectionRepository";
 import type { SyncRegistry } from "../../sync/registry";
 import {
   ExpenseRepository,
@@ -9,11 +10,24 @@ import {
 } from "./ExpenseRepository";
 import { getDhakaDate } from "@/utils/dashboard";
 
+const formatDay = (yearMonth: string, day: number) =>
+  new Date(
+    `${yearMonth}-${String(day).padStart(2, "0")}T00:00:00`,
+  ).toLocaleDateString("en-US", { day: "numeric", month: "short" });
+
+/** A refusal that retrying cannot fix; the sync engine dead-letters these. */
+const isRejection = (error: unknown): error is ApiError =>
+  error instanceof ApiError &&
+  error.status >= 400 &&
+  error.status < 500 &&
+  ![401, 408, 409, 425, 429].includes(error.status);
+
 export const registerExpenseSync = (
   registry: SyncRegistry,
   database: SQLiteDatabase,
 ) => {
   const repository = new ExpenseRepository(database);
+  const rejections = new SyncRejectionRepository(database);
 
   registry.registerProcessor("expense", async (operation, context) => {
     const payload = operation.payload as ExpensePayload;
@@ -55,7 +69,21 @@ export const registerExpenseSync = (
         );
         return;
       }
-      if (!(error instanceof ApiError) || error.status !== 409) throw error;
+      if (!(error instanceof ApiError) || error.status !== 409) {
+        if (isRejection(error)) {
+          // The change is dropped; the next pull restores the server's list,
+          // so tell the admin why their edit did not stay.
+          await rejections.add(
+            context.userId,
+            context.messId!,
+            "expenses",
+            error.status === 403
+              ? "Your expense changes were not saved: you no longer have admin access to this mess."
+              : `The expense list for ${formatDay(payload.yearMonth, payload.day)} was not saved: ${error.message}.`,
+          );
+        }
+        throw error;
+      }
 
       clearApiCache();
       const month = await api.getMonthData(
@@ -120,6 +148,7 @@ export const registerExpenseSync = (
 
   registry.registerPuller("expenses", async (_cursor, context) => {
     if (context.messId === null) return { cursor: null };
+    await repository.releaseOrphanedEdits(context.userId, context.messId);
     const months = new Set(
       await repository.getTrackedMonths(context.userId, context.messId),
     );

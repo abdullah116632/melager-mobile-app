@@ -27,6 +27,8 @@ export interface SyncSummary {
   failed: number;
   skipped: number;
   pending: number;
+  /** The run stopped because the session token was rejected. */
+  unauthorized?: boolean;
 }
 
 export interface SyncOptions {

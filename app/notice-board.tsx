@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 
+import { SyncRejectionModal } from "@/components/SyncRejectionModal";
 import { type ApiNotice } from "@/lib/api";
 import {
   useAppDispatch,
@@ -781,6 +782,7 @@ export default function NoticeBoardRoute() {
           <Text className="ml-2 font-inter-bold text-sm text-white">New</Text>
         </TouchableOpacity>
       ) : null}
+      <SyncRejectionModal scope="notices" pageLabel="Notice board" />
     </View>
   );
 }

@@ -176,6 +176,28 @@ export class ExpenseRepository {
     return this.getMonth(userId, messId, yearMonth);
   }
 
+  /**
+   * An unsynced day whose outbox row is gone was rejected by the server and
+   * dead-lettered. Mark it clean so the merge that follows replaces it with
+   * the server's list. Conflicts kept for review are left alone.
+   */
+  async releaseOrphanedEdits(userId: number, messId: number) {
+    await this.db.runAsync(
+      `UPDATE local_expense_days SET is_dirty = 0
+       WHERE user_id = ? AND mess_id = ? AND is_dirty = 1
+         AND conflict_message IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM offline_outbox
+           WHERE offline_outbox.user_id = local_expense_days.user_id
+             AND offline_outbox.dedupe_key = 'expense:' || local_expense_days.mess_id
+               || ':' || local_expense_days.year_month
+               || ':' || local_expense_days.day
+         )`,
+      userId,
+      messId,
+    );
+  }
+
   async save(
     userId: number,
     messId: number,

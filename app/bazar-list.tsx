@@ -20,6 +20,7 @@ import {
 
 import { api, type ApiBazarItem } from "@/lib/api";
 import { BazarDatePicker } from "@/components/bazar/BazarDatePicker";
+import { SyncRejectionModal } from "@/components/SyncRejectionModal";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import { OutboxRepository } from "@/offline/repositories/outboxRepository";
 import { getDhakaDate } from "@/utils/dashboard";
@@ -1230,6 +1231,7 @@ export default function BazarListRoute() {
           </Pressable>
         </Pressable>
       </Modal>
+      <SyncRejectionModal scope="bazar" pageLabel="Bazar list" />
     </View>
   );
 }

@@ -181,28 +181,26 @@ export class OutboxRepository {
       : "unsent";
   }
 
+  /**
+   * Ready operations for this account in every mess. Each operation carries
+   * its own mess, so work done in one mess still syncs while another is open.
+   */
   async listReady(
     userId: number,
-    messId: number | null,
     limit = 50,
     now = Date.now(),
   ): Promise<OutboxOperation[]> {
     const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 100));
-    const scopeClause =
-      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
-    const parameters =
-      messId === null
-        ? [userId, now, safeLimit]
-        : [userId, messId, now, safeLimit];
     const rows = await this.database.getAllAsync<OutboxRow>(
       `SELECT * FROM offline_outbox
        WHERE user_id = ?
-         AND ${scopeClause}
          AND status IN ('pending', 'failed')
          AND next_attempt_at <= ?
        ORDER BY created_at ASC, rowid ASC
        LIMIT ?`,
-      ...parameters,
+      userId,
+      now,
+      safeLimit,
     );
     return rows.map(toOperation);
   }
@@ -212,34 +210,43 @@ export class OutboxRepository {
    * HTTP result is persisted. Such a row must be retried on the next runtime
    * instead of being permanently invisible to listReady().
    */
-  async recoverInterruptedSyncs(
-    userId: number,
-    messId: number | null,
-  ): Promise<void> {
-    const scopeClause =
-      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
-    const parameters = messId === null ? [userId] : [userId, messId];
+  async recoverInterruptedSyncs(userId: number): Promise<void> {
     await this.database.runAsync(
       // The interrupted attempt may have reached the server, so it counts.
       `UPDATE offline_outbox
        SET status = 'pending', attempt_count = attempt_count + 1,
            next_attempt_at = 0, updated_at = ?
-       WHERE user_id = ? AND ${scopeClause} AND status = 'syncing'`,
+       WHERE user_id = ? AND status = 'syncing'`,
       Date.now(),
-      ...parameters,
+      userId,
     );
   }
 
-  async countPending(userId: number, messId: number | null): Promise<number> {
-    const scopeClause =
-      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
-    const parameters = messId === null ? [userId] : [userId, messId];
+  /** Unsynced operations for this account across every mess. */
+  async countAllPending(userId: number): Promise<number> {
     const row = await this.database.getFirstAsync<{ total: number }>(
-      `SELECT COUNT(*) AS total FROM offline_outbox
-       WHERE user_id = ? AND ${scopeClause}`,
-      ...parameters,
+      "SELECT COUNT(*) AS total FROM offline_outbox WHERE user_id = ?",
+      userId,
     );
     return Number(row?.total ?? 0);
+  }
+
+  /** The mess scopes that still hold queued operations for this account. */
+  async listPendingMessIds(userId: number): Promise<Array<number | null>> {
+    const rows = await this.database.getAllAsync<{ mess_id: number | null }>(
+      "SELECT DISTINCT mess_id FROM offline_outbox WHERE user_id = ?",
+      userId,
+    );
+    return rows.map((row) => row.mess_id);
+  }
+
+  /** Lets an explicit "sync now" retry work that is waiting out a backoff. */
+  async makeReadyNow(userId: number): Promise<void> {
+    await this.database.runAsync(
+      `UPDATE offline_outbox SET next_attempt_at = 0
+       WHERE user_id = ? AND status IN ('pending', 'failed')`,
+      userId,
+    );
   }
 
   /** The newest failure for this scope, whether still retrying or quarantined. */
@@ -297,6 +304,22 @@ export class OutboxRepository {
     );
   }
 
+  /**
+   * Puts an operation back as it was before this attempt. Used when the
+   * request was refused before reaching the change (an expired session), so
+   * it must not count as a delivery attempt.
+   */
+  async release(id: string, error: string): Promise<void> {
+    await this.database.runAsync(
+      `UPDATE offline_outbox
+       SET status = 'pending', last_error = ?, updated_at = ?
+       WHERE id = ?`,
+      error,
+      Date.now(),
+      id,
+    );
+  }
+
   async markFailed(
     id: string,
     error: string,
@@ -317,22 +340,15 @@ export class OutboxRepository {
     );
   }
 
-  async getNextAttemptAt(
-    userId: number,
-    messId: number | null,
-  ): Promise<number | null> {
-    const scopeClause =
-      messId === null ? "mess_id IS NULL" : "(mess_id IS NULL OR mess_id = ?)";
-    const parameters = messId === null ? [userId] : [userId, messId];
+  /** The earliest retry time among this account's queued operations. */
+  async getNextAttemptAt(userId: number): Promise<number | null> {
     const row = await this.database.getFirstAsync<{
       next_attempt_at: number | null;
     }>(
       `SELECT MIN(next_attempt_at) AS next_attempt_at
        FROM offline_outbox
-       WHERE user_id = ?
-         AND ${scopeClause}
-         AND status IN ('pending', 'failed')`,
-      ...parameters,
+       WHERE user_id = ? AND status IN ('pending', 'failed')`,
+      userId,
     );
     return row?.next_attempt_at == null ? null : Number(row.next_attempt_at);
   }

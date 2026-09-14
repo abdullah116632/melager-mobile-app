@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { SyncRejectionModal } from "@/components/SyncRejectionModal";
 import {
   EXPENSE_AMOUNT_COLUMN_WIDTH,
   EXPENSE_DAY_COLUMN_WIDTH,
@@ -285,6 +286,7 @@ export const ExpensesTable = () => {
           void resolveConflict(conflict, resolution)
         }
       />
+      <SyncRejectionModal scope="expenses" pageLabel="Expenses page" />
     </>
   );
 };

@@ -15,6 +15,12 @@ export const registerNotificationSync = (
       await api.markServerNotificationRead(payload.serverId, context.token);
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      // Only the API's own "Notification not found" means it is gone. A bare
+      // 404 is a missing route or a proxy: the read never reached the server,
+      // so keep it queued instead of settling it locally.
+      if (!error.hasErrorBody) {
+        throw new Error("Notification sync is temporarily unavailable.");
+      }
     }
     await repository.acknowledge(
       context.userId,

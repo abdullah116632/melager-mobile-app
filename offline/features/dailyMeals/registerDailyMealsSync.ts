@@ -1,13 +1,26 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import { api, ApiError, clearApiCache } from "@/lib/api";
+import { SyncRejectionRepository } from "../../repositories/syncRejectionRepository";
 import type { SyncRegistry } from "../../sync/registry";
 import { DailyMealsRepository } from "./DailyMealsRepository";
+
+const formatDay = (yearMonth: string, day: number) =>
+  new Date(
+    `${yearMonth}-${String(day).padStart(2, "0")}T00:00:00`,
+  ).toLocaleDateString("en-US", { day: "numeric", month: "short" });
+
+/** A refusal that retrying cannot fix; the sync engine dead-letters these. */
+const isRejection = (error: ApiError) =>
+  error.status >= 400 &&
+  error.status < 500 &&
+  ![401, 408, 409, 425, 429].includes(error.status);
 
 export const registerDailyMealsSync = (
   registry: SyncRegistry,
   database: SQLiteDatabase,
 ) => {
   const repository = new DailyMealsRepository(database);
+  const rejections = new SyncRejectionRepository(database);
   registry.registerProcessor("daily_meal", async (operation, context) => {
     const payload = operation.payload as {
       yearMonth: string;
@@ -77,6 +90,32 @@ export const registerDailyMealsSync = (
           return;
         }
       } else {
+        if (isRejection(error)) {
+          // The change is dropped; the next pull restores the server value,
+          // so tell the admin why their edit did not stay.
+          let message: string;
+          if (error.status === 403) {
+            message =
+              "Your meal changes were not saved: you no longer have admin access to this mess.";
+          } else {
+            const name =
+              (await repository.consumerName(
+                context.messId!,
+                payload.consumerId,
+              )) ?? "A member";
+            const when = formatDay(payload.yearMonth, payload.day);
+            message =
+              error.status === 404
+                ? `${name}'s meal on ${when} was not saved: this member is no longer in the mess.`
+                : `${name}'s meal on ${when} was not saved: ${error.message}.`;
+          }
+          await rejections.add(
+            context.userId,
+            context.messId!,
+            "meals",
+            message,
+          );
+        }
         throw error;
       }
     }
@@ -89,6 +128,7 @@ export const registerDailyMealsSync = (
   });
   registry.registerPuller("daily_meals", async (_cursor, context) => {
     if (context.messId === null) return { cursor: null };
+    await repository.releaseOrphanedEdits(context.userId, context.messId);
     const months = await repository.getTrackedMonths(
       context.userId,
       context.messId,

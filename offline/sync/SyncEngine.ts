@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api";
 
 import { OutboxRepository } from "../repositories/outboxRepository";
 import { SyncStateRepository } from "../repositories/syncStateRepository";
+import { emitSessionExpired } from "../runtime/sessionExpiry";
 import { SyncRegistry } from "./registry";
 import type { SyncContext, SyncOptions, SyncSummary } from "./types";
 
@@ -30,8 +31,16 @@ const permanentHttpStatus = (error: unknown): number | null => {
     : null;
 };
 
+/** The session token was rejected; nothing about the change itself was. */
+const isUnauthorized = (error: unknown): boolean =>
+  error instanceof ApiError && error.status === 401;
+
 const contextKey = (context: SyncContext): string =>
   `${context.userId}:${context.messId ?? "global"}`;
+
+/** Operations replay in order per kind of change, separately in each mess. */
+const queueKey = (operation: { messId: number | null; entityType: string }) =>
+  `${operation.messId ?? "global"}:${operation.entityType}`;
 
 export class SyncEngine {
   private readonly outbox: OutboxRepository;
@@ -125,7 +134,10 @@ export class SyncEngine {
       skipped: 0,
       pending: 0,
     };
-    await this.outbox.recoverInterruptedSyncs(context.userId, context.messId);
+    // Pushes cover every mess of this account, not just the open one, so work
+    // left in another mess is not stranded until the admin switches back.
+    // Pulls below stay limited to the open mess.
+    await this.outbox.recoverInterruptedSyncs(context.userId);
     // Keep taking bounded SQLite batches until every currently-ready mutation
     // has been handled. Failed transient rows get a future next_attempt_at and
     // therefore cannot make this loop spin.
@@ -133,19 +145,22 @@ export class SyncEngine {
     // The outbox is an ordered log per feature: replaying a later operation
     // ahead of an earlier one that is still retrying would reorder what the
     // user actually did, so a retryable failure holds back the rest of its
-    // kind until the next run. Other features keep flowing.
+    // kind in that mess until the next run. Other features and messes keep
+    // flowing.
     const blockedUntil = new Map<string, number>();
-    while (true) {
+    // An expired session fails every request the same way, so stop the whole
+    // run and keep everything queued until the admin signs in again.
+    let unauthorized = false;
+    while (!unauthorized) {
       const operations = await this.outbox.listReady(
         context.userId,
-        context.messId,
         OUTBOX_BATCH_SIZE,
       );
       if (operations.length === 0) break;
 
       let handled = 0;
       for (const listed of operations) {
-        const heldUntil = blockedUntil.get(listed.entityType);
+        const heldUntil = blockedUntil.get(queueKey(listed));
         if (heldUntil !== undefined) {
           // Wait for the earlier operation instead of overtaking it, and share
           // its retry time so the scheduler does not wake up to do nothing.
@@ -177,6 +192,11 @@ export class SyncEngine {
           await this.outbox.removeSynced(operation.id);
           summary.pushed += 1;
         } catch (error) {
+          if (isUnauthorized(error)) {
+            await this.outbox.release(operation.id, errorMessage(error));
+            unauthorized = true;
+            break;
+          }
           const status = permanentHttpStatus(error);
           if (status !== null) {
             // A rejected operation never lands, so the ones queued behind it
@@ -193,7 +213,7 @@ export class SyncEngine {
               errorMessage(error),
               retryAt,
             );
-            blockedUntil.set(operation.entityType, retryAt);
+            blockedUntil.set(queueKey(operation), retryAt);
           }
           summary.failed += 1;
         }
@@ -203,27 +223,36 @@ export class SyncEngine {
       if (handled === 0) break;
     }
 
-    for (const [collection, pull] of this.registry.getPullers()) {
-      if (collections !== null && !collections.has(collection)) continue;
-      const previous = await this.syncState.get(context, collection);
-      try {
-        const result = await pull(previous?.cursor ?? null, context);
-        await this.syncState.saveSuccess(context, collection, result.cursor);
-        summary.pulledCollections += 1;
-      } catch (error) {
-        await this.syncState.saveFailure(
-          context,
-          collection,
-          errorMessage(error),
-        );
-        summary.failed += 1;
+    if (!unauthorized) {
+      for (const [collection, pull] of this.registry.getPullers()) {
+        if (collections !== null && !collections.has(collection)) continue;
+        const previous = await this.syncState.get(context, collection);
+        try {
+          const result = await pull(previous?.cursor ?? null, context);
+          await this.syncState.saveSuccess(context, collection, result.cursor);
+          summary.pulledCollections += 1;
+        } catch (error) {
+          if (isUnauthorized(error)) {
+            unauthorized = true;
+            break;
+          }
+          await this.syncState.saveFailure(
+            context,
+            collection,
+            errorMessage(error),
+          );
+          summary.failed += 1;
+        }
       }
     }
 
-    summary.pending = await this.outbox.countPending(
-      context.userId,
-      context.messId,
-    );
+    summary.pending = await this.outbox.countAllPending(context.userId);
+    if (unauthorized) {
+      summary.unauthorized = true;
+      // Retrying with the same token cannot succeed; signing in again resumes.
+      emitSessionExpired();
+      return summary;
+    }
     await this.scheduleNextRetry(context, collections);
     return summary;
   }
@@ -234,10 +263,7 @@ export class SyncEngine {
   ): Promise<void> {
     if (this.suspended) return;
     this.cancelScheduled(context);
-    const retryAt = await this.outbox.getNextAttemptAt(
-      context.userId,
-      context.messId,
-    );
+    const retryAt = await this.outbox.getNextAttemptAt(context.userId);
     if (retryAt === null) return;
 
     const key = contextKey(context);

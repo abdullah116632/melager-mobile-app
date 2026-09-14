@@ -9,6 +9,7 @@ import {
 import { subscribeToDailyMealConflicts } from "@/offline/features/dailyMeals/conflictEvents";
 import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import MonthPicker from "@/components/MonthPicker";
+import { SyncRejectionModal } from "@/components/SyncRejectionModal";
 import { useAppDispatch, useAuth, useMeals, useNetwork } from "@/redux/hooks";
 import { dailyMealConflictResolved } from "@/redux/slice/mealsSlice";
 import type { ActiveMealCell, MealCellDirection } from "@/types/meal";
@@ -174,6 +175,7 @@ export const MealsTableSection = () => {
           void resolveConflict(conflict, resolution)
         }
       />
+      <SyncRejectionModal scope="meals" pageLabel="Meals page" />
 
       {isAdmin && selectedCell && (
         <MealCellEditor

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useLogoutGuard } from "@/hooks/useLogoutGuard";
 import { useAuth, useDrawer } from "@/redux/hooks";
 
 interface MessHubHeaderProps {
@@ -15,6 +16,7 @@ interface MessHubHeaderProps {
 
 export const MessHubHeader = ({ loading }: MessHubHeaderProps) => {
   const { requests, logout } = useAuth();
+  const guardLogout = useLogoutGuard();
   const { openDrawer } = useDrawer();
   const requestCount = requests.length;
 
@@ -76,17 +78,21 @@ export const MessHubHeader = ({ loading }: MessHubHeaderProps) => {
           <TouchableOpacity
             className="h-12 w-12 items-center justify-center rounded-2xl border border-rose-100/25 bg-rose-400/20 shadow-sm shadow-black/20"
             onPress={() =>
-              Alert.alert(
-                "Log out?",
-                "You will need to sign in again to access your messes.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Log Out",
-                    style: "destructive",
-                    onPress: () => void logout(),
-                  },
-                ],
+              void guardLogout(
+                () => logout(),
+                () =>
+                  Alert.alert(
+                    "Log out?",
+                    "You will need to sign in again to access your messes.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Log Out",
+                        style: "destructive",
+                        onPress: () => void logout(),
+                      },
+                    ],
+                  ),
               )
             }
             activeOpacity={0.7}

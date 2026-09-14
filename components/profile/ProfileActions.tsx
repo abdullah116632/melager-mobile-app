@@ -2,6 +2,7 @@ import Feather from "@expo/vector-icons/Feather";
 import { useState } from "react";
 import { Alert, Platform, Text, TouchableOpacity, View } from "react-native";
 
+import { useLogoutGuard } from "@/hooks/useLogoutGuard";
 import { useAuth } from "@/redux/hooks";
 
 interface ProfileActionsProps {
@@ -12,6 +13,7 @@ export const ProfileActions = ({
   showSwitchMess = true,
 }: ProfileActionsProps) => {
   const { exitMess, logout } = useAuth();
+  const guardLogout = useLogoutGuard();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const performLogout = async () => {
@@ -24,18 +26,20 @@ export const ProfileActions = ({
   };
 
   const handleLogout = () => {
-    if (Platform.OS === "web") {
-      void performLogout();
-      return;
-    }
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: () => void performLogout(),
-      },
-    ]);
+    void guardLogout(
+      performLogout,
+      Platform.OS === "web"
+        ? undefined
+        : () =>
+            Alert.alert("Log Out", "Are you sure you want to log out?", [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Log Out",
+                style: "destructive",
+                onPress: () => void performLogout(),
+              },
+            ]),
+    );
   };
 
   return (
@@ -60,7 +64,7 @@ export const ProfileActions = ({
       >
         <Feather name="log-out" size={18} color="#fff" />
         <Text className="font-inter-bold text-base text-white">
-          {loggingOut ? "Logging out\u2026" : "Log Out"}
+          {loggingOut ? "Logging out…" : "Log Out"}
         </Text>
       </TouchableOpacity>
     </View>

@@ -3,9 +3,15 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import { api, ApiError, type ApiNotice } from "@/lib/api";
 
 import type { OutboxOperation } from "../../outbox/types";
+import { SyncRejectionRepository } from "../../repositories/syncRejectionRepository";
 import type { SyncRegistry } from "../../sync/registry";
 import { NoticeRepository } from "./NoticeRepository";
 import type { NoticeMutationPayload, NoticeSyncOperation } from "./types";
+
+// The server's wording for each case, so only real conflicts are reported.
+const STILL_PROCESSING = "Mutation is still being processed";
+const NOTICE_CHANGED = "Notice changed on another device";
+const ORDER_CHANGED = "Notice order changed on another device";
 
 const getPayload = (operation: OutboxOperation) =>
   operation.payload as NoticeMutationPayload;
@@ -15,6 +21,7 @@ export function registerNoticeSync(
   database: SQLiteDatabase,
 ): void {
   const repository = new NoticeRepository(database);
+  const rejections = new SyncRejectionRepository(database);
 
   registry.registerProcessor("notice", async (operation, context) => {
     const payload = getPayload(operation);
@@ -66,6 +73,14 @@ export function registerNoticeSync(
       await repository.acknowledge(localId, response.notice, operation.id);
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
+      const noticeTitle = async () =>
+        payload.title ??
+        (await repository.getByLocalId(localId))?.title ??
+        "Untitled";
+      // An earlier attempt of this same change is still completing.
+      if (error.status === 409 && error.message === STILL_PROCESSING) {
+        throw new Error("Notice change is still being confirmed.");
+      }
       // Only a real "this notice is gone" answer may drop the local row. A
       // bare 404 also means the sync route is missing, and deleting local
       // work because the backend is out of date would lose the user's edit.
@@ -74,6 +89,14 @@ export function registerNoticeSync(
         error.hasErrorBody &&
         operation.operation !== "create"
       ) {
+        if (operation.operation !== "delete") {
+          await rejections.add(
+            context.userId,
+            context.messId!,
+            "notices",
+            `Notice "${await noticeTitle()}" was deleted by another admin, so your edit was not saved.`,
+          );
+        }
         await repository.acknowledgeDelete(localId);
         return;
       }
@@ -82,6 +105,16 @@ export function registerNoticeSync(
       // the offline notice is never dropped.
       if (error.status === 409 && operation.operation === "create") {
         throw new Error("Notice create is still being confirmed.");
+      }
+      if (error.status === 409 && error.message === NOTICE_CHANGED) {
+        await rejections.add(
+          context.userId,
+          context.messId!,
+          "notices",
+          operation.operation === "delete"
+            ? `Notice "${await noticeTitle()}" was edited by another admin, so it was not deleted.`
+            : `Notice "${await noticeTitle()}" was changed by another admin first, so your edit was not saved.`,
+        );
       }
       throw error;
     }
@@ -127,6 +160,14 @@ export function registerNoticeSync(
         error instanceof ApiError &&
         (error.status === 400 || error.status === 404 || error.status === 409)
       ) {
+        if (error.status === 409 && error.message === ORDER_CHANGED) {
+          await rejections.add(
+            context.userId,
+            context.messId!,
+            "notices",
+            "Another admin changed the notice order first, so your new order was not saved.",
+          );
+        }
         await repository.discardReorder(operation.id, context.messId!);
         const [remote, unread] = await Promise.all([
           api.getNotices(context.token, context.messId!),

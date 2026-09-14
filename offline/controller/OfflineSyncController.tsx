@@ -8,6 +8,7 @@ import {
   selectActiveMess,
   selectAuthToken,
   selectAuthUser,
+  sessionExpired,
 } from "@/redux/slice/authSlice";
 import { hydrateConsumersFromLocal } from "@/redux/slice/messSlice";
 import { formatYearMonth } from "@/redux/slice/messSlice";
@@ -26,6 +27,7 @@ import { registerBackgroundSyncAsync } from "../background/backgroundSync";
 import { useOfflineDatabase } from "../provider/OfflineDatabaseProvider";
 import { getOfflineRuntime } from "../runtime/getOfflineRuntime";
 import { setManualSyncHandler } from "../runtime/manualSync";
+import { subscribeToSessionExpired } from "../runtime/sessionExpiry";
 import { subscribeToOutboxChanges } from "../outbox/outboxChangeNotifier";
 
 /**
@@ -142,6 +144,15 @@ export function OfflineSyncController({ children }: { children: ReactNode }) {
     void registerBackgroundSyncAsync().catch(() => undefined);
   }, [isAvailable]);
 
+  // The server rejected the saved token. Sign out without touching queued
+  // changes; they sync once the same admin signs in again.
+  useEffect(() => {
+    if (!token) return;
+    return subscribeToSessionExpired(() => {
+      void dispatch(sessionExpired());
+    });
+  }, [dispatch, token]);
+
   // `network.pendingCount` drives the offline banner. Its old source was the
   // retired AsyncStorage queue, which always reported zero, so the banner could
   // never tell the user that queued work was still waiting.
@@ -153,11 +164,11 @@ export function OfflineSyncController({ children }: { children: ReactNode }) {
     let cancelled = false;
     let recountTimer: ReturnType<typeof setTimeout> | null = null;
     const outbox = getOfflineRuntime(database).outbox;
-    const messId = activeMess?.id ?? null;
 
+    // Every mess counts: sync pushes them all, so "all synced" must mean it.
     const publishPendingCount = () => {
       void outbox
-        .countPending(userId, messId)
+        .countAllPending(userId)
         .then((count) => {
           if (!cancelled) dispatch(offlineQueueSizeChanged(count));
         })

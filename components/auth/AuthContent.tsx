@@ -10,6 +10,7 @@ import type {
   AuthMode,
   ResetPasswordDraft,
 } from "@/types/auth";
+import { AccountNotice } from "./AccountNotice";
 import { AuthBrand } from "./AuthBrand";
 import { ForgotPasswordCard } from "./ForgotPasswordCard";
 import { LoginSignupCard } from "./LoginSignupCard";
@@ -100,6 +101,7 @@ export const AuthContent = () => {
         showsVerticalScrollIndicator={false}
       >
         <AuthBrand />
+        <AccountNotice />
 
         {mode === "otp" && (
           <SignupOtpCard

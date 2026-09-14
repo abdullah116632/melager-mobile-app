@@ -49,6 +49,8 @@ export interface AuthState {
   initializationStarted: boolean;
   requestStatus: "idle" | "loading" | "succeeded" | "failed";
   requestError: string | null;
+  /** Shown on the sign-in screen, e.g. after the session expired. */
+  sessionNotice: string | null;
 }
 
 interface AuthSessionPayload {
@@ -75,6 +77,7 @@ const initialState: AuthState = {
   initializationStarted: false,
   requestStatus: "idle",
   requestError: null,
+  sessionNotice: null,
 };
 
 // HTTP responses are authoritative rejections and must remain visible to the
@@ -117,6 +120,7 @@ const createAuthenticatedState = ({
   initializationStarted: true,
   requestStatus: "succeeded",
   requestError: null,
+  sessionNotice: null,
 });
 
 const restoreAuthState = createAction<AuthState>("auth/restoreState");
@@ -192,10 +196,22 @@ export const initializeAuth = createAuthAsyncThunk<AuthState | null, void>(
       await saveLocalAuthSnapshot(me, activeMess?.id ?? null);
       return createAuthenticatedState({ me, token, activeMess });
     } catch (error) {
-      const tokenRejected =
+      if (cached && error instanceof ApiError && error.status === 401) {
+        // The token expired. Sign out but keep this phone's data and queued
+        // changes: signing in again as the same admin syncs them.
+        await deleteSessionToken();
+        return {
+          ...createSignedOutState(),
+          sessionNotice: SESSION_EXPIRED_NOTICE,
+        };
+      }
+      // Only a JSON answer is the API itself turning the account away. A bare
+      // 404 is a proxy or a missing route, so keep using the cached session.
+      const accountRejected =
         error instanceof ApiError &&
-        (error.status === 401 || error.status === 403 || error.status === 404);
-      if (!cached || tokenRejected) {
+        error.hasErrorBody &&
+        (error.status === 403 || error.status === 404);
+      if (!cached || accountRejected) {
         await Promise.all([
           deleteSessionToken(),
           clearLocalReferenceData(),
@@ -208,6 +224,25 @@ export const initializeAuth = createAuthAsyncThunk<AuthState | null, void>(
   },
   {
     condition: (_arg, { getState }) => !getState().auth.initializationStarted,
+  },
+);
+
+const SESSION_EXPIRED_NOTICE =
+  "Your session has expired. Sign in again with the same account and the changes saved on this phone will sync.";
+
+/**
+ * The server stopped accepting the saved token while the app was open. Sign
+ * out without clearing local data, so queued changes sync after the same admin
+ * signs in again; signing in with a different account still clears it first.
+ */
+export const sessionExpired = createAuthAsyncThunk<void, void>(
+  "auth/sessionExpired",
+  async () => {
+    clearApiCache();
+    await deleteSessionToken();
+  },
+  {
+    condition: (_arg, { getState }) => getState().auth.token !== null,
   },
 );
 
@@ -636,6 +671,10 @@ const authSlice = createSlice({
         applySession(state, action.payload);
       })
       .addCase(logout.fulfilled, clearAuth)
+      .addCase(sessionExpired.fulfilled, (state) => {
+        clearAuth(state);
+        state.sessionNotice = SESSION_EXPIRED_NOTICE;
+      })
       .addCase(deleteAccount.fulfilled, clearAuth)
       .addCase(deleteAccountWithOtp.fulfilled, clearAuth)
       .addCase(createMess.fulfilled, (state, action) => {

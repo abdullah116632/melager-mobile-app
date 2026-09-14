@@ -104,6 +104,41 @@ export class DailyMealsRepository {
     });
     return this.getMonth(userId, messId, yearMonth);
   }
+  /**
+   * An unsynced edit whose outbox row is gone was rejected by the server and
+   * dead-lettered. Nothing will send it again and pulls skip unsynced cells, so
+   * fall back to the last server value; the pull that follows refreshes it.
+   * Conflicts (kept for review) and pushed cells awaiting confirmation stay.
+   */
+  async releaseOrphanedEdits(userId: number, messId: number): Promise<void> {
+    await this.db.runAsync(
+      `UPDATE local_daily_meals
+       SET count = base_count, is_dirty = 0, sync_state = 0
+       WHERE user_id = ? AND mess_id = ? AND is_dirty = 1 AND sync_state = 1
+         AND conflict_message IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM offline_outbox
+           WHERE offline_outbox.user_id = local_daily_meals.user_id
+             AND offline_outbox.dedupe_key = 'daily-meal:' || local_daily_meals.mess_id
+               || ':' || local_daily_meals.year_month
+               || ':' || local_daily_meals.consumer_id
+               || ':' || local_daily_meals.day
+         )`,
+      userId,
+      messId,
+    );
+  }
+  async consumerName(
+    messId: number,
+    consumerId: string,
+  ): Promise<string | null> {
+    const row = await this.db.getFirstAsync<{ name: string }>(
+      "SELECT name FROM reference_consumers WHERE mess_id=? AND consumer_id=?",
+      messId,
+      Number(consumerId),
+    );
+    return row?.name ?? null;
+  }
   async getTrackedMonths(
     userId: number,
     messId: number,
