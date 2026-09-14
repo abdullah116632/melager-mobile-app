@@ -20,11 +20,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import appConfig from "@/app.json";
+import { SHARE_MESSAGE } from "@/constants/app";
 import { useLogoutGuard } from "@/hooks/useLogoutGuard";
 import { useAuth } from "@/redux/hooks";
 import { useDrawer } from "@/redux/hooks";
-
-const SHARE_MESSAGE = `Check out ${appConfig.expo.name} — the easiest way to track meals, deposits, and shared expenses with your mess!`;
 
 const ANIMATION_DURATION = 240;
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
@@ -356,7 +355,7 @@ export function AppDrawer() {
           <View className="mt-3 flex-row items-center justify-center gap-2">
             <Feather name="shield" size={13} color="#0F766E" />
             <Text className="font-inter text-[10px] text-slate-500">
-              Mealager v1.0.1
+              {appConfig.expo.name} v{appConfig.expo.version}
             </Text>
           </View>
         </View>
