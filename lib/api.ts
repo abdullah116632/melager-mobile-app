@@ -220,10 +220,11 @@ export interface ApiMess {
 
 export interface ApiMessWithRole extends ApiMess {
   role: "admin" | "member";
-  // True only for the mess creator (as opposed to a co-admin). Only the
-  // primary admin can delete the mess or transfer/revoke admin access.
-  // Omitted (not persisted) when hydrated from the offline cache — treat
-  // `undefined` as "unknown" and fall back to the broader `role` check.
+  // True only for the mess creator (as opposed to a co-admin). Informational:
+  // every manager action the app offers — rename, delete, add a manager,
+  // transfer the role, step down — is open to any admin, so gate the UI on
+  // `role`, never on this. Omitted (not persisted) when hydrated from the
+  // offline cache, which is another reason not to branch on it.
   isPrimaryAdmin?: boolean;
 }
 
