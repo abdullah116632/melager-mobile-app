@@ -1,3 +1,4 @@
+import type { AppUpdatePolicy } from "@/lib/appUpdate";
 import type { DayExpenseItem } from "@/types/mess";
 
 export interface MealSchedule {
@@ -113,6 +114,10 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
+
+/** Public update policy; see components/AppUpdateGate.tsx. */
+export const getAppUpdatePolicy = () =>
+  req<AppUpdatePolicy>("GET", "/app/version");
 
 async function req<T>(
   method: Method,

@@ -17,6 +17,7 @@ import { cssInterop } from "nativewind";
 import { Provider } from "react-redux";
 
 import { AppDrawer } from "@/components/AppDrawer";
+import { AppUpdateGate } from "@/components/AppUpdateGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -180,6 +181,7 @@ export default function RootLayout() {
                           <NotificationPanel />
                           <OfflineBanner />
                           <OfflineActionBanner />
+                          <AppUpdateGate />
                         </NativeWindGestureHandlerRootView>
                       </NotificationStateController>
                     </RealtimeStateController>
