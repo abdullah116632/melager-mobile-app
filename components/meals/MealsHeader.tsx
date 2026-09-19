@@ -7,7 +7,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useAppDispatch, useAuth, useDrawer, useMeals, useNetwork } from "@/redux/hooks";
 import { apiActionFailed } from "@/redux/slice/networkSlice";
 import { AddMealConsumerModal } from "./AddMealConsumerModal";
@@ -40,12 +39,12 @@ export const MealsHeader = () => {
           className={`flex-row items-center ${isCompact ? "gap-1.5" : "gap-2.5"}`}
         >
           <TouchableOpacity
-            className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
+            className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
             onPress={openDrawer}
             activeOpacity={0.7}
             accessibilityLabel="Open menu"
           >
-            <Feather name="menu" size={21} color="#fff" />
+            <Feather name="menu" size={20} color="#fff" />
           </TouchableOpacity>
           <Text
             className="min-w-0 flex-1 font-inter-bold text-[18px] tracking-[0.1px] text-white"
@@ -55,13 +54,12 @@ export const MealsHeader = () => {
           >
             Meals
           </Text>
-          <NotificationBell badgeBorderColor="#00796F" />
-          <View className="shrink-0 items-center rounded-full border border-white/20 bg-white/15 px-2 py-1.5">
-            <Text className="font-inter text-[8px] leading-[9px] text-white/75">
-              TOTAL MEALS
+          <View className="h-9 shrink-0 flex-row items-center justify-center gap-1.5 rounded-full border border-white/25 bg-white/20 px-3 shadow-sm shadow-black/20">
+            <Text className="font-inter-medium text-[9px] tracking-wide text-white/80">
+              MEALS
             </Text>
             <Text
-              className="font-inter-bold text-[12px] leading-[14px] text-white"
+              className="font-inter-bold text-[12px] text-white"
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
@@ -73,7 +71,7 @@ export const MealsHeader = () => {
           </View>
           {isAdmin ? (
             <TouchableOpacity
-              className="h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-white/10 bg-white/15"
+              className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
               onPress={() => {
                 if (!isOnline) {
                   dispatch(
@@ -90,16 +88,7 @@ export const MealsHeader = () => {
             >
               <Feather name="user-plus" size={20} color="#fff" />
             </TouchableOpacity>
-          ) : (
-            <View className="items-center rounded-md bg-white/20 px-1.5 py-1">
-              <Text className="font-inter-bold text-[7px] leading-[9px] text-white">
-                VIEW
-              </Text>
-              <Text className="font-inter-bold text-[7px] leading-[9px] text-white">
-                ONLY
-              </Text>
-            </View>
-          )}
+          ) : null}
         </View>
       </LinearGradient>
       <AddMealConsumerModal

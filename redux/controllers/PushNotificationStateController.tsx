@@ -36,7 +36,7 @@ if (Platform.OS !== "web") {
 }
 
 const getPushToken = async (): Promise<string | null> => {
-  if (Platform.OS === "web" || !Device.isDevice) return null;
+  if (Platform.OS === "web" || (!Device.isDevice && !__DEV__)) return null;
 
   // Android 13+ only presents the notification permission prompt after an
   // app has created at least one channel.
