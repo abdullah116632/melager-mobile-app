@@ -155,7 +155,7 @@ function ClassicTabLayout() {
           // restored. Changing tabBarButton at runtime can remount the nested
           // tab navigator and lose its parent navigation context on Android.
           tabBarItemStyle: isAdmin
-            ? undefined
+            ? { marginHorizontal: 3, marginTop: 1, transform: [{ translateY: -4 }] }
             : { display: "none", width: 0, marginHorizontal: 0 },
           tabBarIcon: ({ color, focused }) => (
             <ClassicTabIcon

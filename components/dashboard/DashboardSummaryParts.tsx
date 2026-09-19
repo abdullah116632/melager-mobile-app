@@ -83,14 +83,19 @@ export const SummaryRing = ({
   label,
   value,
   negative = false,
+  size = "md",
+  baseColors,
   pill,
 }: {
   segments: { fraction: number; colors: [string, string] }[];
+  baseColors?: [string, string];
   label: string;
   value: string;
   negative?: boolean;
+  size?: "md" | "sm";
   pill?: ReactNode;
 }) => {
+  const small = size === "sm";
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   let start = 0;
   const arcs = segments.map((segment, index) => {
@@ -101,10 +106,18 @@ export const SummaryRing = ({
   });
 
   return (
-    <View className="items-center py-2">
-      <View className="h-52 w-52 items-center justify-center">
+    <View className={`items-center ${small ? "" : "py-2"}`}>
+      <View
+        className={`items-center justify-center ${small ? "h-[150px] w-[150px]" : "h-52 w-52"}`}
+      >
         <Svg viewBox="0 0 120 120" style={StyleSheet.absoluteFill}>
           <Defs>
+            {baseColors ? (
+              <SvgGradient id={`base${uid}`} x1="0" y1="0" x2="1" y2="1">
+                <Stop offset="0" stopColor={baseColors[0]} />
+                <Stop offset="1" stopColor={baseColors[1]} />
+              </SvgGradient>
+            ) : null}
             {arcs.map((arc) => (
               <SvgGradient key={arc.id} id={arc.id} x1="0" y1="0" x2="1" y2="1">
                 <Stop offset="0" stopColor={arc.colors[0]} />
@@ -112,7 +125,14 @@ export const SummaryRing = ({
               </SvgGradient>
             ))}
           </Defs>
-          <Circle cx={60} cy={60} r={RADIUS} fill="none" stroke="#E2E8F0" strokeWidth={STROKE} />
+          <Circle
+            cx={60}
+            cy={60}
+            r={RADIUS}
+            fill="none"
+            stroke={baseColors ? `url(#base${uid})` : "#E2E8F0"}
+            strokeWidth={STROKE}
+          />
           {arcs.map((arc) =>
             arc.fraction > 0 ? (
               <Circle
@@ -131,11 +151,16 @@ export const SummaryRing = ({
           )}
         </Svg>
         <View className="items-center px-3">
-          <Text className="font-inter-medium text-[8px] uppercase tracking-wider text-slate-500">
+          <Text
+            className={`font-inter-medium text-[8px] uppercase tracking-wider text-slate-500 ${small ? "max-w-[100px]" : ""}`}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
             {label}
           </Text>
           <Text
-            className={`max-w-[140px] font-inter-bold text-[20px] tracking-tight ${negative ? "text-rose-600" : "text-slate-900"}`}
+            className={`font-inter-bold tracking-tight ${small ? "max-w-[100px] text-[17px]" : "max-w-[140px] text-[20px]"} ${negative ? "text-rose-600" : "text-slate-900"}`}
             style={{ fontVariant: ["tabular-nums"] }}
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -182,5 +207,41 @@ export const SummaryTile = ({
     >
       {value}
     </Text>
+  </View>
+);
+
+export interface SummaryListRow {
+  label: string;
+  value: string;
+  labelClassName?: string;
+  valueClassName?: string;
+}
+
+export const SummaryRowList = ({ rows }: { rows: SummaryListRow[] }) => (
+  <View className="rounded-2xl border border-slate-300 bg-white shadow-sm shadow-slate-400/30">
+    {rows.map((row, index) => (
+      <View
+        key={row.label}
+        className={`flex-row items-center justify-between gap-2 px-3 py-2.5 ${
+          index < rows.length - 1 ? "border-b border-slate-200" : ""
+        }`}
+      >
+        <Text
+          className={`shrink font-inter-semibold text-[10px] ${row.labelClassName ?? "text-slate-600"}`}
+          numberOfLines={1}
+        >
+          {row.label}
+        </Text>
+        <Text
+          className={`shrink text-right font-inter-bold text-[13px] ${row.valueClassName ?? "text-slate-900"}`}
+          style={{ fontVariant: ["tabular-nums"] }}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+        >
+          {row.value}
+        </Text>
+      </View>
+    ))}
   </View>
 );

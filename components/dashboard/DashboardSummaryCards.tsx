@@ -25,11 +25,8 @@ export const DashboardSummaryCards = ({
   const balancePositive = netBalance >= 0;
   const mealRateValue =
     mealRate > 0 ? `৳${formatDashboardRate(mealRate)}` : "—";
-  const ringFraction = balancePositive
-    ? totalDeposits > 0
-      ? totalExpenses / totalDeposits
-      : 0
-    : 1;
+  const spentFraction = totalDeposits > 0 ? totalExpenses / totalDeposits : 0;
+  const fullySpent = !balancePositive || spentFraction >= 1;
 
   return (
     <View className="mb-1">
@@ -42,14 +39,14 @@ export const DashboardSummaryCards = ({
           label="Current Balance"
           value={`${balancePositive ? "+" : "-"}৳${formatDashboardAmount(Math.abs(netBalance))}`}
           negative={!balancePositive}
-          segments={[
-            {
-              fraction: ringFraction,
-              colors: balancePositive
-                ? ["#059669", "#34D399"]
-                : ["#F43F5E", "#FB7185"],
-            },
-          ]}
+          baseColors={
+            fullySpent ? ["#DC2626", "#EF4444"] : ["#059669", "#34D399"]
+          }
+          segments={
+            fullySpent
+              ? []
+              : [{ fraction: spentFraction, colors: ["#F59E0B", "#FBBF24"] }]
+          }
           pill={
             balancePositive ? (
               <SummaryPill label="Active Balance" tone="emerald" />

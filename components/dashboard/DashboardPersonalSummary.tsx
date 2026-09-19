@@ -10,7 +10,7 @@ import {
   SummaryBadge,
   SummaryCardShell,
   SummaryRing,
-  SummaryTile,
+  SummaryRowList,
 } from "./DashboardSummaryParts";
 
 interface DashboardPersonalSummaryProps {
@@ -54,6 +54,7 @@ export const DashboardPersonalSummary = ({
     : "—";
   const spentFraction =
     consumer && consumer.deposits > 0 ? consumer.cost / consumer.deposits : 0;
+  const fullySpent = !balancePositive || spentFraction >= 1;
   const tone = balancePositive ? "emerald" : "rose";
 
   return (
@@ -70,55 +71,56 @@ export const DashboardPersonalSummary = ({
         ) : null
       }
     >
-      <SummaryRing
-        label="Remaining Balance"
-        value={remainingBalance}
-        negative={!balancePositive}
-        segments={
-          !consumer
-            ? []
-            : balancePositive
-              ? [{ fraction: spentFraction, colors: ["#059669", "#34D399"] }]
-              : [{ fraction: 1, colors: ["#F43F5E", "#FB7185"] }]
-        }
-      />
-
-      <View className="mt-3 gap-2.5 border-t border-slate-200/70 pt-4">
-        <View className="flex-row gap-2.5">
-          <SummaryTile
-            centered
-            label="Your Deposits"
-            labelClassName="text-teal-700"
-            valueClassName="text-teal-800"
-            borderClassName="border-emerald-200"
-            bgClassName="bg-emerald-50"
-            value={
-              consumer ? `৳${formatDashboardAmount(consumer.deposits)}` : "—"
-            }
-          />
-          <SummaryTile
-            centered
-            label="Meals Taken"
-            value={consumer ? formatDashboardQuantity(consumer.meals) : "—"}
-          />
-        </View>
-        <View className="flex-row gap-2.5">
-          <SummaryTile
-            centered
-            label="Your Cost"
-            labelClassName="text-rose-600"
-            valueClassName="text-rose-700"
-            borderClassName="border-rose-200"
-            bgClassName="bg-rose-50"
-            value={consumer ? `৳${formatDashboardAmount(consumer.cost)}` : "—"}
-          />
-          <SummaryTile
-            centered
-            label="Meal Rate"
-            labelClassName="text-teal-700"
-            value={mealRate > 0 ? `৳${formatDashboardRate(mealRate)}` : "—"}
+      <View className="flex-row items-center gap-3">
+        <View className="min-w-0 flex-1">
+          <SummaryRowList
+            rows={[
+              {
+                label: "Your Deposits",
+                value: consumer
+                  ? `৳${formatDashboardAmount(consumer.deposits)}`
+                  : "—",
+                labelClassName: "text-teal-700",
+                valueClassName: "text-teal-800",
+              },
+              {
+                label: "Meals Taken",
+                value: consumer ? formatDashboardQuantity(consumer.meals) : "—",
+              },
+              {
+                label: "Your Cost",
+                value: consumer
+                  ? `৳${formatDashboardAmount(consumer.cost)}`
+                  : "—",
+                labelClassName: "text-rose-600",
+                valueClassName: "text-rose-700",
+              },
+              {
+                label: "Meal Rate",
+                value: mealRate > 0 ? `৳${formatDashboardRate(mealRate)}` : "—",
+                labelClassName: "text-teal-700",
+              },
+            ]}
           />
         </View>
+        <SummaryRing
+          size="sm"
+          label="Remaining Balance"
+          value={remainingBalance}
+          negative={!balancePositive}
+          baseColors={
+            !consumer
+              ? undefined
+              : fullySpent
+                ? ["#DC2626", "#EF4444"]
+                : ["#059669", "#34D399"]
+          }
+          segments={
+            consumer && !fullySpent
+              ? [{ fraction: spentFraction, colors: ["#F59E0B", "#FBBF24"] }]
+              : []
+          }
+        />
       </View>
     </SummaryCardShell>
   );

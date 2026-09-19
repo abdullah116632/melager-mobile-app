@@ -1,7 +1,8 @@
 import Feather from "@expo/vector-icons/Feather";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useRouter } from "expo-router";
 import { Text, TouchableOpacity, View } from "react-native";
-import { useAppSelector, useAuth } from "@/redux/hooks";
+import { useAppSelector } from "@/redux/hooks";
 import { selectMessagesState } from "@/redux/slice/messagesSlice";
 import { selectNoticesState } from "@/redux/slice/noticesSlice";
 import { selectBazarNotificationsState } from "@/redux/slice/bazarNotificationsSlice";
@@ -15,7 +16,6 @@ export const DashboardQuickNavDrawer = ({
   returnTo = "dashboard",
 }: DashboardQuickNavDrawerProps) => {
   const router = useRouter();
-  const { exitMess } = useAuth();
   const { unreadCount } = useAppSelector(selectMessagesState);
   const { unreadCount: unreadNoticeCount } = useAppSelector(selectNoticesState);
   const { unreadCount: unreadBazarCount } = useAppSelector(
@@ -27,7 +27,11 @@ export const DashboardQuickNavDrawer = ({
 
   const navigate = (
     route:
-      "/consumer-breakdown" | "/notice-board" | "/bazar-list" | "/messages",
+      | "/calculator"
+      | "/consumer-breakdown"
+      | "/notice-board"
+      | "/bazar-list"
+      | "/messages",
   ) => {
     router.push(`${route}?returnTo=${returnTo}`);
   };
@@ -37,16 +41,20 @@ export const DashboardQuickNavDrawer = ({
       <View className="flex-row items-center justify-around">
         <TouchableOpacity
           className="items-center"
-          onPress={exitMess}
+          onPress={() => navigate("/calculator")}
           activeOpacity={0.72}
           accessibilityRole="button"
-          accessibilityLabel="Switch mess"
+          accessibilityLabel="Calculator"
         >
           <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-teal-50">
-            <Feather name="repeat" size={18} color="#0F766E" />
+            <MaterialCommunityIcons
+              name="plus-minus-variant"
+              size={21}
+              color="#0F766E"
+            />
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
-            Switch
+            Calculator
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
