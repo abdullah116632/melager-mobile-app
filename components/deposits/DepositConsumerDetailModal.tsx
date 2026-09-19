@@ -31,7 +31,7 @@ export const DepositConsumerDetailModal = ({
         onPress={onClose}
         accessibilityLabel="Close deposit consumer details"
       />
-      <View className="rounded-t-3xl bg-white px-5 pb-6 pt-3">
+      <View className="rounded-t-3xl bg-white px-5 pb-safe-offset-5 pt-3">
         <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
 
         <View className="mb-2 flex-row items-start gap-3">

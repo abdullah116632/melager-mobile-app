@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  Animated,
   Dimensions,
   Keyboard,
   Platform,
@@ -60,8 +61,7 @@ const PLACEHOLDER_ROWS = Array.from(
 //
 // Day columns are deliberately NOT windowed. A month is only ever 28-31 columns
 // wide, and swapping them in and out as the grid scrolls sideways cost more than
-// it saved: the header is a separate ScrollView kept in sync with `scrollTo`, so
-// changing its children made Android re-layout it and lose that offset, and a
+// it saved: changing the header's children made Android re-layout it, and a
 // fast fling outran the JS thread and showed empty cells. Columns are staged in
 // instead (see MOUNTED_COLUMN_*), which keeps the first paint cheap without ever
 // removing a column once it is on screen.
@@ -133,14 +133,16 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     const isAdmin = role === "admin";
     const [refreshing, setRefreshing] = useState(false);
     const [viewportWidth, setViewportWidth] = useState(windowWidth);
-    const headerScrollRef = useRef<ScrollView | null>(null);
     const verticalScrollRef = useRef<ScrollView | null>(null);
     const bodyScrollRef = useRef<ScrollView | null>(null);
     const bodyScrollXRef = useRef(0);
     const verticalScrollYRef = useRef(0);
     const preservedVerticalScrollYRef = useRef<number | null>(null);
     const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isSyncingRef = useRef(false);
+    // The date header follows the body's horizontal offset on the UI thread.
+    // Syncing it from JS with scrollTo lagged a frame behind, and more so once
+    // row windowing added JS work to every scroll.
+    const scrollX = useRef(new Animated.Value(0)).current;
     const [viewportHeight, setViewportHeight] = useState(
       () => Dimensions.get("window").height,
     );
@@ -202,20 +204,28 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
       setRawRowWindow(next);
     }, []);
 
-    const handleBodyScroll = useCallback(
-      (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const { contentOffset, layoutMeasurement } = event.nativeEvent;
-        const maximumX = Math.max(0, tableWidth - layoutMeasurement.width);
-        const x = Math.min(Math.max(contentOffset.x, 0), maximumX);
-        bodyScrollXRef.current = x;
-        if (isSyncingRef.current) return;
-        isSyncingRef.current = true;
-        headerScrollRef.current?.scrollTo({ x, animated: false });
-        requestAnimationFrame(() => {
-          isSyncingRef.current = false;
-        });
-      },
-      [tableWidth],
+    const maximumScrollX = Math.max(0, tableWidth - viewportWidth);
+    const headerTranslateX = useMemo(
+      () =>
+        scrollX.interpolate({
+          inputRange: [0, Math.max(1, maximumScrollX)],
+          outputRange: [0, -Math.max(1, maximumScrollX)],
+          extrapolate: "clamp",
+        }),
+      [maximumScrollX, scrollX],
+    );
+    const handleBodyScroll = useMemo(
+      () =>
+        Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+          useNativeDriver: true,
+          listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+            bodyScrollXRef.current = Math.max(
+              0,
+              event.nativeEvent.contentOffset.x,
+            );
+          },
+        }),
+      [scrollX],
     );
 
     const keepDayVisible = useCallback(
@@ -237,7 +247,6 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
         if (Math.abs(nextX - currentX) > 0.5) {
           bodyScrollXRef.current = nextX;
           bodyScrollRef.current?.scrollTo({ x: nextX, animated: true });
-          headerScrollRef.current?.scrollTo({ x: nextX, animated: true });
         }
       },
       [dayCellWidth, tableWidth, viewportWidth],
@@ -334,36 +343,35 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
     return (
       <View className="flex-1 overflow-hidden bg-white">
         <View className="h-[40px] flex-row border-b border-slate-200">
-          <ScrollView
-            ref={headerScrollRef}
-            horizontal
-            scrollEnabled={false}
-            showsHorizontalScrollIndicator={false}
-            scrollEventThrottle={16}
-            className="flex-1"
-            contentContainerClassName="flex-row"
-            contentContainerStyle={{ width: tableWidth }}
-          >
-            <View className="h-[40px] w-[110px] bg-[#08766E]" />
-            {days.map((day) => (
-              <View
-                key={day}
-                className={`h-[40px] items-center justify-center border-l border-white/10 ${
-                  day === todayDay ? "bg-teal-500" : "bg-[#08766E]"
-                }`}
-                style={{ width: dayCellWidth }}
-              >
-                <Text className="font-inter-semibold text-xs text-white">
-                  {day}
+          <View className="flex-1 overflow-hidden">
+            <Animated.View
+              className="flex-row"
+              style={{
+                width: tableWidth,
+                transform: [{ translateX: headerTranslateX }],
+              }}
+            >
+              <View className="h-[40px] w-[110px] bg-[#08766E]" />
+              {days.map((day) => (
+                <View
+                  key={day}
+                  className={`h-[40px] items-center justify-center border-l border-white/10 ${
+                    day === todayDay ? "bg-teal-500" : "bg-[#08766E]"
+                  }`}
+                  style={{ width: dayCellWidth }}
+                >
+                  <Text className="font-inter-semibold text-xs text-white">
+                    {day}
+                  </Text>
+                </View>
+              ))}
+              <View className="h-[40px] w-[54px] items-center justify-center bg-[#0A5954]">
+                <Text className="font-inter-bold text-[11px] text-white">
+                  Total
                 </Text>
               </View>
-            ))}
-            <View className="h-[40px] w-[54px] items-center justify-center bg-[#0A5954]">
-              <Text className="font-inter-bold text-[11px] text-white">
-                Total
-              </Text>
-            </View>
-          </ScrollView>
+            </Animated.View>
+          </View>
           <View
             pointerEvents="none"
             className="absolute left-0 top-0 z-30 h-[40px] w-[110px] items-center justify-center border-r border-white/20 bg-[#08766E] shadow-md shadow-black/10"
@@ -421,7 +429,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
               }
             }}
           >
-            <ScrollView
+            <Animated.ScrollView
               ref={bodyScrollRef}
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -540,7 +548,7 @@ export const MealsGrid = forwardRef<MealsGridHandle, MealsGridProps>(
                   </Text>
                 </View>
               </View>
-            </ScrollView>
+            </Animated.ScrollView>
 
             <MealsConsumerColumn
               loading={!isMonthReady}

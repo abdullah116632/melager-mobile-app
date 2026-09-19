@@ -9,23 +9,6 @@ import { useMeals } from "@/redux/hooks";
 import type { Consumer } from "@/types/mess";
 import { MealConsumerDetailModal } from "./MealConsumerDetailModal";
 
-const CONSUMER_ACCENTS = [
-  "#059669",
-  "#0284C7",
-  "#7C3AED",
-  "#EA580C",
-  "#DB2777",
-  "#CA8A04",
-] as const;
-
-const getConsumerNameColor = (consumerId: string) => {
-  const hash = Array.from(consumerId).reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0,
-  );
-  return CONSUMER_ACCENTS[hash % CONSUMER_ACCENTS.length];
-};
-
 interface MealsConsumerColumnProps {
   loading?: boolean;
   placeholderCount?: number;
@@ -133,8 +116,7 @@ export const MealsConsumerColumn = ({
                 accessibilityLabel={`View meal details for ${consumer.name}`}
               >
                 <Text
-                  className="flex-1 font-inter-semibold text-[13px] leading-4"
-                  style={{ color: getConsumerNameColor(consumer.id) }}
+                  className="flex-1 font-inter-semibold text-[13px] leading-4 text-teal-700"
                   numberOfLines={2}
                 >
                   {consumer.name}

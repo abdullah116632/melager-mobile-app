@@ -51,7 +51,7 @@ export const DepositRow = memo(
         accessibilityLabel={`View deposits for ${consumer.name}`}
       >
         <Text
-          className="px-2.5 py-2 font-inter-medium text-[13px] text-slate-900"
+          className="px-2.5 py-2 font-inter-medium text-[13px] text-teal-700"
           numberOfLines={2}
         >
           {consumer.name}

@@ -54,11 +54,11 @@ const COLUMN_STYLES = {
 const COLUMN_DIVIDER_PERCENTAGES = [
   COLUMN_WEIGHTS.consumer,
   COLUMN_WEIGHTS.consumer + COLUMN_WEIGHTS.meals,
-  COLUMN_WEIGHTS.consumer + COLUMN_WEIGHTS.meals + COLUMN_WEIGHTS.cost,
+  COLUMN_WEIGHTS.consumer + COLUMN_WEIGHTS.meals + COLUMN_WEIGHTS.deposit,
   COLUMN_WEIGHTS.consumer +
     COLUMN_WEIGHTS.meals +
-    COLUMN_WEIGHTS.cost +
-    COLUMN_WEIGHTS.deposit,
+    COLUMN_WEIGHTS.deposit +
+    COLUMN_WEIGHTS.cost,
 ];
 
 const ColumnDividers = ({ dark = false }: { dark?: boolean }) => (
@@ -88,8 +88,8 @@ const TableHeader = ({ consumerCount }: { consumerCount: number }) => (
     </View>
     {[
       ["Meals", COLUMN_STYLES.meals],
-      ["Cost", COLUMN_STYLES.cost],
       ["Deposit", COLUMN_STYLES.deposit],
+      ["Cost", COLUMN_STYLES.cost],
       ["Balance", COLUMN_STYLES.balance],
     ].map(([label, style]) => (
       <View
@@ -183,8 +183,8 @@ export const DashboardBreakdownTable = ({
                     </Text>
                   </View>
                   {[
-                    { amount: row.cost, style: COLUMN_STYLES.cost },
                     { amount: row.deposits, style: COLUMN_STYLES.deposit },
+                    { amount: row.cost, style: COLUMN_STYLES.cost },
                     {
                       amount: Math.abs(row.balance),
                       style: COLUMN_STYLES.balance,
@@ -229,8 +229,8 @@ export const DashboardBreakdownTable = ({
                 </Text>
               </View>
               {[
-                { amount: totalExpenses, style: COLUMN_STYLES.cost },
                 { amount: totalDeposits, style: COLUMN_STYLES.deposit },
+                { amount: totalExpenses, style: COLUMN_STYLES.cost },
                 {
                   amount: Math.abs(netBalance),
                   style: COLUMN_STYLES.balance,
