@@ -88,7 +88,7 @@ export const DepositHistoryModal = ({
         >
           <View className="flex-1" />
         </TouchableOpacity>
-        <View className="max-h-[75%] rounded-t-3xl bg-white p-5 pb-9 shadow-2xl shadow-black/10">
+        <View className="max-h-[75%] rounded-t-3xl bg-white px-5 pb-safe-offset-5 pt-5 shadow-2xl shadow-black/10">
           <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
           <View className="mb-1 flex-row items-center gap-3">
             <Text

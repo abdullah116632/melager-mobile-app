@@ -123,7 +123,7 @@ export const ExpenseDetailModal = ({
           activeOpacity={1}
           onPress={onClose}
         />
-        <View className="max-h-[72%] rounded-t-3xl bg-white px-5 pb-6 pt-3">
+        <View className="max-h-[72%] rounded-t-3xl bg-white px-5 pb-safe-offset-5 pt-3">
           <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
           <View className="mb-3.5 flex-row items-start justify-between">
             <View className="min-w-0 flex-1">

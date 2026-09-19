@@ -407,6 +407,17 @@ export const DashboardMealSection = forwardRef<
         visible={offSheetMealType !== null}
         mealType={offSheetMealType}
         dateLabel={formatDashboardDateLabel(selectedDate, today)}
+        windowStart={
+          offSheetMealType
+            ? (schedule?.schedule[`${offSheetMealType}OptOutStart`] ?? null)
+            : null
+        }
+        windowEnd={
+          offSheetMealType
+            ? (schedule?.schedule[`${offSheetMealType}OptOutEnd`] ?? null)
+            : null
+        }
+        isFutureDate={isFuture}
         onClose={() => setOffSheetMealType(null)}
         onSelect={(scope) => {
           const mealType = offSheetMealType;

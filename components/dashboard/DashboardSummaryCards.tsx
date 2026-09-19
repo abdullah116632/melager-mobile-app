@@ -8,9 +8,8 @@ import {
 } from "@/utils/dashboard";
 import {
   SummaryCardShell,
-  SummaryPill,
   SummaryRing,
-  SummaryTile,
+  SummaryRowList,
 } from "./DashboardSummaryParts";
 
 interface DashboardSummaryCardsProps {
@@ -35,55 +34,47 @@ export const DashboardSummaryCards = ({
         title="Mess Monthly Summary"
         subtitle="Overall figures for this month"
       >
-        <SummaryRing
-          label="Current Balance"
-          value={`${balancePositive ? "+" : "-"}৳${formatDashboardAmount(Math.abs(netBalance))}`}
-          negative={!balancePositive}
-          baseColors={
-            fullySpent ? ["#DC2626", "#EF4444"] : ["#059669", "#34D399"]
-          }
-          segments={
-            fullySpent
-              ? []
-              : [{ fraction: spentFraction, colors: ["#F59E0B", "#FBBF24"] }]
-          }
-          pill={
-            balancePositive ? (
-              <SummaryPill label="Active Balance" tone="emerald" />
-            ) : null
-          }
-        />
-
-        <View className="mt-3 gap-2.5 border-t border-slate-200/70 pt-4">
-          <View className="flex-row gap-2.5">
-            <SummaryTile
-              label="Total Deposits"
-              labelClassName="text-teal-700"
-              valueClassName="text-teal-800"
-              borderClassName="border-emerald-200"
-              bgClassName="bg-emerald-50"
-              value={`৳${formatDashboardAmount(totalDeposits)}`}
-            />
-            <SummaryTile
-              label="Total Expenses"
-              labelClassName="text-rose-600"
-              valueClassName="text-rose-700"
-              borderClassName="border-rose-200"
-              bgClassName="bg-rose-50"
-              value={`৳${formatDashboardAmount(totalExpenses)}`}
+        <View className="flex-row items-center gap-3">
+          <View className="min-w-0 flex-1">
+            <SummaryRowList
+              rows={[
+                {
+                  label: "Total Deposits",
+                  value: `৳${formatDashboardAmount(totalDeposits)}`,
+                  labelClassName: "text-teal-700",
+                  valueClassName: "text-teal-800",
+                },
+                {
+                  label: "Total Meals",
+                  value: formatDashboardQuantity(totalMeals),
+                },
+                {
+                  label: "Total Expenses",
+                  value: `৳${formatDashboardAmount(totalExpenses)}`,
+                  labelClassName: "text-rose-600",
+                  valueClassName: "text-rose-700",
+                },
+                {
+                  label: "Meal Rate",
+                  value: mealRateValue,
+                  labelClassName: "text-teal-700",
+                },
+              ]}
             />
           </View>
-          <View className="flex-row gap-2.5">
-            <SummaryTile
-              label="Total Meals"
-              value={formatDashboardQuantity(totalMeals)}
-            />
-            <SummaryTile
-              label="Meal Rate"
-              labelClassName="text-teal-700"
-              value={mealRateValue}
-            />
-          </View>
+          <SummaryRing
+            label="Current Balance"
+            value={`${balancePositive ? "+" : "-"}৳${formatDashboardAmount(Math.abs(netBalance))}`}
+            negative={!balancePositive}
+            baseColors={
+              fullySpent ? ["#DC2626", "#EF4444"] : ["#059669", "#34D399"]
+            }
+            segments={
+              fullySpent
+                ? []
+                : [{ fraction: spentFraction, colors: ["#F59E0B", "#FBBF24"] }]
+            }
+          />
         </View>
       </SummaryCardShell>
     </View>

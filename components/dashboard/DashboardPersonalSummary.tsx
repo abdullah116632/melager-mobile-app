@@ -104,7 +104,6 @@ export const DashboardPersonalSummary = ({
           />
         </View>
         <SummaryRing
-          size="sm"
           label="Remaining Balance"
           value={remainingBalance}
           negative={!balancePositive}
