@@ -54,10 +54,10 @@ export const DashboardQuickNavDrawer = ({
           onPress={() => navigate("/consumer-breakdown")}
           activeOpacity={0.72}
           accessibilityRole="button"
-          accessibilityLabel="Statement"
+          accessibilityLabel="Report"
         >
           <View className="h-10 w-10 items-center justify-center rounded-[13px] bg-violet-50">
-            <Feather name="users" size={18} color="#6D28D9" />
+            <Feather name="file-text" size={18} color="#6D28D9" />
             {unreadBreakdownCount > 0 ? (
               <View className="absolute -right-2 -top-2 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 py-0.5">
                 <Text className="font-inter-bold text-[9px] leading-3 text-white">
@@ -67,7 +67,7 @@ export const DashboardQuickNavDrawer = ({
             ) : null}
           </View>
           <Text className="mt-1 text-center font-inter-semibold text-[9px] text-slate-600">
-            Statement
+            Report
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

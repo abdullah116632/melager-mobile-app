@@ -1,27 +1,29 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 import { Text, View } from "react-native";
 import type { DashboardConsumerRow } from "@/types/dashboard";
 import {
   formatDashboardAmount,
   formatDashboardQuantity,
+  formatDashboardRate,
 } from "@/utils/dashboard";
-
-const cardShadow = {
-  shadowColor: "#94A3B8",
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.2,
-  shadowRadius: 8,
-  elevation: 3,
-};
+import {
+  SummaryBadge,
+  SummaryCardShell,
+  SummaryRing,
+  SummaryTile,
+} from "./DashboardSummaryParts";
 
 interface DashboardPersonalSummaryProps {
   consumer: DashboardConsumerRow | null;
+  mealRate: number;
   isLoading: boolean;
 }
 
+const userIcon = <Feather name="user" size={19} color="#0F766E" />;
+
 export const DashboardPersonalSummary = ({
   consumer,
+  mealRate,
   isLoading,
 }: DashboardPersonalSummaryProps) => {
   // A missing consumer is normal while the month snapshot is still loading.
@@ -29,24 +31,12 @@ export const DashboardPersonalSummary = ({
   // unlinked account after data has arrived.
   if (!consumer && !isLoading) {
     return (
-      <View
-        className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-[#B7D9BE] bg-[#E8F5E9]"
-        style={cardShadow}
+      <SummaryCardShell
+        icon={userIcon}
+        title="My Monthly Summary"
+        subtitle="Your personal figures for this month"
       >
-        <View className="flex-row items-center gap-2 px-4 py-3">
-          <View className="h-8 w-8 items-center justify-center rounded-lg bg-slate-100">
-            <Feather name="user" size={17} color="#475569" />
-          </View>
-          <View className="min-w-0 flex-1">
-            <Text className="font-inter-semibold text-sm text-slate-800">
-              My Monthly Summary
-            </Text>
-            <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
-              Your personal figures for this month
-            </Text>
-          </View>
-        </View>
-        <View className="px-4 pb-4">
+        <View className="rounded-2xl border border-slate-200 bg-white p-3.5">
           <Text className="font-inter-semibold text-[14px] text-slate-900">
             Summary unavailable
           </Text>
@@ -54,7 +44,7 @@ export const DashboardPersonalSummary = ({
             Your account is not linked to a consumer in this mess yet.
           </Text>
         </View>
-      </View>
+      </SummaryCardShell>
     );
   }
 
@@ -62,113 +52,74 @@ export const DashboardPersonalSummary = ({
   const remainingBalance = consumer
     ? `${balancePositive ? "+" : "-"}৳${formatDashboardAmount(Math.abs(consumer.balance))}`
     : "—";
-  const items = [
-    {
-      label: "Meals Taken",
-      value: consumer ? formatDashboardQuantity(consumer.meals) : "—",
-      icon: "restaurant" as const,
-      color: "#059669",
-    },
-    {
-      label: "Your Deposits",
-      value: consumer ? `৳${formatDashboardAmount(consumer.deposits)}` : "—",
-      icon: "card" as const,
-      color: "#2563EB",
-    },
-    {
-      label: "Your Cost",
-      value: consumer ? `৳${formatDashboardAmount(consumer.cost)}` : "—",
-      icon: "cash" as const,
-      color: "#EA580C",
-    },
-  ];
+  const spentFraction =
+    consumer && consumer.deposits > 0 ? consumer.cost / consumer.deposits : 0;
+  const tone = balancePositive ? "emerald" : "rose";
 
   return (
-    <View
-      className="mx-4 mb-4 overflow-hidden rounded-[18px] border border-[#B7D9BE] bg-[#E8F5E9]"
-      style={cardShadow}
+    <SummaryCardShell
+      icon={userIcon}
+      title="My Monthly Summary"
+      subtitle="Your personal figures for this month"
+      badge={
+        consumer ? (
+          <SummaryBadge
+            label={balancePositive ? "Advance" : "Due"}
+            tone={tone}
+          />
+        ) : null
+      }
     >
-      <View className="flex-row items-center gap-2 px-4 py-3">
-        <View className="h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
-          <Feather name="user" size={16} color="#16A34A" />
+      <SummaryRing
+        label="Remaining Balance"
+        value={remainingBalance}
+        negative={!balancePositive}
+        segments={
+          !consumer
+            ? []
+            : balancePositive
+              ? [{ fraction: spentFraction, colors: ["#059669", "#34D399"] }]
+              : [{ fraction: 1, colors: ["#F43F5E", "#FB7185"] }]
+        }
+      />
+
+      <View className="mt-3 gap-2.5 border-t border-slate-200/70 pt-4">
+        <View className="flex-row gap-2.5">
+          <SummaryTile
+            centered
+            label="Your Deposits"
+            labelClassName="text-teal-700"
+            valueClassName="text-teal-800"
+            borderClassName="border-emerald-200"
+            bgClassName="bg-emerald-50"
+            value={
+              consumer ? `৳${formatDashboardAmount(consumer.deposits)}` : "—"
+            }
+          />
+          <SummaryTile
+            centered
+            label="Meals Taken"
+            value={consumer ? formatDashboardQuantity(consumer.meals) : "—"}
+          />
         </View>
-        <View className="min-w-0 flex-1">
-          <Text className="font-inter-semibold text-base text-slate-800">
-            My Monthly Summary
-          </Text>
-          <Text className="mt-0.5 font-inter text-[11px] text-slate-500">
-            Your personal figures for this month
-          </Text>
+        <View className="flex-row gap-2.5">
+          <SummaryTile
+            centered
+            label="Your Cost"
+            labelClassName="text-rose-600"
+            valueClassName="text-rose-700"
+            borderClassName="border-rose-200"
+            bgClassName="bg-rose-50"
+            value={consumer ? `৳${formatDashboardAmount(consumer.cost)}` : "—"}
+          />
+          <SummaryTile
+            centered
+            label="Meal Rate"
+            labelClassName="text-teal-700"
+            value={mealRate > 0 ? `৳${formatDashboardRate(mealRate)}` : "—"}
+          />
         </View>
       </View>
-
-      <View className="gap-2 p-2">
-        {items.map((item) => (
-          <View
-            key={item.label}
-            className="w-full flex-row items-center justify-between rounded-xl border border-[#B7D9BE] bg-white p-3"
-          >
-            <View className="flex-row items-center gap-2">
-              <View
-                className="h-9 w-9 items-center justify-center rounded-full"
-                style={{ backgroundColor: `${item.color}1A` }}
-              >
-                <Ionicons name={item.icon} size={17} color={item.color} />
-              </View>
-              <Text className="font-inter-semibold text-sm text-slate-700">
-                {item.label}
-              </Text>
-            </View>
-            <Text
-              className="ml-3 font-inter-bold text-[14px] text-slate-900"
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.7}
-            >
-              {item.value}
-            </Text>
-          </View>
-        ))}
-
-        <View
-          className={`w-full flex-row items-center justify-between rounded-xl border p-3.5 ${
-            balancePositive
-              ? "border-teal-200 bg-teal-50"
-              : "border-orange-200 bg-orange-50"
-          }`}
-        >
-          <View className="flex-row items-center gap-2.5">
-            <View
-              className={`h-9 w-9 items-center justify-center rounded-full ${
-                balancePositive ? "bg-teal-100" : "bg-orange-100"
-              }`}
-            >
-              <Feather
-                name="credit-card"
-                size={17}
-                color={balancePositive ? "#0F766E" : "#C2410C"}
-              />
-            </View>
-            <Text
-              className={`font-inter-semibold text-sm ${
-                balancePositive ? "text-teal-800" : "text-orange-800"
-              }`}
-            >
-              Remaining Balance
-            </Text>
-          </View>
-          <Text
-            className={`ml-3 font-inter-bold text-[16px] ${
-              balancePositive ? "text-teal-800" : "text-orange-800"
-            }`}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.7}
-          >
-            {remainingBalance}
-          </Text>
-        </View>
-      </View>
-    </View>
+    </SummaryCardShell>
   );
 };

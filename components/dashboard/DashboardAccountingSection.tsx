@@ -3,7 +3,6 @@ import MonthPicker from "@/components/MonthPicker";
 import { useAuth, useMess } from "@/redux/hooks";
 import { useDashboardLocalAccounting } from "@/hooks/useDashboardLocalAccounting";
 import { DashboardPersonalSummary } from "./DashboardPersonalSummary";
-import { DashboardSummaryCards } from "./DashboardSummaryCards";
 
 export interface DashboardAccountingSectionHandle {
   refresh: () => Promise<void>;
@@ -43,6 +42,7 @@ export const DashboardAccountingSection = forwardRef<
       />
       <DashboardPersonalSummary
         consumer={personalConsumer}
+        mealRate={accounting.mealRate}
         // The first visit to a mess renders an empty local snapshot, which used
         // to mark the month "loaded" while the consumer list was still empty —
         // long enough for the card to claim the account was not linked. The
@@ -51,7 +51,6 @@ export const DashboardAccountingSection = forwardRef<
           dataLoading || !currentMonthLoaded || consumerDataSource === "none"
         }
       />
-      <DashboardSummaryCards accounting={accounting} />
     </>
   );
 });

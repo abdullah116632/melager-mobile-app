@@ -14,6 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DashboardConsumerBreakdown } from "@/components/dashboard/DashboardConsumerBreakdown";
+import { DashboardSummaryCards } from "@/components/dashboard/DashboardSummaryCards";
+import { useDashboardLocalAccounting } from "@/hooks/useDashboardLocalAccounting";
 import { clearApiCache } from "@/lib/api";
 import {
   loadConsumerBreakdownFromCache,
@@ -119,6 +121,7 @@ export const ConsumerBreakdownScreen = ({
   const { getGrandTotal, getConsumerTotal } = useMeals();
   const { getMonthExpenseTotal } = useExpenses();
   const { getGrandDepositTotal, getConsumerDepositTotal } = useDeposits();
+  const monthAccounting = useDashboardLocalAccounting();
   const defaultRange = getDefaultDashboardRange(currentYearMonth);
   const [draftStartDate, setDraftStartDate] = useState(defaultRange.startDate);
   const [draftEndDate, setDraftEndDate] = useState(defaultRange.endDate);
@@ -414,6 +417,7 @@ export const ConsumerBreakdownScreen = ({
           />
         }
       >
+        <DashboardSummaryCards accounting={monthAccounting} />
         <DashboardConsumerBreakdown
           accounting={accounting}
           appliedRange={appliedRange}
