@@ -160,6 +160,7 @@ export const MealsTableSection = () => {
         variant="dashboard"
         monthDataLoading={dataLoading}
         showSyncStatus={false}
+        overlapAbove={false}
         onCellLeft={isAdmin ? () => copyAndMove("left") : undefined}
         onCellRight={isAdmin ? () => copyAndMove("right") : undefined}
         onCellUp={isAdmin ? () => copyAndMove("up") : undefined}

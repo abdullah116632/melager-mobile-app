@@ -79,7 +79,9 @@ function AuthGate() {
   useEffect(() => {
     let cancelled = false;
 
-    const replaceOnce = (path: "/" | "/auth" | "/(tabs)/dashboard") => {
+    const replaceOnce = (
+      path: "/" | "/auth" | "/(tabs)/dashboard" | "/(tabs)/manager",
+    ) => {
       if (pendingRedirectRef.current === path) return;
       pendingRedirectRef.current = path;
       router.replace(path);
@@ -110,7 +112,11 @@ function AuthGate() {
         }
         if (pendingAdminOtp) await clearPendingAdminOtp();
         if (inAuth || inMessHub || inMessSetup) {
-          replaceOnce("/(tabs)/dashboard");
+          replaceOnce(
+            activeMess.role === "admin"
+              ? "/(tabs)/manager"
+              : "/(tabs)/dashboard",
+          );
         } else {
           pendingRedirectRef.current = null;
         }

@@ -40,6 +40,8 @@ interface MonthPickerProps {
   onCellDown?: () => void;
   cellNavEnabled?: boolean;
   showSyncStatus?: boolean;
+  // Dashboard variant only: pull the picker up over the element above it.
+  overlapAbove?: boolean;
 }
 
 export default function MonthPicker({
@@ -53,6 +55,7 @@ export default function MonthPicker({
   onCellDown,
   cellNavEnabled = false,
   showSyncStatus = true,
+  overlapAbove = true,
 }: MonthPickerProps) {
   const {
     currentYearMonth,
@@ -173,12 +176,12 @@ export default function MonthPicker({
   return (
     <>
       <View
-        className={`flex-row items-center py-2.5 ${hasCellNavigation ? "px-1.5" : "px-3"} ${isDashboard ? "z-20 -mt-4 bg-transparent" : "border-b border-slate-200 bg-white"}`}
+        className={`flex-row items-center py-2.5 ${hasCellNavigation ? "px-1.5" : "px-3"} ${isDashboard ? `z-20 bg-transparent ${overlapAbove ? "-mt-4" : ""}` : "border-b border-slate-200 bg-white"}`}
       >
         {hasCellNavigation ? (
           <>
             <View
-              className={`flex-1 flex-row items-center justify-end ${isDashboard ? `mt-3 ${isCompact ? "gap-2" : "gap-4"} pr-1` : "gap-3 pr-4"}`}
+              className={`flex-1 flex-row items-center justify-end ${isDashboard ? `${overlapAbove ? "mt-3" : ""} ${isCompact ? "gap-2" : "gap-4"} pr-1` : "gap-3 pr-4"}`}
             >
               <TouchableOpacity
                 className={`${isDashboard ? "h-[38px] w-[38px] border-2 shadow-md" : "h-8 w-8 bg-slate-100"} ${isDashboard && (cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15")} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}
@@ -213,7 +216,7 @@ export default function MonthPicker({
             </View>
 
             <View
-              className={`flex-1 flex-row items-center justify-start ${isDashboard ? `mt-3 ${isCompact ? "gap-2" : "gap-4"} pl-1` : "gap-3 pl-4"}`}
+              className={`flex-1 flex-row items-center justify-start ${isDashboard ? `${overlapAbove ? "mt-3" : ""} ${isCompact ? "gap-2" : "gap-4"} pl-1` : "gap-3 pl-4"}`}
             >
               <TouchableOpacity
                 className={`${isDashboard ? "h-[38px] w-[38px] border-2 shadow-md" : "h-8 w-8 bg-slate-100"} ${isDashboard && (cellNavEnabled ? "border-sky-400 bg-sky-100 shadow-sky-500/20" : "border-blue-200 bg-white shadow-blue-300/15")} items-center justify-center rounded-full ${cellNavEnabled ? "opacity-100" : isDashboard ? "opacity-85" : "opacity-40"}`}

@@ -1,6 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -63,17 +62,11 @@ export const MealScheduleItem = ({
     >
       <View className="mb-2 flex-row items-center gap-2">
         <View className="h-9 w-9 items-center justify-center rounded-full bg-teal-50">
-          {mealType === "lunch" ? (
-            <View className="h-7 w-7 items-center justify-center rounded-full border-[1.5px] border-teal-600">
-              <MaterialCommunityIcons
-                name="silverware-fork-knife"
-                size={16}
-                color="#0F8A80"
-              />
-            </View>
+          {mealType === "breakfast" ? (
+            <Feather name="sunrise" size={19} color="#0F8A80" />
           ) : (
             <Ionicons
-              name={mealType === "breakfast" ? "sunny-outline" : "moon-outline"}
+              name={mealType === "lunch" ? "sunny-outline" : "moon-outline"}
               size={20}
               color="#0F8A80"
             />

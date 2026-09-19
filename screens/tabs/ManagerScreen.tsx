@@ -1,24 +1,45 @@
 import Feather from "@expo/vector-icons/Feather";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, Platform, Text, TouchableOpacity, View } from "react-native";
+import {
+  Animated,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { NotificationBell } from "@/components/NotificationBell";
 import { DashboardQuickNavDrawer } from "@/components/dashboard/DashboardQuickNavDrawer";
 import { ManagerAdminOptionsCard } from "@/components/manager/ManagerAdminOptionsCard";
 import { ManagerSummaryCard } from "@/components/manager/ManagerSummaryCard";
-import { useAuth, useDrawer } from "@/redux/hooks";
+import {
+  useAppDispatch,
+  useAuth,
+  useDrawer,
+  useMess,
+  useNetwork,
+} from "@/redux/hooks";
+import {
+  apiActionFailed,
+  offlineActionFailed,
+} from "@/redux/slice/networkSlice";
 
 export function ManagerScreen() {
   const router = useRouter();
   const { mess, role } = useAuth();
   const { openDrawer } = useDrawer();
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const { isOnline } = useNetwork();
+  const { refreshMonth } = useMess();
+  const [refreshing, setRefreshing] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const [showingKey, setShowingKey] = useState(false);
   const flipValue = useRef(new Animated.Value(0)).current;
@@ -64,6 +85,28 @@ export function ManagerScreen() {
     [flipValue],
   );
 
+  // A successful refreshMonth triggers the app-wide success toast on its own.
+  const refreshManager = useCallback(async () => {
+    if (!isOnline) {
+      dispatch(offlineActionFailed("refresh"));
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await refreshMonth();
+    } catch (error) {
+      dispatch(
+        apiActionFailed(
+          error instanceof Error && error.message
+            ? error.message
+            : "Refresh failed. Please try again.",
+        ),
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }, [dispatch, isOnline, refreshMonth]);
+
   useEffect(() => {
     if (role !== "admin") {
       router.replace("/(tabs)/dashboard");
@@ -102,12 +145,9 @@ export function ManagerScreen() {
             <Feather name="menu" size={20} color="#fff" />
           </TouchableOpacity>
           <View className="min-w-0 flex-1 justify-center">
-            <View className="flex-row items-center gap-1.5">
-              <Ionicons name="shield-checkmark" size={17} color="#A7F3D0" />
-              <Text className="font-inter-bold text-[18px] text-white">
-                Manager
-              </Text>
-            </View>
+            <Text className="font-inter-bold text-[18px] text-white">
+              Manager
+            </Text>
           </View>
           <TouchableOpacity
             className="max-w-[132px] shrink flex-row items-center gap-1.5 rounded-full border border-white/15 bg-white/15 px-2.5 py-2"
@@ -156,40 +196,56 @@ export function ManagerScreen() {
 
       <DashboardQuickNavDrawer returnTo="manager" />
 
-      <ManagerSummaryCard />
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName={
+          Platform.OS === "web" ? "pb-[118px]" : "pb-safe-offset-[49px]"
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refreshManager()}
+            tintColor="#0e7871"
+            colors={["#0e7871"]}
+          />
+        }
+      >
+        <ManagerSummaryCard />
 
-      <ManagerAdminOptionsCard
-        options={[
-          {
-            label: "Meal Status",
-            icon: "calendar-outline",
-            tintClassName: "bg-emerald-50",
-            iconColor: "#059669",
-            onPress: () => router.push("/meal-status?returnTo=manager"),
-          },
-          {
-            label: "Member Requests",
-            icon: "person-add-outline",
-            tintClassName: "bg-violet-50",
-            iconColor: "#6D28D9",
-            onPress: () => router.push("/member-requests?returnTo=manager"),
-          },
-          {
-            label: "All Members",
-            icon: "people-outline",
-            tintClassName: "bg-teal-50",
-            iconColor: "#0F766E",
-            onPress: () => router.push("/consumers?returnTo=manager"),
-          },
-          {
-            label: "Mess Settings",
-            icon: "shield-checkmark-outline",
-            tintClassName: "bg-amber-50",
-            iconColor: "#B45309",
-            onPress: () => router.push("/settings/security?returnTo=manager"),
-          },
-        ]}
-      />
+        <ManagerAdminOptionsCard
+          options={[
+            {
+              label: "Meal Status",
+              icon: "calendar-outline",
+              tintClassName: "bg-emerald-50",
+              iconColor: "#059669",
+              onPress: () => router.push("/meal-status?returnTo=manager"),
+            },
+            {
+              label: "Member Requests",
+              icon: "person-add-outline",
+              tintClassName: "bg-violet-50",
+              iconColor: "#6D28D9",
+              onPress: () => router.push("/member-requests?returnTo=manager"),
+            },
+            {
+              label: "All Members",
+              icon: "people-outline",
+              tintClassName: "bg-teal-50",
+              iconColor: "#0F766E",
+              onPress: () => router.push("/consumers?returnTo=manager"),
+            },
+            {
+              label: "Mess Settings",
+              icon: "shield-checkmark-outline",
+              tintClassName: "bg-amber-50",
+              iconColor: "#B45309",
+              onPress: () => router.push("/settings/security?returnTo=manager"),
+            },
+          ]}
+        />
+      </ScrollView>
     </View>
   );
 }

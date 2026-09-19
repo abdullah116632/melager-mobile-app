@@ -29,6 +29,7 @@ export const ExpensesScreen = () => {
         variant="dashboard"
         monthDataLoading={dataLoading}
         showSyncStatus={false}
+        overlapAbove={false}
       />
       <ExpensesTable />
     </View>

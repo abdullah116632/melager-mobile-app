@@ -155,6 +155,7 @@ export const DepositsContent = () => {
         variant="dashboard"
         monthDataLoading={dataLoading || entriesLoading}
         showSyncStatus={false}
+        overlapAbove={false}
       />
       <DepositConflictModal
         conflicts={conflicts}

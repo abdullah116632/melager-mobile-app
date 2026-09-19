@@ -1,6 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Text, View } from "react-native";
 import type { MealStatusConsumer } from "@/types/mealStatus";
 
@@ -48,14 +47,10 @@ export const MealOptOutTable = ({ consumers }: MealOptOutTableProps) => {
               Name
             </Text>
             <View className="w-[54px] items-center justify-center">
-              <Ionicons name="sunny-outline" size={16} color="#fff" />
+              <Feather name="sunrise" size={16} color="#fff" />
             </View>
             <View className="w-[54px] items-center justify-center">
-              <MaterialCommunityIcons
-                name="silverware-fork-knife"
-                size={14}
-                color="#fff"
-              />
+              <Ionicons name="sunny-outline" size={16} color="#fff" />
             </View>
             <View className="w-[54px] items-center justify-center">
               <Ionicons name="moon-outline" size={16} color="#fff" />
