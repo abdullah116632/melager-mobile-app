@@ -76,7 +76,7 @@ export const DashboardPersonalSummary = ({
           <SummaryRowList
             rows={[
               {
-                label: "Your Deposits",
+                label: "My Deposits",
                 value: consumer
                   ? `৳${formatDashboardAmount(consumer.deposits)}`
                   : "—",

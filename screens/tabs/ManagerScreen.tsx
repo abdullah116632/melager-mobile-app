@@ -18,7 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NotificationBell } from "@/components/NotificationBell";
 import { DashboardQuickNavDrawer } from "@/components/dashboard/DashboardQuickNavDrawer";
 import { ManagerAdminOptionsCard } from "@/components/manager/ManagerAdminOptionsCard";
+import { ManagerDuesCard } from "@/components/manager/ManagerDuesCard";
 import { ManagerSummaryCard } from "@/components/manager/ManagerSummaryCard";
+import { ManagerTodayBazarCard } from "@/components/manager/ManagerTodayBazarCard";
 import {
   useAppDispatch,
   useAuth,
@@ -26,6 +28,7 @@ import {
   useMess,
   useNetwork,
 } from "@/redux/hooks";
+import { loadBazar } from "@/redux/slice/bazarSlice";
 import {
   apiActionFailed,
   offlineActionFailed,
@@ -93,7 +96,10 @@ export function ManagerScreen() {
     }
     setRefreshing(true);
     try {
-      await refreshMonth();
+      await Promise.all([
+        refreshMonth(),
+        dispatch(loadBazar({ includeConsumers: true })).unwrap(),
+      ]);
     } catch (error) {
       dispatch(
         apiActionFailed(
@@ -245,6 +251,8 @@ export function ManagerScreen() {
             },
           ]}
         />
+        <ManagerTodayBazarCard />
+        <ManagerDuesCard />
       </ScrollView>
     </View>
   );

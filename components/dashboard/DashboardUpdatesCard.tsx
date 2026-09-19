@@ -1,7 +1,7 @@
 import Feather from "@expo/vector-icons/Feather";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Text, TouchableOpacity, View } from "react-native";
 
 import {
   useAppDispatch,
@@ -30,6 +30,91 @@ const findNextBazarDay = (
     if (weekdays.has(getBazarWeekday(date))) return { date, daysAway };
   }
   return null;
+};
+
+// Two loops: a halo that keeps rippling outward, and the cart rolling forward
+// in short nudges with a pause, so it reads as "go" rather than as a shake.
+const BazarTodayIcon = () => {
+  const ripple = useRef(new Animated.Value(0)).current;
+  const roll = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const rippleLoop = Animated.loop(
+      Animated.timing(ripple, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    );
+    const nudge = (toValue: number) =>
+      Animated.timing(roll, {
+        toValue,
+        duration: 140,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      });
+    const rollLoop = Animated.loop(
+      Animated.sequence([
+        nudge(1),
+        nudge(-1),
+        nudge(1),
+        nudge(0),
+        Animated.delay(1100),
+      ]),
+    );
+    rippleLoop.start();
+    rollLoop.start();
+    return () => {
+      rippleLoop.stop();
+      rollLoop.stop();
+    };
+  }, [ripple, roll]);
+
+  return (
+    <View className="h-10 w-10 items-center justify-center">
+      <Animated.View
+        pointerEvents="none"
+        className="absolute h-10 w-10 rounded-full bg-amber-400"
+        style={{
+          opacity: ripple.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.45, 0],
+          }),
+          transform: [
+            {
+              scale: ripple.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.7],
+              }),
+            },
+          ],
+        }}
+      />
+      <View className="h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+        <Animated.View
+          style={{
+            transform: [
+              {
+                translateX: roll.interpolate({
+                  inputRange: [-1, 1],
+                  outputRange: [-1.5, 2],
+                }),
+              },
+              {
+                rotate: roll.interpolate({
+                  inputRange: [-1, 1],
+                  outputRange: ["-10deg", "10deg"],
+                }),
+              },
+            ],
+          }}
+        >
+          <Feather name="shopping-cart" size={18} color="#B45309" />
+        </Animated.View>
+      </View>
+    </View>
+  );
 };
 
 const daysAwayLabel = (daysAway: number) =>
@@ -72,8 +157,6 @@ export const DashboardUpdatesCard = () => {
     (first, second) => first.serialNo - second.serialNo,
   )[0];
 
-  if (!nextBazar && !firstNotice) return null;
-
   const bazarToday = nextBazar?.daysAway === 0;
 
   return (
@@ -95,17 +178,13 @@ export const DashboardUpdatesCard = () => {
             accessibilityRole="button"
             accessibilityLabel="Open bazar list"
           >
-            <View
-              className={`h-10 w-10 items-center justify-center rounded-full ${
-                bazarToday ? "bg-amber-100" : "bg-teal-50"
-              }`}
-            >
-              <Feather
-                name="shopping-cart"
-                size={18}
-                color={bazarToday ? "#B45309" : "#0F766E"}
-              />
-            </View>
+            {bazarToday ? (
+              <BazarTodayIcon />
+            ) : (
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-teal-50">
+                <Feather name="shopping-cart" size={18} color="#0F766E" />
+              </View>
+            )}
             <View className="min-w-0 flex-1">
               <Text className="font-inter-medium text-[11px] text-slate-500">
                 Your bazar day
@@ -132,7 +211,29 @@ export const DashboardUpdatesCard = () => {
               </Text>
             </View>
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <TouchableOpacity
+            className="flex-row items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3"
+            onPress={() => router.push("/bazar-list?returnTo=dashboard")}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Open bazar list"
+          >
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-slate-200">
+              <Feather name="shopping-cart" size={18} color="#64748B" />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="font-inter-bold text-[13.5px] text-slate-700">
+                No bazar duty assigned
+              </Text>
+              <Text className="mt-0.5 font-inter text-[11.5px] leading-4 text-slate-500">
+                {role === "admin"
+                  ? "Pick a day of the week for your bazar duty from the Bazar List."
+                  : "Ask your manager to assign you a day of the week for bazar duty."}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {firstNotice ? (
           <TouchableOpacity
@@ -164,7 +265,31 @@ export const DashboardUpdatesCard = () => {
               {firstNotice.body}
             </Text>
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <TouchableOpacity
+            className="flex-row items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3"
+            onPress={() => router.push("/notice-board?returnTo=dashboard")}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Open notice board"
+          >
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-slate-200">
+              <Feather name="clipboard" size={18} color="#64748B" />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="font-inter-bold text-[13.5px] text-slate-700">
+                {role === "admin"
+                  ? "You haven't created any notice yet"
+                  : "No notice has been created yet"}
+              </Text>
+              {role === "admin" ? (
+                <Text className="mt-0.5 font-inter text-[11.5px] leading-4 text-slate-500">
+                  To create one, open the Notice Board from the icon above.
+                </Text>
+              ) : null}
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
     </SummaryCardShell>
   );
