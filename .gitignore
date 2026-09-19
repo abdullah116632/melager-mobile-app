@@ -39,3 +39,6 @@ yarn-error.*
 .vercel
 
 .env
+
+# Local signing credentials (keystore passwords)
+credentials.json

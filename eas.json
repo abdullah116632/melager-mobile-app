@@ -35,6 +35,10 @@
         "buildType": "app-bundle"
       }
     },
+    "production-local": {
+      "extends": "production",
+      "credentialsSource": "local"
+    },
     "production-apk": {
       "extends": "production",
       "environment": "production",
