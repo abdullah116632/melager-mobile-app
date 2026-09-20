@@ -7,6 +7,7 @@ import {
 
 import {
   api,
+  invalidateApiCache,
   type ApiMessage,
   type ApiMessageCursor,
   type MessageReactionKind,
@@ -16,14 +17,12 @@ import {
   MessageRepository,
   type MessageItem,
   type MessagePage,
+  type MessageQuote,
 } from "@/offline/features/messages/MessageRepository";
 import type { MessageDeliveryState } from "@/offline/features/messages/messageLifecycle";
 import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
-import {
-  apiActionFailed,
-  type NetworkState,
-} from "@/redux/slice/networkSlice";
+import { apiActionFailed, type NetworkState } from "@/redux/slice/networkSlice";
 import { syncMessScope } from "@/redux/slice/messSlice";
 
 export interface MessagesState {
@@ -158,9 +157,9 @@ export const loadMessages = createAsyncThunk<
 
 export const sendMessage = createAsyncThunk<
   { messId: number; message: MessageItem },
-  { body: string; senderUserId: number },
+  { body: string; senderUserId: number; replyTo?: MessageQuote | null },
   { state: MessagesRootState }
->("messages/send", async ({ body }, { getState }) => {
+>("messages/send", async ({ body, replyTo }, { getState }) => {
   const { token, messId, userId } = getAuthContext(getState());
   try {
     const database = await getOfflineDatabase();
@@ -169,6 +168,7 @@ export const sendMessage = createAsyncThunk<
       messId,
       userId,
       body,
+      replyTo,
     );
     void getOfflineRuntime(database).engine.sync(
       { userId, messId, token },
@@ -176,7 +176,12 @@ export const sendMessage = createAsyncThunk<
     );
     return { messId, message };
   } catch {
-    const response = await api.sendMessage(body, token, messId);
+    const response = await api.sendMessage(
+      body,
+      token,
+      messId,
+      replyTo?.replyToMessageId ?? null,
+    );
     return { messId, message: serverMessage(response.message) };
   }
 });
@@ -187,11 +192,23 @@ export const loadUnreadMessageCount = createAsyncThunk<
   { state: MessagesRootState }
 >("messages/loadUnreadCount", async (_arg, { getState }) => {
   const { token, messId, userId } = getAuthContext(getState());
+  const database = await getOfflineDatabase().catch(() => null);
+  const repository = database ? new MessageRepository(database) : null;
+  // A read the server has not stored yet makes its count stale by definition:
+  // it still counts messages this device has already shown. Until the
+  // watermark is delivered the local count is the honest one, otherwise the
+  // badge comes back on the next launch for messages the user has read.
+  const readState = await repository
+    ?.getReadState(userId, messId)
+    .catch(() => null);
+  if (readState?.readPending) {
+    return { messId, unreadCount: readState.unreadCount };
+  }
   try {
     const response = await api.getUnreadMessageCount(token, messId);
     return { messId, unreadCount: response.unreadCount };
-  } catch {
-    const repository = new MessageRepository(await getOfflineDatabase());
+  } catch (error) {
+    if (!repository) throw error;
     return {
       messId,
       unreadCount: await repository.getUnreadCount(userId, messId),
@@ -205,17 +222,50 @@ export const markMessagesRead = createAsyncThunk<
   { state: MessagesRootState }
 >("messages/markRead", async (_arg, { getState }) => {
   const { token, messId, userId } = getAuthContext(getState());
+  const database = await getOfflineDatabase().catch(() => null);
+  if (!database) {
+    const response = await api.markMessagesRead(token, messId);
+    return { messId, unreadCount: response.unreadCount };
+  }
+  const repository = new MessageRepository(database);
+
+  let watermark: number;
   try {
-    const database = await getOfflineDatabase();
-    await new MessageRepository(database).markRead(userId, messId);
+    // Focus, every arriving message and the realtime listener all ask for
+    // this, so a read the server already knows about is dropped here instead
+    // of becoming one request per message in a busy conversation.
+    const readState = await repository.getReadState(userId, messId);
+    const newest = await repository.highestServerId(userId, messId);
+    if (!readState.readPending && newest === readState.lastReadServerId) {
+      return { messId, unreadCount: readState.unreadCount };
+    }
+    // Local first, so the badge clears immediately and an offline read still
+    // reaches the server later through the outbox.
+    watermark = await repository.markRead(userId, messId);
+  } catch {
+    const response = await api.markMessagesRead(token, messId);
+    return { messId, unreadCount: response.unreadCount };
+  }
+
+  if (!getState().network.isOnline) return { messId, unreadCount: 0 };
+  try {
+    // Deliver the watermark now rather than leaving it to a fire-and-forget
+    // sync. Until the server has stored it, every unread-count request keeps
+    // reporting these messages as unread, which is how a conversation the user
+    // had read came back with its badge on the next launch.
+    const response = await api.markMessagesRead(token, messId, watermark);
+    await repository.acknowledgeRead(userId, messId, response.unreadCount);
+    await repository.clearQueuedRead(userId, messId);
+    invalidateApiCache("/mess/messages/unread-count");
+    return { messId, unreadCount: response.unreadCount };
+  } catch {
+    // The queued operation is still there, so the outbox retries it and the
+    // badge stays on the local count until it lands.
     void getOfflineRuntime(database).engine.sync(
       { userId, messId, token },
       { collections: ["messages"], force: true },
     );
     return { messId, unreadCount: 0 };
-  } catch {
-    const response = await api.markMessagesRead(token, messId);
-    return { messId, unreadCount: response.unreadCount };
   }
 });
 
@@ -359,6 +409,14 @@ const messagesSlice = createSlice({
       );
       if (message) message.status = action.payload.status;
     },
+    /** The outbox delivered a queued read watermark; trust what came back. */
+    messageReadSynced: (
+      state,
+      action: PayloadAction<{ messId: number; unreadCount: number }>,
+    ) => {
+      if (state.scopeMessId !== action.payload.messId) return;
+      state.unreadCount = Math.max(0, action.payload.unreadCount);
+    },
     unreadMessageReceived: (state, action: PayloadAction<ApiMessage>) => {
       if (state.scopeMessId !== action.payload.messId) return;
       state.unreadCount += 1;
@@ -463,6 +521,7 @@ const messagesSlice = createSlice({
 export const {
   messageAcknowledged,
   messageReactionChanged,
+  messageReadSynced,
   messageReceived,
   messageStatusChanged,
   unreadMessageReceived,

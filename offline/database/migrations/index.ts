@@ -23,6 +23,7 @@ import { bazarDateMigration } from "./019-bazar-date";
 import { depositConflictsMigration } from "./020-deposit-conflicts";
 import { expenseConflictsMigration } from "./021-expense-conflicts";
 import { syncRejectionsMigration } from "./022-sync-rejections";
+import { messageRepliesMigration } from "./023-message-replies";
 import type { DatabaseMigration } from "./types";
 
 const migrations: DatabaseMigration[] = [
@@ -48,6 +49,7 @@ const migrations: DatabaseMigration[] = [
   depositConflictsMigration,
   expenseConflictsMigration,
   syncRejectionsMigration,
+  messageRepliesMigration,
 ];
 
 type UserVersionRow = { user_version: number };

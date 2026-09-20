@@ -23,6 +23,14 @@ export type MessageItem = Omit<ApiMessage, "id" | "reactions"> & {
   reactions: ApiMessageReaction[];
 };
 
+/** The quoted message carried by a reply, as the server resolved it. */
+export interface MessageQuote {
+  replyToMessageId: number;
+  replyToSenderUserId: number | null;
+  replyToSenderName: string | null;
+  replyToBody: string | null;
+}
+
 export interface MessagePage {
   messages: MessageItem[];
   nextCursor: ApiMessageCursor | null;
@@ -49,24 +57,34 @@ export class MessageRepository {
             localId,
           );
           const reconciled = await this.db.runAsync(
-            `UPDATE local_messages SET server_id=?,sender_name=?,body=?,created_at=?,updated_at=?,status='sent'
+            `UPDATE local_messages SET server_id=?,sender_name=?,body=?,created_at=?,updated_at=?,status='sent',
+               reply_to_server_id=?,reply_to_sender_user_id=?,reply_to_sender_name=?,reply_to_body=?
              WHERE local_id=?`,
             message.id,
             message.senderName,
             message.body,
             message.createdAt,
             message.updatedAt,
+            message.replyToMessageId ?? null,
+            message.replyToSenderUserId ?? null,
+            message.replyToSenderName ?? null,
+            message.replyToBody ?? null,
             localId,
           );
           if (reconciled.changes > 0) continue;
         }
         await this.db.runAsync(
           `INSERT INTO local_messages
-            (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor)
-           VALUES(?,?,?,?,?,?,?,?,?,'sent',NULL)
+            (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor,
+             reply_to_server_id,reply_to_sender_user_id,reply_to_sender_name,reply_to_body)
+           VALUES(?,?,?,?,?,?,?,?,?,'sent',NULL,?,?,?,?)
            ON CONFLICT(mess_id,server_id) WHERE server_id IS NOT NULL DO UPDATE SET
              sender_name=excluded.sender_name,body=excluded.body,
-             updated_at=excluded.updated_at,status='sent'`,
+             updated_at=excluded.updated_at,status='sent',
+             reply_to_server_id=excluded.reply_to_server_id,
+             reply_to_sender_user_id=excluded.reply_to_sender_user_id,
+             reply_to_sender_name=excluded.reply_to_sender_name,
+             reply_to_body=excluded.reply_to_body`,
           localId,
           message.id,
           userId,
@@ -76,6 +94,10 @@ export class MessageRepository {
           message.body,
           message.createdAt,
           message.updatedAt,
+          message.replyToMessageId ?? null,
+          message.replyToSenderUserId ?? null,
+          message.replyToSenderName ?? null,
+          message.replyToBody ?? null,
         );
       }
       for (const message of messages) {
@@ -152,7 +174,11 @@ export class MessageRepository {
       `SELECT CASE WHEN server_id IS NULL THEN 'local:' || local_id ELSE server_id END AS id,
         local_id AS localId,server_id AS serverId,mess_id AS messId,
         sender_user_id AS senderUserId,sender_name AS senderName,body,
-        created_at AS createdAt,updated_at AS updatedAt,status
+        created_at AS createdAt,updated_at AS updatedAt,status,
+        reply_to_server_id AS replyToMessageId,
+        reply_to_sender_user_id AS replyToSenderUserId,
+        reply_to_sender_name AS replyToSenderName,
+        reply_to_body AS replyToBody
        FROM local_messages WHERE user_id=? AND mess_id=? ${cursorSql}
        ORDER BY created_at DESC, COALESCE(server_id, 0) DESC LIMIT ?`,
       userId,
@@ -206,14 +232,16 @@ export class MessageRepository {
     messId: number,
     senderUserId: number,
     body: string,
+    replyTo?: MessageQuote | null,
   ): Promise<MessageItem> {
     const localId = Crypto.randomUUID();
     const now = new Date().toISOString();
     await runInTransaction(this.db, async () => {
       await this.db.runAsync(
         `INSERT INTO local_messages
-          (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor)
-         VALUES(?,NULL,?,?,?,?,?,?,?,'pending',NULL)`,
+          (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor,
+           reply_to_server_id,reply_to_sender_user_id,reply_to_sender_name,reply_to_body)
+         VALUES(?,NULL,?,?,?,?,?,?,?,'pending',NULL,?,?,?,?)`,
         localId,
         userId,
         messId,
@@ -222,6 +250,10 @@ export class MessageRepository {
         body,
         now,
         now,
+        replyTo?.replyToMessageId ?? null,
+        replyTo?.replyToSenderUserId ?? null,
+        replyTo?.replyToSenderName ?? null,
+        replyTo?.replyToBody ?? null,
       );
       await this.outbox.enqueue({
         id: localId,
@@ -230,7 +262,11 @@ export class MessageRepository {
         entityType: "message",
         entityId: localId,
         operation: "create",
-        payload: { localId, body },
+        payload: {
+          localId,
+          body,
+          replyToMessageId: replyTo?.replyToMessageId ?? null,
+        },
       });
     });
     return {
@@ -245,6 +281,10 @@ export class MessageRepository {
       updatedAt: now,
       status: "pending",
       reactions: [],
+      replyToMessageId: replyTo?.replyToMessageId ?? null,
+      replyToSenderUserId: replyTo?.replyToSenderUserId ?? null,
+      replyToSenderName: replyTo?.replyToSenderName ?? null,
+      replyToBody: replyTo?.replyToBody ?? null,
     };
   }
 
@@ -376,13 +416,18 @@ export class MessageRepository {
         localId,
       );
       await this.db.runAsync(
-        `UPDATE local_messages SET server_id=?,sender_name=?,body=?,created_at=?,updated_at=?,status='sent'
+        `UPDATE local_messages SET server_id=?,sender_name=?,body=?,created_at=?,updated_at=?,status='sent',
+           reply_to_server_id=?,reply_to_sender_user_id=?,reply_to_sender_name=?,reply_to_body=?
          WHERE local_id=?`,
         message.id,
         message.senderName,
         message.body,
         message.createdAt,
         message.updatedAt,
+        message.replyToMessageId ?? null,
+        message.replyToSenderUserId ?? null,
+        message.replyToSenderName ?? null,
+        message.replyToBody ?? null,
         localId,
       );
     });
@@ -421,6 +466,44 @@ export class MessageRepository {
       });
     });
     return lastReadServerId;
+  }
+
+  /**
+   * The saved read state. `readPending` stays true until the server has stored
+   * the watermark, which is what makes its unread count trustworthy again.
+   */
+  async getReadState(
+    userId: number,
+    messId: number,
+  ): Promise<{
+    lastReadServerId: number;
+    readPending: boolean;
+    unreadCount: number;
+  }> {
+    const row = await this.db.getFirstAsync<{
+      last_read_server_id: number | null;
+      read_pending: number;
+      unread_count: number;
+    }>(
+      `SELECT last_read_server_id,read_pending,unread_count
+       FROM local_message_read_state WHERE user_id=? AND mess_id=?`,
+      userId,
+      messId,
+    );
+    return {
+      lastReadServerId: Math.max(0, Number(row?.last_read_server_id ?? 0)),
+      readPending: Number(row?.read_pending ?? 0) === 1,
+      unreadCount: Math.max(0, Number(row?.unread_count ?? 0)),
+    };
+  }
+
+  /** Drops the queued watermark once it has been delivered directly. */
+  async clearQueuedRead(userId: number, messId: number): Promise<void> {
+    await this.db.runAsync(
+      "DELETE FROM offline_outbox WHERE user_id=? AND dedupe_key=?",
+      userId,
+      `message-read:${messId}`,
+    );
   }
 
   async acknowledgeRead(

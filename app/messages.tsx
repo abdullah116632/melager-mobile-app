@@ -7,7 +7,6 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import {
   ActivityIndicator,
   FlatList,
-  Modal,
   Pressable,
   RefreshControl,
   Text,
@@ -17,7 +16,19 @@ import {
 } from "react-native";
 
 import type { MessageReactionKind } from "@/lib/api";
-import type { MessageItem } from "@/offline/features/messages/MessageRepository";
+import type {
+  MessageItem,
+  MessageQuote,
+} from "@/offline/features/messages/MessageRepository";
+import { MessageAvatar } from "@/components/messages/MessageAvatar";
+import { MessageQuoteBlock } from "@/components/messages/MessageQuoteBlock";
+import { MessageReactionDetails } from "@/components/messages/MessageReactionDetails";
+import {
+  MessageReactionPicker,
+  REACTION_CHOICES,
+  reactionEmoji,
+} from "@/components/messages/MessageReactionPicker";
+import { SwipeToReply } from "@/components/messages/SwipeToReply";
 import {
   enterMessageConversation,
   leaveMessageConversation,
@@ -26,6 +37,7 @@ import {
   useAppDispatch,
   useAppSelector,
   useAuth,
+  useMess,
   useNetwork,
 } from "@/redux/hooks";
 import { apiActionFailed } from "@/redux/slice/networkSlice";
@@ -61,50 +73,26 @@ const formatMessageStamp = (value: string) => {
   return `${day} ${time}`;
 };
 
-const avatarThemes = [
-  { background: "bg-violet-500", border: "border-violet-300" },
-  { background: "bg-sky-500", border: "border-sky-300" },
-  { background: "bg-amber-500", border: "border-amber-300" },
-  { background: "bg-rose-500", border: "border-rose-300" },
-  { background: "bg-indigo-500", border: "border-indigo-300" },
-  { background: "bg-emerald-500", border: "border-emerald-300" },
-] as const;
-
-const MessageAvatar = ({ userId }: { userId: number }) => {
-  const theme = avatarThemes[Math.abs(userId) % avatarThemes.length];
-  return (
-    <View
-      className={`h-8 w-8 items-center justify-center rounded-xl border ${theme.background} ${theme.border}`}
-    >
-      <Feather name="user" size={15} color="#FFFFFF" />
-    </View>
-  );
-};
-
-const REACTION_CHOICES: { kind: MessageReactionKind; emoji: string }[] = [
-  { kind: "like", emoji: "👍" },
-  { kind: "love", emoji: "❤️" },
-  { kind: "haha", emoji: "😂" },
-  { kind: "sad", emoji: "😢" },
-  { kind: "angry", emoji: "😠" },
-  { kind: "dislike", emoji: "👎" },
-];
-
-const reactionEmoji = (kind: MessageReactionKind) =>
-  REACTION_CHOICES.find((choice) => choice.kind === kind)?.emoji ?? "";
-
 const MessageBubble = ({
   message,
   own,
   isOnline,
   myUserId,
+  highlighted,
   onOpenReactions,
+  onShowReactionDetails,
+  onReply,
+  onJumpToQuoted,
 }: {
   message: MessageItem;
   own: boolean;
   isOnline: boolean;
   myUserId?: number;
+  highlighted: boolean;
   onOpenReactions: (message: MessageItem) => void;
+  onShowReactionDetails: (message: MessageItem) => void;
+  onReply: (message: MessageItem) => void;
+  onJumpToQuoted: (messageServerId: number) => void;
 }) => {
   const stamp = formatMessageStamp(message.createdAt);
   // A server id is proof the message landed, so it decides delivery rather
@@ -118,15 +106,18 @@ const MessageBubble = ({
       ? "Sending"
       : "Pending"
     : stamp;
-  // Reactions are keyed by the server id, so a message still in the outbox
-  // cannot carry one yet.
+  // Reactions and quotes are both keyed by the server id, so a message still
+  // in the outbox can carry neither yet.
   const canReact = message.serverId !== null;
-  const counts = REACTION_CHOICES.map((choice) => ({
+  // One pill for the whole message, like WhatsApp: the distinct reactions
+  // side by side, most used first, with the total beside them.
+  const distinctReactions = REACTION_CHOICES.map((choice) => ({
     ...choice,
-    count: message.reactions.filter(
-      (entry) => entry.reaction === choice.kind,
-    ).length,
-  })).filter((entry) => entry.count > 0);
+    count: message.reactions.filter((entry) => entry.reaction === choice.kind)
+      .length,
+  }))
+    .filter((entry) => entry.count > 0)
+    .sort((left, right) => right.count - left.count);
   const mine = message.reactions.find((entry) => entry.userId === myUserId);
 
   const reactionButton = canReact ? (
@@ -158,77 +149,113 @@ const MessageBubble = ({
         </View>
       ) : null}
       {own ? reactionButton : null}
-      <View className="max-w-[76%]">
-        <Pressable
-          onLongPress={() => canReact && onOpenReactions(message)}
-          delayLongPress={250}
-        >
-          <View
-            className={`rounded-[22px] px-4 py-3 shadow-sm ${
-              own
-                ? "rounded-br-md border border-teal-500 bg-teal-600 shadow-teal-950/40"
-                : "rounded-bl-md border border-slate-700 bg-slate-800 shadow-black/30"
-            }`}
+      <SwipeToReply
+        enabled={canReact}
+        onReply={() => onReply(message)}
+        className="max-w-[76%]"
+      >
+        <View>
+          <Pressable
+            onLongPress={() => canReact && onOpenReactions(message)}
+            delayLongPress={250}
           >
-        {!own ? (
-          <View className="mb-1.5 flex-row items-center">
-            <View className="mr-1.5 h-1.5 w-1.5 rounded-full bg-cyan-400" />
-            <Text className="font-inter-semibold text-[9px] text-cyan-300">
-              {message.senderName}
-            </Text>
-          </View>
-        ) : null}
-        <Text className="font-inter text-[14px] leading-5 text-white">
-          {message.body}
-        </Text>
-        <View className="mt-1.5 flex-row items-center justify-end">
-          {own && !undelivered ? (
-            <MaterialCommunityIcons
-              name="check-all"
-              size={14}
-              color="#CCFBF1"
-            />
-          ) : (
-            <Feather
-              name="clock"
-              size={11}
-              color={own ? "#CCFBF1" : "#94A3B8"}
-            />
-          )}
-          <Text
-            className={`ml-1 font-inter text-[10px] ${
-              own ? "text-teal-100" : "text-slate-400"
-            }`}
-          >
-            {deliveryLabel}
-          </Text>
-            </View>
-          </View>
-        </Pressable>
-        {counts.length > 0 ? (
-          <View
-            className={`mt-1 flex-row flex-wrap items-center gap-1 ${
-              own ? "justify-end" : "justify-start"
-            }`}
-          >
-            {counts.map((entry) => (
-              <View
-                key={entry.kind}
-                className={`flex-row items-center rounded-full border px-2 py-0.5 ${
-                  mine?.reaction === entry.kind
-                    ? "border-teal-400 bg-teal-900/60"
-                    : "border-slate-700 bg-slate-800"
-                }`}
-              >
-                <Text className="text-[11px]">{entry.emoji}</Text>
-                <Text className="ml-1 font-inter-semibold text-[10px] text-slate-300">
-                  {entry.count}
+            <View
+              className={`rounded-[22px] border px-4 py-3 shadow-sm ${
+                own
+                  ? "rounded-br-md bg-teal-600 shadow-teal-950/40"
+                  : "rounded-bl-md bg-slate-800 shadow-black/30"
+              } ${
+                highlighted
+                  ? "border-cyan-300"
+                  : own
+                    ? "border-teal-500"
+                    : "border-slate-700"
+              }`}
+            >
+              {!own ? (
+                <View className="mb-1.5 flex-row items-center">
+                  <View className="mr-1.5 h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                  <Text className="font-inter-semibold text-[9px] text-cyan-300">
+                    {message.senderName}
+                  </Text>
+                </View>
+              ) : null}
+              {message.replyToMessageId ? (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => onJumpToQuoted(message.replyToMessageId!)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go to the quoted message"
+                >
+                  <MessageQuoteBlock
+                    senderUserId={message.replyToSenderUserId}
+                    senderName={message.replyToSenderName}
+                    body={message.replyToBody}
+                    myUserId={myUserId}
+                    tone={own ? "own" : "dark"}
+                  />
+                </TouchableOpacity>
+              ) : null}
+              <Text className="font-inter text-[14px] leading-5 text-white">
+                {message.body}
+              </Text>
+              <View className="mt-1.5 flex-row items-center justify-end">
+                {own && !undelivered ? (
+                  <MaterialCommunityIcons
+                    name="check-all"
+                    size={14}
+                    color="#CCFBF1"
+                  />
+                ) : (
+                  <Feather
+                    name="clock"
+                    size={11}
+                    color={own ? "#CCFBF1" : "#94A3B8"}
+                  />
+                )}
+                <Text
+                  className={`ml-1 font-inter text-[10px] ${
+                    own ? "text-teal-100" : "text-slate-400"
+                  }`}
+                >
+                  {deliveryLabel}
                 </Text>
               </View>
-            ))}
-          </View>
-        ) : null}
-      </View>
+            </View>
+          </Pressable>
+          {distinctReactions.length > 0 ? (
+            <View
+              className={`-mt-1.5 flex-row ${
+                own ? "justify-end pr-2" : "justify-start pl-2"
+              }`}
+            >
+              <TouchableOpacity
+                className={`flex-row items-center rounded-full border px-1.5 py-0.5 ${
+                  mine
+                    ? "border-teal-400 bg-teal-900/70"
+                    : "border-slate-700 bg-slate-800"
+                }`}
+                onPress={() => onShowReactionDetails(message)}
+                accessibilityRole="button"
+                accessibilityLabel={`See who reacted, ${message.reactions.length} in total`}
+              >
+                {/* WhatsApp caps the row at three faces and lets the total
+                  speak for the rest. */}
+                {distinctReactions.slice(0, 3).map((entry) => (
+                  <Text key={entry.kind} className="mx-px text-[12px]">
+                    {entry.emoji}
+                  </Text>
+                ))}
+                {message.reactions.length > 1 ? (
+                  <Text className="ml-1 mr-0.5 font-inter-semibold text-[10px] text-slate-300">
+                    {message.reactions.length}
+                  </Text>
+                ) : null}
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      </SwipeToReply>
       {!own ? reactionButton : null}
     </View>
   );
@@ -244,6 +271,7 @@ export default function MessagesRoute() {
     );
   const dispatch = useAppDispatch();
   const { mess, token, user } = useAuth();
+  const { consumers } = useMess();
   const { isOnline } = useNetwork();
   const {
     messages,
@@ -257,18 +285,84 @@ export default function MessagesRoute() {
   const [refreshing, setRefreshing] = useState(false);
   const [canLoadOlder, setCanLoadOlder] = useState(false);
   const [reactionTargetId, setReactionTargetId] = useState<number | null>(null);
+  const [detailsTargetId, setDetailsTargetId] = useState<number | null>(null);
+  const [replyTarget, setReplyTarget] = useState<MessageQuote | null>(null);
+  const [highlightedServerId, setHighlightedServerId] = useState<number | null>(
+    null,
+  );
+  const listRef = useRef<FlatList<MessageItem>>(null);
   // Read from the live thread rather than a snapshot so the picker still marks
   // the right choice if the reaction changed while it was open.
-  const myReactionOnTarget =
+  const reactionTarget =
     reactionTargetId === null
       ? undefined
-      : messages
-          .find((message) => message.serverId === reactionTargetId)
-          ?.reactions.find((entry) => entry.userId === user?.id)?.reaction;
+      : messages.find((message) => message.serverId === reactionTargetId);
+  const myReactionOnTarget = reactionTarget?.reactions.find(
+    (entry) => entry.userId === user?.id,
+  )?.reaction;
+  // Same reason for the who-reacted sheet: it follows the thread, so a
+  // reaction arriving over realtime shows up while the sheet is open.
+  const detailsTarget =
+    detailsTargetId === null
+      ? null
+      : (messages.find((message) => message.serverId === detailsTargetId) ??
+        null);
 
   const openReactions = (message: MessageItem) => {
     if (message.serverId !== null) setReactionTargetId(message.serverId);
   };
+
+  const showReactionDetails = (message: MessageItem) => {
+    if (message.serverId !== null) setDetailsTargetId(message.serverId);
+  };
+
+  const startReply = (message: MessageItem) => {
+    if (message.serverId === null) return;
+    // The sender's own name is stored as typed; whether it reads as "You" is
+    // decided when the quote is drawn, so it cannot go stale.
+    setReplyTarget({
+      replyToMessageId: message.serverId,
+      replyToSenderUserId: message.senderUserId,
+      replyToSenderName: message.senderName,
+      replyToBody: message.body,
+    });
+  };
+
+  /**
+   * Scrolls to the quoted message and flashes it. Nothing happens when it sits
+   * outside the pages loaded so far, which is the older end of the thread.
+   */
+  const jumpToQuoted = (messageServerId: number) => {
+    const index = messages.findIndex(
+      (message) => message.serverId === messageServerId,
+    );
+    if (index < 0) return;
+    listRef.current?.scrollToIndex({
+      index,
+      animated: true,
+      viewPosition: 0.5,
+    });
+    setHighlightedServerId(messageServerId);
+  };
+
+  useEffect(() => {
+    if (highlightedServerId === null) return undefined;
+    const timer = setTimeout(() => setHighlightedServerId(null), 1400);
+    return () => clearTimeout(timer);
+  }, [highlightedServerId]);
+
+  // Nothing left to list once the last reaction goes, including the caller's
+  // own removal from inside the sheet. A message that left the thread
+  // entirely, say on a mess switch, closes it too.
+  useEffect(() => {
+    if (detailsTargetId === null) return;
+    if (!detailsTarget || detailsTarget.reactions.length === 0)
+      setDetailsTargetId(null);
+  }, [detailsTarget, detailsTargetId]);
+
+  // Mess members carry the display names; reactions travel as user ids only.
+  const resolveReactorName = (userId: number) =>
+    consumers.find((consumer) => consumer.userId === userId)?.name;
 
   const applyReaction = (kind: MessageReactionKind) => {
     const messageServerId = reactionTargetId;
@@ -280,6 +374,13 @@ export default function MessagesRoute() {
         // Choosing the reaction that is already set removes it.
         reaction: myReactionOnTarget === kind ? null : kind,
       }),
+    );
+  };
+
+  const removeMyReaction = () => {
+    if (detailsTargetId === null) return;
+    void dispatch(
+      reactToMessage({ messageServerId: detailsTargetId, reaction: null }),
     );
   };
 
@@ -356,11 +457,16 @@ export default function MessagesRoute() {
   const submitMessage = async () => {
     const body = draft.trim();
     if (!body || !user || sendStatus === "loading") return;
+    const replyTo = replyTarget;
     setDraft("");
+    setReplyTarget(null);
     try {
-      await dispatch(sendMessage({ body, senderUserId: user.id })).unwrap();
+      await dispatch(
+        sendMessage({ body, senderUserId: user.id, replyTo }),
+      ).unwrap();
     } catch (error) {
       setDraft(body);
+      setReplyTarget(replyTo);
       dispatch(
         apiActionFailed(
           error instanceof Error ? error.message : "Could not send message.",
@@ -403,6 +509,7 @@ export default function MessagesRoute() {
           </View>
         ) : (
           <FlatList
+            ref={listRef}
             data={messages}
             inverted
             className="flex-1"
@@ -414,9 +521,33 @@ export default function MessagesRoute() {
                 own={item.senderUserId === user?.id}
                 isOnline={isOnline}
                 myUserId={user?.id}
+                highlighted={
+                  item.serverId !== null &&
+                  item.serverId === highlightedServerId
+                }
                 onOpenReactions={openReactions}
+                onShowReactionDetails={showReactionDetails}
+                onReply={startReply}
+                onJumpToQuoted={jumpToQuoted}
               />
             )}
+            // Rows are not a fixed height, so a jump to a message that is
+            // mounted but not measured yet needs a second, settled attempt.
+            onScrollToIndexFailed={({ index, averageItemLength }) => {
+              listRef.current?.scrollToOffset({
+                offset: index * averageItemLength,
+                animated: true,
+              });
+              setTimeout(
+                () =>
+                  listRef.current?.scrollToIndex({
+                    index,
+                    animated: true,
+                    viewPosition: 0.5,
+                  }),
+                220,
+              );
+            }}
             onEndReached={loadOlderMessages}
             onEndReachedThreshold={0.25}
             onScrollBeginDrag={() => setCanLoadOlder(true)}
@@ -456,6 +587,26 @@ export default function MessagesRoute() {
           />
         )}
         <View className="pb-safe-offset-2 border-t border-slate-700 bg-[#0F172A] px-3 pt-2">
+          {replyTarget ? (
+            <View className="mb-2 flex-row items-center rounded-2xl border border-slate-700 bg-slate-800/70 p-1.5">
+              <View className="flex-1">
+                <MessageQuoteBlock
+                  senderUserId={replyTarget.replyToSenderUserId}
+                  senderName={replyTarget.replyToSenderName}
+                  body={replyTarget.replyToBody}
+                  myUserId={user?.id}
+                />
+              </View>
+              <TouchableOpacity
+                className="mb-1.5 ml-1 h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-800"
+                onPress={() => setReplyTarget(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel reply"
+              >
+                <Feather name="x" size={15} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <View className="flex-row items-end rounded-2xl border border-slate-600 bg-slate-800 px-3 py-1.5">
             <TextInput
               className="max-h-24 min-h-10 flex-1 px-1 py-2 font-inter text-[14px] text-white"
@@ -483,42 +634,20 @@ export default function MessagesRoute() {
         </View>
       </View>
 
-      <Modal
+      <MessageReactionPicker
         visible={reactionTargetId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setReactionTargetId(null)}
-      >
-        <Pressable
-          className="flex-1 items-center justify-center bg-slate-950/60 px-6"
-          onPress={() => setReactionTargetId(null)}
-        >
-          <Pressable
-            className="flex-row items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-2.5 py-2 shadow-lg shadow-black/40"
-            onPress={(event) => event.stopPropagation()}
-          >
-            {REACTION_CHOICES.map((choice) => {
-              const selected = myReactionOnTarget === choice.kind;
-              return (
-                <TouchableOpacity
-                  key={choice.kind}
-                  className={`h-12 w-12 items-center justify-center rounded-full ${
-                    selected ? "border-2 border-teal-400 bg-teal-900/70" : ""
-                  }`}
-                  onPress={() => applyReaction(choice.kind)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={
-                    selected ? `Remove ${choice.kind}` : `React ${choice.kind}`
-                  }
-                >
-                  <Text className="text-[26px]">{choice.emoji}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
+        selected={myReactionOnTarget}
+        onSelect={applyReaction}
+        onClose={() => setReactionTargetId(null)}
+      />
+
+      <MessageReactionDetails
+        message={detailsTarget}
+        myUserId={user?.id}
+        resolveName={resolveReactorName}
+        onRemoveMine={removeMyReaction}
+        onClose={() => setDetailsTargetId(null)}
+      />
     </KeyboardAvoidingView>
   );
 }

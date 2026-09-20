@@ -1,5 +1,11 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { api, type ApiMessage, type MessageReactionKind } from "@/lib/api";
+import {
+  api,
+  invalidateApiCache,
+  type ApiMessage,
+  type MessageReactionKind,
+} from "@/lib/api";
+import { emitMessageLifecycle } from "./messageLifecycle";
 import type { SyncRegistry } from "../../sync/registry";
 import { MessageRepository } from "./MessageRepository";
 export const registerMessageSync = (
@@ -8,10 +14,20 @@ export const registerMessageSync = (
 ) => {
   const repository = new MessageRepository(database);
   registry.registerProcessor("message", async (op, ctx) => {
-    const p = op.payload as { localId: string; body: string };
+    const p = op.payload as {
+      localId: string;
+      body: string;
+      replyToMessageId?: number | null;
+    };
     try {
       await repository.markPending(p.localId);
-      const r = await api.syncMessage(op.id, ctx.messId!, p.body, ctx.token);
+      const r = await api.syncMessage(
+        op.id,
+        ctx.messId!,
+        p.body,
+        ctx.token,
+        p.replyToMessageId ?? null,
+      );
       await repository.acknowledge(p.localId, r.message);
     } catch (e) {
       await repository.failed(p.localId);
@@ -47,6 +63,14 @@ export const registerMessageSync = (
       ctx.messId!,
       response.unreadCount,
     );
+    // The badge was cleared optimistically when the read was queued; this is
+    // the first moment the server's own count can be trusted again.
+    invalidateApiCache("/mess/messages/unread-count");
+    emitMessageLifecycle({
+      type: "read",
+      messId: ctx.messId!,
+      unreadCount: response.unreadCount,
+    });
   });
   registry.registerPuller("messages", async (cursor, ctx) => {
     if (ctx.messId === null) return { cursor: null };

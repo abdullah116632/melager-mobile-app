@@ -351,6 +351,15 @@ export interface ApiMessage {
   body: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * The quoted message, resolved by the server so a reply renders on its own.
+   * All four are null when the message is not a reply, and the last three are
+   * null as well once the quoted message is gone.
+   */
+  replyToMessageId?: number | null;
+  replyToSenderUserId?: number | null;
+  replyToSenderName?: string | null;
+  replyToBody?: string | null;
   /** One row per reacting user; counts are derived on the client. */
   reactions?: ApiMessageReaction[];
   /** Present on acknowledgements/realtime events for offline-created messages. */
@@ -793,11 +802,16 @@ export const api = {
       token,
     ),
 
-  sendMessage: (body: string, token: string, messId: number) =>
+  sendMessage: (
+    body: string,
+    token: string,
+    messId: number,
+    replyToMessageId?: number | null,
+  ) =>
     req<{ message: ApiMessage }>(
       "POST",
       "/mess/messages",
-      { body, messId },
+      { body, messId, replyToMessageId: replyToMessageId ?? null },
       token,
     ),
   setMessageReaction: (
@@ -818,11 +832,17 @@ export const api = {
     messId: number,
     body: string,
     token: string,
+    replyToMessageId?: number | null,
   ) =>
     req<{ message: ApiMessage }>(
       "POST",
       "/mess/messages/sync",
-      { clientMutationId, messId, body },
+      {
+        clientMutationId,
+        messId,
+        body,
+        replyToMessageId: replyToMessageId ?? null,
+      },
       token,
     ),
 

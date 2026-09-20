@@ -27,6 +27,7 @@ import {
   markMessagesRead,
   messageAcknowledged,
   messageReactionChanged,
+  messageReadSynced,
   messageReceived,
   messageStatusChanged,
   unreadMessageReceived,
@@ -66,6 +67,8 @@ export const RealtimeStateController = ({
       subscribeToMessageLifecycle((event) => {
         if (event.type === "acknowledged") {
           dispatch(messageAcknowledged(event));
+        } else if (event.type === "read") {
+          dispatch(messageReadSynced(event));
         } else {
           dispatch(messageStatusChanged(event));
         }
