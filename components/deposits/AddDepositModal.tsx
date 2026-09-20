@@ -29,6 +29,11 @@ import {
 } from "@/utils/deposit";
 import { DepositDatePicker } from "./DepositDatePicker";
 import { DepositTimePicker } from "./DepositTimePicker";
+import {
+  MAX_DECIMALS,
+  SIGNED_DECIMAL_INPUT_PATTERN,
+  SIGNED_DECIMAL_VALUE_PATTERN,
+} from "@/utils/number";
 
 interface AddDepositModalProps {
   consumerId?: string | null;
@@ -103,10 +108,10 @@ export const AddDepositModal = ({
     if (
       !Number.isFinite(numericAmount) ||
       numericAmount === 0 ||
-      !/^-?\d+(?:\.\d{1,3})?$/.test(trimmedAmount)
+      !SIGNED_DECIMAL_VALUE_PATTERN.test(trimmedAmount)
     ) {
       setError(
-        "Enter a non-zero amount with up to 3 decimals, e.g. 500.125 or -500.125.",
+        `Enter a non-zero amount with up to ${MAX_DECIMALS} decimals, e.g. 500.25 or -500.25.`,
       );
       return;
     }
@@ -175,7 +180,7 @@ export const AddDepositModal = ({
               activeOpacity={1}
               onPress={() => Keyboard.dismiss()}
             />
-            <View className="rounded-t-3xl bg-white px-5 pb-safe-offset-5 pt-5 shadow-2xl shadow-black/10">
+            <View className="pb-safe-offset-5 rounded-t-3xl bg-white px-5 pt-5 shadow-2xl shadow-black/10">
               <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
               <View className="mb-1 flex-row items-center justify-between">
                 <Text className="font-inter-bold text-lg text-slate-900">
@@ -205,11 +210,11 @@ export const AddDepositModal = ({
                 <TextInput
                   ref={amountInputRef}
                   className="rounded-[10px] border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-[15px] text-slate-900"
-                  placeholder="e.g. 500.125 or -500.125"
+                  placeholder="e.g. 500.25 or -500.25"
                   placeholderTextColor="#64748B"
                   value={amount}
                   onChangeText={(nextAmount) => {
-                    if (/^-?\d*(?:\.\d{0,3})?$/.test(nextAmount)) {
+                    if (SIGNED_DECIMAL_INPUT_PATTERN.test(nextAmount)) {
                       setAmount(nextAmount);
                     }
                   }}
@@ -224,7 +229,8 @@ export const AddDepositModal = ({
                   }
                 />
                 <Text className="mt-1 font-inter text-[11px] text-slate-500">
-                  Start with - for a negative entry. Up to 3 decimal places.
+                  Start with - for a negative entry. Up to {MAX_DECIMALS}{" "}
+                  decimal places.
                 </Text>
 
                 <View className="flex-row">

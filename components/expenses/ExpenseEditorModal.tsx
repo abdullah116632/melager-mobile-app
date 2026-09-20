@@ -28,6 +28,7 @@ import {
   toExpenseDraftItems,
   toExpenseItems,
 } from "@/utils/expense";
+import { DECIMAL_INPUT_PATTERN } from "@/utils/number";
 
 interface ExpenseEditorModalProps {
   day: number | null;
@@ -171,7 +172,7 @@ export const ExpenseEditorModal = ({
             activeOpacity={1}
             onPress={() => Keyboard.dismiss()}
           />
-          <View className="max-h-[85%] rounded-t-3xl bg-white px-5 pb-safe-offset-5 pt-3">
+          <View className="pb-safe-offset-5 max-h-[85%] rounded-t-3xl bg-white px-5 pt-3">
             <View className="mb-4 h-1 w-11 self-center rounded-sm bg-slate-200" />
 
             <View className="mb-3.5 flex-row items-start justify-between">
@@ -261,7 +262,7 @@ export const ExpenseEditorModal = ({
                       placeholderTextColor="#64748B"
                       value={item.amountString}
                       onChangeText={(amountString) => {
-                        if (/^\d*(?:\.\d{0,3})?$/.test(amountString)) {
+                        if (DECIMAL_INPUT_PATTERN.test(amountString)) {
                           updateDraft(item.id, { amountString });
                         }
                       }}

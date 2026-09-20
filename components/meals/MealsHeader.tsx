@@ -7,9 +7,16 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { useAppDispatch, useAuth, useDrawer, useMeals, useNetwork } from "@/redux/hooks";
+import {
+  useAppDispatch,
+  useAuth,
+  useDrawer,
+  useMeals,
+  useNetwork,
+} from "@/redux/hooks";
 import { apiActionFailed } from "@/redux/slice/networkSlice";
 import { AddMealConsumerModal } from "./AddMealConsumerModal";
+import { DECIMAL_FORMAT_OPTIONS } from "@/utils/number";
 
 export const MealsHeader = () => {
   const dispatch = useAppDispatch();
@@ -64,9 +71,7 @@ export const MealsHeader = () => {
               adjustsFontSizeToFit
               minimumFontScale={0.7}
             >
-              {totalMeals.toLocaleString("en-IN", {
-                maximumFractionDigits: 3,
-              })}
+              {totalMeals.toLocaleString("en-IN", DECIMAL_FORMAT_OPTIONS)}
             </Text>
           </View>
           {isAdmin ? (

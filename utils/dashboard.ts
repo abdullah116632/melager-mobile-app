@@ -6,6 +6,7 @@ import type {
   MonthData,
   TodaySchedule,
 } from "@/types/dashboard";
+import { DECIMAL_FORMAT_OPTIONS } from "@/utils/number";
 
 export const getDashboardMealEnabled = (
   schedule: TodaySchedule | null,
@@ -88,26 +89,17 @@ export const formatDashboardShortDate = (dateString: string): string =>
 
 export const formatDashboardAmount = (amount: number): string => {
   if (amount === 0) return "0";
-  return amount.toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  });
+  return amount.toLocaleString("en-IN", DECIMAL_FORMAT_OPTIONS);
 };
 
 export const formatDashboardQuantity = (value: number): string => {
   if (value === 0) return "0";
-  return value.toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  });
+  return value.toLocaleString("en-IN", DECIMAL_FORMAT_OPTIONS);
 };
 
 export const formatDashboardRate = (rate: number): string => {
   if (rate === 0) return "—";
-  return rate.toLocaleString("en-IN", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 3,
-  });
+  return rate.toLocaleString("en-IN", DECIMAL_FORMAT_OPTIONS);
 };
 
 export const getDashboardMonthRange = (

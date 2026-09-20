@@ -1,4 +1,5 @@
 import type { ExpenseDraftItem, ExpenseItem } from "@/types/expense";
+import { DECIMAL_FORMAT_OPTIONS } from "@/utils/number";
 
 // `Number.prototype.toLocaleString` builds a fresh formatter on every call,
 // which the expense table pays for once per row plus the month total. Two
@@ -13,10 +14,7 @@ const buildFormatter = (options?: Intl.NumberFormatOptions) => {
 };
 
 const integerFormatter = buildFormatter();
-const decimalFormatter = buildFormatter({
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 3,
-});
+const decimalFormatter = buildFormatter(DECIMAL_FORMAT_OPTIONS);
 
 export const formatExpenseAmount = (amount: number): string => {
   if (amount <= 0) return "";
@@ -25,10 +23,7 @@ export const formatExpenseAmount = (amount: number): string => {
   }
   return (
     decimalFormatter?.format(amount) ??
-    amount.toLocaleString("en-IN", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 3,
-    })
+    amount.toLocaleString("en-IN", DECIMAL_FORMAT_OPTIONS)
   );
 };
 

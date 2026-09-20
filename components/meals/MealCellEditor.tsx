@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useMeals } from "@/redux/hooks";
 import type { ActiveMealCell } from "@/types/meal";
+import { DECIMAL_INPUT_PATTERN, MAX_DECIMALS } from "@/utils/number";
 
 export interface MealCellEditorHandle {
   commitNow: () => number;
@@ -103,7 +104,7 @@ export const MealCellEditor = forwardRef<
   }, [cell.consumerId, cell.day, currentYearMonth, initialValue]);
 
   const handleChange = (nextValue: string) => {
-    if (!/^\d*(?:\.\d{0,3})?$/.test(nextValue)) return;
+    if (!DECIMAL_INPUT_PATTERN.test(nextValue)) return;
     setValue(nextValue);
     valueRef.current = nextValue;
     dirtyRef.current = true;
@@ -141,7 +142,7 @@ export const MealCellEditor = forwardRef<
               className="font-inter text-[10px] text-slate-500"
               numberOfLines={1}
             >
-              Enter meal value · maximum 3 decimals
+              Enter meal value · maximum {MAX_DECIMALS} decimals
             </Text>
           </View>
         </View>

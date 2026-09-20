@@ -48,6 +48,7 @@ import {
 } from "@/redux/slice/bazarSlice";
 import { loadMonth } from "@/redux/slice/messSlice";
 import { markBazarAssignmentsRead } from "@/redux/slice/bazarNotificationsSlice";
+import { DECIMAL_INPUT_PATTERN } from "@/utils/number";
 
 const DUPLICATE_NAME_MESSAGE =
   "This item is already on the list for this day. Edit that one instead.";
@@ -737,7 +738,9 @@ export default function BazarListRoute() {
                 <TextInput
                   className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 font-inter text-sm text-slate-900"
                   value={itemPrice}
-                  onChangeText={setItemPrice}
+                  onChangeText={(next) => {
+                    if (DECIMAL_INPUT_PATTERN.test(next)) setItemPrice(next);
+                  }}
                   placeholder="Price"
                   placeholderTextColor="#94A3B8"
                   keyboardType="decimal-pad"
@@ -908,7 +911,11 @@ export default function BazarListRoute() {
                   <TextInput
                     className="ml-2 min-w-0 flex-1 py-3 font-inter text-sm text-slate-900"
                     value={editingItemPrice}
-                    onChangeText={setEditingItemPrice}
+                    onChangeText={(next) => {
+                      if (DECIMAL_INPUT_PATTERN.test(next)) {
+                        setEditingItemPrice(next);
+                      }
+                    }}
                     placeholder="0"
                     placeholderTextColor="#94A3B8"
                     keyboardType="decimal-pad"

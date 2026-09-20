@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import type { DashboardPdfData } from "@/types/dashboard";
 import {
   formatDashboardAmount,
+  formatDashboardQuantity,
   formatDashboardRate,
   formatDashboardShortDate,
 } from "@/utils/dashboard";
@@ -37,7 +38,7 @@ const createBreakdownHtml = (data: DashboardPdfData): string => {
       return `
         <tr class="${index % 2 === 0 ? "even" : "odd"}">
           <td class="member">${escapeHtml(row.name)}</td>
-          <td>${escapeHtml(row.meals)}</td>
+          <td>${escapeHtml(formatDashboardQuantity(row.meals))}</td>
           <td>BDT ${escapeHtml(formatDashboardAmount(row.cost))}</td>
           <td>BDT ${escapeHtml(formatDashboardAmount(row.deposits))}</td>
           <td style="color:${rowBalanceColor};font-weight:700">${rowBalanceSign}BDT ${escapeHtml(formatDashboardAmount(Math.abs(row.balance)))}</td>
@@ -92,7 +93,7 @@ const createBreakdownHtml = (data: DashboardPdfData): string => {
           </div>
         </div>
         <div class="metrics">
-          <div class="metric"><div class="metric-label">Total meals</div><div class="metric-value">${escapeHtml(totalMeals)}</div></div>
+          <div class="metric"><div class="metric-label">Total meals</div><div class="metric-value">${escapeHtml(formatDashboardQuantity(totalMeals))}</div></div>
           <div class="metric"><div class="metric-label">Total expenses</div><div class="metric-value">BDT ${escapeHtml(formatDashboardAmount(totalExpenses))}</div></div>
           <div class="metric"><div class="metric-label">Total deposits</div><div class="metric-value">BDT ${escapeHtml(formatDashboardAmount(totalDeposits))}</div></div>
           <div class="metric"><div class="metric-label">Meal rate</div><div class="metric-value">${mealRate > 0 ? `BDT ${escapeHtml(formatDashboardRate(mealRate))}` : "-"}</div></div>
@@ -101,7 +102,7 @@ const createBreakdownHtml = (data: DashboardPdfData): string => {
         <table>
           <thead><tr><th>Consumers (${consumerCount})</th><th>Meals</th><th>Cost</th><th>Deposit</th><th>Balance</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
-          <tfoot><tr><td>Total</td><td>${escapeHtml(totalMeals)}</td><td>BDT ${escapeHtml(formatDashboardAmount(totalExpenses))}</td><td>BDT ${escapeHtml(formatDashboardAmount(totalDeposits))}</td><td>${netBalance >= 0 ? "+" : "-"}BDT ${escapeHtml(formatDashboardAmount(Math.abs(netBalance)))}</td></tr></tfoot>
+          <tfoot><tr><td>Total</td><td>${escapeHtml(formatDashboardQuantity(totalMeals))}</td><td>BDT ${escapeHtml(formatDashboardAmount(totalExpenses))}</td><td>BDT ${escapeHtml(formatDashboardAmount(totalDeposits))}</td><td>${netBalance >= 0 ? "+" : "-"}BDT ${escapeHtml(formatDashboardAmount(Math.abs(netBalance)))}</td></tr></tfoot>
         </table>
         <div class="note">Balance = Deposit - (Meals x meal rate). The selected start and end dates are both included.</div>
         <div class="footer">Generated ${escapeHtml(new Date().toLocaleString("en-GB"))}</div>
