@@ -15,12 +15,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import MonthPicker from "@/components/MonthPicker";
 import { NotificationBell } from "@/components/NotificationBell";
 import { DashboardQuickNavDrawer } from "@/components/dashboard/DashboardQuickNavDrawer";
 import { ManagerAdminOptionsCard } from "@/components/manager/ManagerAdminOptionsCard";
 import { ManagerDuesCard } from "@/components/manager/ManagerDuesCard";
 import { ManagerSummaryCard } from "@/components/manager/ManagerSummaryCard";
-import { ManagerTodayBazarCard } from "@/components/manager/ManagerTodayBazarCard";
 import {
   useAppDispatch,
   useAuth,
@@ -28,7 +28,6 @@ import {
   useMess,
   useNetwork,
 } from "@/redux/hooks";
-import { loadBazar } from "@/redux/slice/bazarSlice";
 import {
   apiActionFailed,
   offlineActionFailed,
@@ -41,7 +40,7 @@ export function ManagerScreen() {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const { isOnline } = useNetwork();
-  const { refreshMonth } = useMess();
+  const { refreshMonth, dataLoading } = useMess();
   const [refreshing, setRefreshing] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const [showingKey, setShowingKey] = useState(false);
@@ -96,10 +95,7 @@ export function ManagerScreen() {
     }
     setRefreshing(true);
     try {
-      await Promise.all([
-        refreshMonth(),
-        dispatch(loadBazar({ includeConsumers: true })).unwrap(),
-      ]);
+      await refreshMonth();
     } catch (error) {
       dispatch(
         apiActionFailed(
@@ -217,6 +213,17 @@ export function ManagerScreen() {
           />
         }
       >
+        {/* The picker writes the selected month to mess state, which every card
+            below already reads, so they all follow it. `overlapAbove` is off
+            because the quick-nav drawer sits directly above this, not a card
+            the picker is meant to lift over. */}
+        <MonthPicker
+          variant="dashboard"
+          monthDataLoading={dataLoading}
+          showSyncStatus={false}
+          overlapAbove={false}
+        />
+
         <ManagerSummaryCard />
 
         <ManagerAdminOptionsCard
@@ -230,7 +237,7 @@ export function ManagerScreen() {
             },
             {
               label: "Member Requests",
-              icon: "person-add-outline",
+              icon: "mail-unread-outline",
               tintClassName: "bg-violet-50",
               iconColor: "#6D28D9",
               onPress: () => router.push("/member-requests?returnTo=manager"),
@@ -249,9 +256,39 @@ export function ManagerScreen() {
               iconColor: "#B45309",
               onPress: () => router.push("/settings/security?returnTo=manager"),
             },
+            {
+              label: "Add Member",
+              icon: "person-add-outline",
+              tintClassName: "bg-sky-50",
+              iconColor: "#0284C7",
+              // Lands on the members page with its add form already open.
+              onPress: () => router.push("/consumers?returnTo=manager&add=1"),
+            },
+            // The three below switch tabs rather than stacking a screen, so
+            // they use navigate the way the app drawer does.
+            {
+              label: "Add Meals",
+              icon: "restaurant-outline",
+              tintClassName: "bg-orange-50",
+              iconColor: "#EA580C",
+              onPress: () => router.navigate("/(tabs)/meals"),
+            },
+            {
+              label: "Add Expense",
+              icon: "cash-outline",
+              tintClassName: "bg-rose-50",
+              iconColor: "#E11D48",
+              onPress: () => router.navigate("/(tabs)/expenses"),
+            },
+            {
+              label: "Add Deposit",
+              icon: "wallet-outline",
+              tintClassName: "bg-indigo-50",
+              iconColor: "#4F46E5",
+              onPress: () => router.navigate("/(tabs)/deposits"),
+            },
           ]}
         />
-        <ManagerTodayBazarCard />
         <ManagerDuesCard />
       </ScrollView>
     </View>

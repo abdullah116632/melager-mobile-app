@@ -1,5 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,8 +33,11 @@ const persistConsumersSnapshot = async (
 
 export const ConsumersContent = ({
   returnTo = "dashboard",
+  autoOpenAddMember = false,
 }: {
   returnTo?: "dashboard" | "manager";
+  /** Arrive with the add-member form already open, as the manager shortcut does. */
+  autoOpenAddMember?: boolean;
 }) => {
   const insets = useSafeAreaInsets();
   const { token, activeMess, role, user } = useAuth();
@@ -80,6 +83,16 @@ export const ConsumersContent = ({
   useEffect(() => {
     void fetchConsumers();
   }, [fetchConsumers]);
+
+  // The role arrives with the restored session, so the form can only be opened
+  // once it is known to be an admin's. The ref makes this a one-shot: the query
+  // parameter stays in the route, and closing the form must not reopen it.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!autoOpenAddMember || autoOpenedRef.current || role !== "admin") return;
+    autoOpenedRef.current = true;
+    setShowAddMember(true);
+  }, [autoOpenAddMember, role]);
 
   const handlePullToRefresh = async () => {
     if (!token || !messId) return;
