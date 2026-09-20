@@ -1,4 +1,8 @@
-import type { EligibleAdmin, MessAdmin, SecurityAction } from "@/types/security";
+import type {
+  EligibleAdmin,
+  MessAdmin,
+  SecurityAction,
+} from "@/types/security";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
@@ -189,4 +193,42 @@ export const removeSelfAdminV2 = (
     "/v2/settings/security/remove-self-admin",
     token,
     data,
+  );
+
+// v2 — reports a wrong password before the rest of the email-change form is
+// filled in. The request that follows verifies the same credential again, so
+// this is a convenience, not the check that protects the change.
+export const verifyIdentityV2 = (
+  token: string | null,
+  data: { password?: string; googleIdToken?: string },
+) =>
+  securityRequest<{ verified: true }>(
+    "POST",
+    "/v2/settings/security/verify-identity",
+    token,
+    data,
+  );
+
+// v2 — the caller proves who they are with a password or Google, and the code
+// then goes to the NEW address. The account keeps its current email until
+// that code is confirmed with updateSecurityEmail below.
+export const requestEmailChangeV2 = (
+  token: string | null,
+  data: { newEmail: string; password?: string; googleIdToken?: string },
+) =>
+  securityRequest<{ message: string; email: string }>(
+    "POST",
+    "/v2/settings/security/request-email-change",
+    token,
+    data,
+  );
+
+// v2 — resends the pending code to the new address. The v1 resend would send
+// it to the account's current email, which is the wrong mailbox here.
+export const resendEmailChangeOtpV2 = (token: string | null) =>
+  securityRequest<{ message: string; email: string }>(
+    "POST",
+    "/v2/settings/security/resend-email-change",
+    token,
+    {},
   );

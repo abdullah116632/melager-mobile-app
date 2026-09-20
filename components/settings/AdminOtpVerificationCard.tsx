@@ -18,6 +18,7 @@ import {
   confirmAdminTransfer,
   confirmCoAdmin,
   confirmSelfAdminRemoval,
+  resendEmailChangeOtpV2,
   resendSecurityOtp,
   updateSecurityEmail,
 } from "@/services/securityService";
@@ -27,7 +28,7 @@ const actionContent: Record<
   AdminOtpAction,
   {
     title: string;
-    description: (memberName?: string) => string;
+    description: (flow: PendingAdminOtpFlow) => string;
     submitLabel: string;
     successTitle: string;
     successBody: string;
@@ -36,9 +37,11 @@ const actionContent: Record<
   }
 > = {
   update_email: {
-    title: "Confirm Email Change",
-    description: () =>
-      "Enter the code sent to your current email to confirm the change.",
+    title: "Verify Your New Email",
+    description: (flow) =>
+      flow.otpTarget === "new_email"
+        ? `Enter the code sent to ${flow.email ?? "your new email"}. Your current email stays in use until this is verified.`
+        : "Enter the code sent to your current email to confirm the change.",
     submitLabel: "Verify & Update Email",
     successTitle: "Email Updated!",
     successBody: "Your login email has been updated successfully.",
@@ -47,7 +50,7 @@ const actionContent: Record<
   },
   add_admin: {
     title: "Confirm Admin Transfer",
-    description: (memberName) =>
+    description: ({ memberName }) =>
       `Enter the code sent to your email to transfer the admin role${memberName ? ` to ${memberName}` : ""}.`,
     submitLabel: "Confirm Transfer",
     successTitle: "Admin Transferred!",
@@ -58,7 +61,7 @@ const actionContent: Record<
   },
   add_co_admin: {
     title: "Confirm New Admin",
-    description: (memberName) =>
+    description: ({ memberName }) =>
       `Enter the code sent to your email to grant admin access${memberName ? ` to ${memberName}` : ""}.`,
     submitLabel: "Confirm & Grant Admin",
     successTitle: "Admin Added!",
@@ -138,7 +141,11 @@ export const AdminOtpVerificationCard = ({
 
     setError("");
     try {
-      await resendSecurityOtp(token, flow.action);
+      if (flow.action === "update_email" && flow.otpTarget === "new_email") {
+        await resendEmailChangeOtpV2(token);
+      } else {
+        await resendSecurityOtp(token, flow.action);
+      }
       await savePendingAdminOtp({ ...flow, requestedAt: Date.now() });
       startTimer();
     } catch (caught: unknown) {
@@ -174,7 +181,7 @@ export const AdminOtpVerificationCard = ({
         {content.title}
       </Text>
       <Text className="mb-6 text-center font-inter text-sm leading-[22px] text-slate-500">
-        {content.description(flow.memberName)}
+        {content.description(flow)}
       </Text>
       <Text className="mb-2 font-inter-semibold text-[13px] text-slate-700">
         Verification Code
