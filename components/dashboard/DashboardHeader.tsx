@@ -70,7 +70,7 @@ export const DashboardHeader = () => {
     >
       <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
       <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
-      <View className="flex-row items-center gap-2">
+      <View className="h-9 flex-row items-center gap-2">
         <TouchableOpacity
           className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"
           onPress={openDrawer}
@@ -94,8 +94,11 @@ export const DashboardHeader = () => {
             Dashboard
           </Text>
           {statusText ? (
+            // Sized to sit under the 18px title inside the fixed row height,
+            // so going offline no longer makes this header taller than the
+            // other tabs'.
             <Text
-              className="mt-0.5 font-inter text-[10px] text-white/70"
+              className="font-inter text-[9px] leading-[11px] text-white/70"
               numberOfLines={1}
             >
               {statusText}

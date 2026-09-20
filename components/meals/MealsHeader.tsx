@@ -43,7 +43,7 @@ export const MealsHeader = () => {
         <View className="absolute -bottom-10 -left-8 h-20 w-[65%] rotate-[5deg] rounded-[100%] bg-white/10" />
         <View className="absolute -bottom-12 right-[-30px] h-20 w-[72%] -rotate-[6deg] rounded-[100%] bg-white/10" />
         <View
-          className={`flex-row items-center ${isCompact ? "gap-1.5" : "gap-2.5"}`}
+          className={`h-9 flex-row items-center ${isCompact ? "gap-1.5" : "gap-2.5"}`}
         >
           <TouchableOpacity
             className="h-9 w-9 items-center justify-center rounded-[10px] border border-white/10 bg-white/15"

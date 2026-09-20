@@ -88,7 +88,7 @@ export const DashboardPersonalSummary = ({
                 value: consumer ? formatDashboardQuantity(consumer.meals) : "—",
               },
               {
-                label: "Your Cost",
+                label: "My Cost",
                 value: consumer
                   ? `৳${formatDashboardAmount(consumer.cost)}`
                   : "—",
