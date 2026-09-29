@@ -343,6 +343,24 @@ export interface ApiMessageReactionChange {
   reaction: MessageReactionKind | null;
 }
 
+export type MessageAttachmentKind = "image" | "video" | "audio" | "file";
+
+/**
+ * A file shared in the chat. The server keeps only this description; the file
+ * itself lives on members' phones and is relayed between them on demand.
+ */
+export interface ApiMessageAttachment {
+  id: string;
+  kind: MessageAttachmentKind;
+  name: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  width?: number | null;
+  height?: number | null;
+  durationMs?: number | null;
+}
+
 export interface ApiMessage {
   id: number;
   messId: number;
@@ -362,6 +380,8 @@ export interface ApiMessage {
   replyToBody?: string | null;
   /** One row per reacting user; counts are derived on the client. */
   reactions?: ApiMessageReaction[];
+  /** Null or absent for a plain text message. */
+  attachment?: ApiMessageAttachment | null;
   /** Present on acknowledgements/realtime events for offline-created messages. */
   clientMutationId?: string;
 }
@@ -807,11 +827,19 @@ export const api = {
     token: string,
     messId: number,
     replyToMessageId?: number | null,
+    attachment?: ApiMessageAttachment | null,
   ) =>
     req<{ message: ApiMessage }>(
       "POST",
       "/mess/messages",
-      { body, messId, replyToMessageId: replyToMessageId ?? null },
+      {
+        body,
+        messId,
+        replyToMessageId: replyToMessageId ?? null,
+        // Only sent when present, so a text message is the same request an
+        // older build makes.
+        ...(attachment ? { attachment } : {}),
+      },
       token,
     ),
   setMessageReaction: (
@@ -833,6 +861,7 @@ export const api = {
     body: string,
     token: string,
     replyToMessageId?: number | null,
+    attachment?: ApiMessageAttachment | null,
   ) =>
     req<{ message: ApiMessage }>(
       "POST",
@@ -842,6 +871,7 @@ export const api = {
         messId,
         body,
         replyToMessageId: replyToMessageId ?? null,
+        ...(attachment ? { attachment } : {}),
       },
       token,
     ),

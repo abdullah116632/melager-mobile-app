@@ -231,6 +231,21 @@ export class OutboxRepository {
     return Number(row?.total ?? 0);
   }
 
+  /**
+   * Unsynced work the sync banner reports. Chat operations are left out: each
+   * bubble already shows its own sending state, and a file message would
+   * otherwise flash the banner while it goes out.
+   */
+  async countBannerPending(userId: number): Promise<number> {
+    const row = await this.database.getFirstAsync<{ total: number }>(
+      `SELECT COUNT(*) AS total FROM offline_outbox
+       WHERE user_id = ?
+         AND entity_type NOT IN ('message', 'message_reaction', 'message_read')`,
+      userId,
+    );
+    return Number(row?.total ?? 0);
+  }
+
   /** The mess scopes that still hold queued operations for this account. */
   async listPendingMessIds(userId: number): Promise<Array<number | null>> {
     const rows = await this.database.getAllAsync<{ mess_id: number | null }>(

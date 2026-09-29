@@ -1,4 +1,5 @@
 import Feather from "@expo/vector-icons/Feather";
+import * as IntentLauncher from "expo-intent-launcher";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -11,7 +12,10 @@ import { useAuth } from "@/redux/hooks";
 import { useMess } from "@/redux/hooks";
 import { useAppDispatch, useNetwork } from "@/redux/hooks";
 import { api } from "@/lib/api";
-import { apiActionFailed, offlineActionFailed } from "@/redux/slice/networkSlice";
+import {
+  apiActionFailed,
+  offlineActionFailed,
+} from "@/redux/slice/networkSlice";
 import { exportDashboardBreakdownPdf } from "@/services/dashboardPdfService";
 import type {
   DashboardAccounting,
@@ -65,13 +69,36 @@ export const DashboardConsumerBreakdown = ({
     if (pdfGenerating) return;
     setPdfGenerating(true);
     try {
-      await exportDashboardBreakdownPdf({
+      const result = await exportDashboardBreakdownPdf({
         ...accounting,
         messName: mess?.name ?? "Mess",
         periodStart: appliedStartDate,
         periodEnd: appliedEndDate,
         consumerCount,
       });
+      if (result.kind === "downloaded") {
+        Alert.alert("PDF downloaded", `Saved to Downloads as ${result.name}`, [
+          { text: "OK", style: "cancel" },
+          {
+            text: "Open",
+            onPress: () =>
+              void IntentLauncher.startActivityAsync(
+                "android.intent.action.VIEW",
+                {
+                  data: result.uri,
+                  // FLAG_GRANT_READ_URI_PERMISSION, so the viewer can read it.
+                  flags: 1,
+                  type: "application/pdf",
+                },
+              ).catch(() =>
+                Alert.alert(
+                  "No PDF viewer",
+                  "Open the file from the Downloads folder in your Files app.",
+                ),
+              ),
+          },
+        ]);
+      }
     } catch (error) {
       Alert.alert(
         "PDF Error",
@@ -90,13 +117,20 @@ export const DashboardConsumerBreakdown = ({
     }
     setNotifyingMembers(true);
     try {
-      const result = await api.sendConsumerBreakdownNotification(token, mess.id);
+      const result = await api.sendConsumerBreakdownNotification(
+        token,
+        mess.id,
+      );
       Alert.alert(
         "Notifications sent",
         `${result.notifiedCount} member${result.notifiedCount === 1 ? " has" : "s have"} been notified.`,
       );
     } catch (error) {
-      dispatch(apiActionFailed(error instanceof Error ? error.message : "Could not notify members."));
+      dispatch(
+        apiActionFailed(
+          error instanceof Error ? error.message : "Could not notify members.",
+        ),
+      );
     } finally {
       setNotifyingMembers(false);
     }
@@ -271,9 +305,15 @@ export const DashboardConsumerBreakdown = ({
             accessibilityRole="button"
             accessibilityLabel="Notify members to check statement"
           >
-            {notifyingMembers ? <ActivityIndicator size={15} color="#FFFFFF" /> : <Feather name="bell" size={16} color="#FFFFFF" />}
+            {notifyingMembers ? (
+              <ActivityIndicator size={15} color="#FFFFFF" />
+            ) : (
+              <Feather name="bell" size={16} color="#FFFFFF" />
+            )}
             <Text className="font-inter-semibold text-[13px] text-white">
-              {notifyingMembers ? "Sending…" : "Notify members to check statement"}
+              {notifyingMembers
+                ? "Sending…"
+                : "Notify members to check statement"}
             </Text>
           </TouchableOpacity>
         ) : null}

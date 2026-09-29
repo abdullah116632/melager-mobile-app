@@ -3,6 +3,7 @@ import {
   api,
   invalidateApiCache,
   type ApiMessage,
+  type ApiMessageAttachment,
   type MessageReactionKind,
 } from "@/lib/api";
 import { emitMessageLifecycle } from "./messageLifecycle";
@@ -18,6 +19,7 @@ export const registerMessageSync = (
       localId: string;
       body: string;
       replyToMessageId?: number | null;
+      attachment?: ApiMessageAttachment | null;
     };
     try {
       await repository.markPending(p.localId);
@@ -27,6 +29,7 @@ export const registerMessageSync = (
         p.body,
         ctx.token,
         p.replyToMessageId ?? null,
+        p.attachment ?? null,
       );
       await repository.acknowledge(p.localId, r.message);
     } catch (e) {

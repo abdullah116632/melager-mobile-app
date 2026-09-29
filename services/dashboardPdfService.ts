@@ -1,6 +1,9 @@
+import { File } from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
+
+import { canSaveToDownloads, saveToDownloads } from "@/modules/downloads-saver";
 import type { DashboardPdfData } from "@/types/dashboard";
 import {
   formatDashboardAmount,
@@ -110,13 +113,46 @@ const createBreakdownHtml = (data: DashboardPdfData): string => {
     </html>`;
 };
 
+const statementFileName = (data: DashboardPdfData): string => {
+  const mess =
+    data.messName
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
+      .replace(/\s+/g, "_")
+      .slice(0, 60) || "Mess";
+  return `Statement_${mess}_${data.periodStart}_to_${data.periodEnd}.pdf`;
+};
+
+/** Where the PDF ended up: saved in Downloads, or handed to the share sheet. */
+export type StatementPdfResult =
+  { kind: "downloaded"; uri: string; name: string } | { kind: "shared" };
+
 export const exportDashboardBreakdownPdf = async (
   data: DashboardPdfData,
-): Promise<void> => {
+): Promise<StatementPdfResult> => {
   const result = await Print.printToFileAsync({
     html: createBreakdownHtml(data),
   });
-  if (Platform.OS === "web") return;
+  if (Platform.OS === "web") return { kind: "shared" };
+
+  // Android 10+ saves straight into Downloads. iOS has no public Downloads
+  // folder, and older Android would need a storage permission, so both keep
+  // the share sheet, which still offers "Save to Files" / "Save".
+  if (canSaveToDownloads) {
+    try {
+      const saved = await saveToDownloads(
+        result.uri,
+        statementFileName(data),
+        "application/pdf",
+      );
+      return { kind: "downloaded", ...saved };
+    } finally {
+      try {
+        new File(result.uri).delete();
+      } catch {
+        // The print cache is cleared by the system anyway.
+      }
+    }
+  }
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(result.uri, {
@@ -127,4 +163,5 @@ export const exportDashboardBreakdownPdf = async (
   } else {
     await Print.printAsync({ uri: result.uri });
   }
+  return { kind: "shared" };
 };

@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 
 import type {
   ApiMessage,
+  ApiMessageAttachment,
   ApiMessageCursor,
   ApiMessageReaction,
   MessageReactionKind,
@@ -14,6 +15,7 @@ import {
   emitMessageLifecycle,
   type MessageDeliveryState,
 } from "./messageLifecycle";
+import { emitStoredAttachmentMessages } from "./messageAttachmentEvents";
 
 export type MessageItem = Omit<ApiMessage, "id" | "reactions"> & {
   id: number | string;
@@ -38,6 +40,21 @@ export interface MessagePage {
 
 const PAGE_SIZE = 30;
 
+const serializeAttachment = (
+  attachment: ApiMessageAttachment | null | undefined,
+): string | null => (attachment ? JSON.stringify(attachment) : null);
+
+const parseAttachment = (
+  value: string | null | undefined,
+): ApiMessageAttachment | null => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as ApiMessageAttachment;
+  } catch {
+    return null;
+  }
+};
+
 export class MessageRepository {
   private readonly outbox: OutboxRepository;
 
@@ -58,7 +75,8 @@ export class MessageRepository {
           );
           const reconciled = await this.db.runAsync(
             `UPDATE local_messages SET server_id=?,sender_name=?,body=?,created_at=?,updated_at=?,status='sent',
-               reply_to_server_id=?,reply_to_sender_user_id=?,reply_to_sender_name=?,reply_to_body=?
+               reply_to_server_id=?,reply_to_sender_user_id=?,reply_to_sender_name=?,reply_to_body=?,
+               attachment_json=?
              WHERE local_id=?`,
             message.id,
             message.senderName,
@@ -69,6 +87,7 @@ export class MessageRepository {
             message.replyToSenderUserId ?? null,
             message.replyToSenderName ?? null,
             message.replyToBody ?? null,
+            serializeAttachment(message.attachment),
             localId,
           );
           if (reconciled.changes > 0) continue;
@@ -76,15 +95,16 @@ export class MessageRepository {
         await this.db.runAsync(
           `INSERT INTO local_messages
             (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor,
-             reply_to_server_id,reply_to_sender_user_id,reply_to_sender_name,reply_to_body)
-           VALUES(?,?,?,?,?,?,?,?,?,'sent',NULL,?,?,?,?)
+             reply_to_server_id,reply_to_sender_user_id,reply_to_sender_name,reply_to_body,attachment_json)
+           VALUES(?,?,?,?,?,?,?,?,?,'sent',NULL,?,?,?,?,?)
            ON CONFLICT(mess_id,server_id) WHERE server_id IS NOT NULL DO UPDATE SET
              sender_name=excluded.sender_name,body=excluded.body,
              updated_at=excluded.updated_at,status='sent',
              reply_to_server_id=excluded.reply_to_server_id,
              reply_to_sender_user_id=excluded.reply_to_sender_user_id,
              reply_to_sender_name=excluded.reply_to_sender_name,
-             reply_to_body=excluded.reply_to_body`,
+             reply_to_body=excluded.reply_to_body,
+             attachment_json=excluded.attachment_json`,
           localId,
           message.id,
           userId,
@@ -98,6 +118,7 @@ export class MessageRepository {
           message.replyToSenderUserId ?? null,
           message.replyToSenderName ?? null,
           message.replyToBody ?? null,
+          serializeAttachment(message.attachment),
         );
       }
       for (const message of messages) {
@@ -157,6 +178,7 @@ export class MessageRepository {
         );
       }
     });
+    emitStoredAttachmentMessages(messages);
   }
 
   async listPage(
@@ -170,7 +192,9 @@ export class MessageRepository {
     const cursorArgs = cursor
       ? [cursor.createdAt, cursor.createdAt, cursor.id]
       : [];
-    const rows = await this.db.getAllAsync<MessageItem>(
+    const rows = await this.db.getAllAsync<
+      MessageItem & { attachmentJson: string | null }
+    >(
       `SELECT CASE WHEN server_id IS NULL THEN 'local:' || local_id ELSE server_id END AS id,
         local_id AS localId,server_id AS serverId,mess_id AS messId,
         sender_user_id AS senderUserId,sender_name AS senderName,body,
@@ -178,7 +202,8 @@ export class MessageRepository {
         reply_to_server_id AS replyToMessageId,
         reply_to_sender_user_id AS replyToSenderUserId,
         reply_to_sender_name AS replyToSenderName,
-        reply_to_body AS replyToBody
+        reply_to_body AS replyToBody,
+        attachment_json AS attachmentJson
        FROM local_messages WHERE user_id=? AND mess_id=? ${cursorSql}
        ORDER BY created_at DESC, COALESCE(server_id, 0) DESC LIMIT ?`,
       userId,
@@ -195,8 +220,9 @@ export class MessageRepository {
       ),
     );
     return {
-      messages: messages.map((message) => ({
+      messages: messages.map(({ attachmentJson, ...message }) => ({
         ...message,
+        attachment: parseAttachment(attachmentJson),
         reactions:
           message.serverId === null
             ? []
@@ -233,6 +259,7 @@ export class MessageRepository {
     senderUserId: number,
     body: string,
     replyTo?: MessageQuote | null,
+    attachment?: ApiMessageAttachment | null,
   ): Promise<MessageItem> {
     const localId = Crypto.randomUUID();
     const now = new Date().toISOString();
@@ -240,8 +267,8 @@ export class MessageRepository {
       await this.db.runAsync(
         `INSERT INTO local_messages
           (local_id,server_id,user_id,mess_id,sender_user_id,sender_name,body,created_at,updated_at,status,server_cursor,
-           reply_to_server_id,reply_to_sender_user_id,reply_to_sender_name,reply_to_body)
-         VALUES(?,NULL,?,?,?,?,?,?,?,'pending',NULL,?,?,?,?)`,
+           reply_to_server_id,reply_to_sender_user_id,reply_to_sender_name,reply_to_body,attachment_json)
+         VALUES(?,NULL,?,?,?,?,?,?,?,'pending',NULL,?,?,?,?,?)`,
         localId,
         userId,
         messId,
@@ -254,6 +281,7 @@ export class MessageRepository {
         replyTo?.replyToSenderUserId ?? null,
         replyTo?.replyToSenderName ?? null,
         replyTo?.replyToBody ?? null,
+        serializeAttachment(attachment),
       );
       await this.outbox.enqueue({
         id: localId,
@@ -266,6 +294,7 @@ export class MessageRepository {
           localId,
           body,
           replyToMessageId: replyTo?.replyToMessageId ?? null,
+          attachment: attachment ?? null,
         },
       });
     });
@@ -285,7 +314,32 @@ export class MessageRepository {
       replyToSenderUserId: replyTo?.replyToSenderUserId ?? null,
       replyToSenderName: replyTo?.replyToSenderName ?? null,
       replyToBody: replyTo?.replyToBody ?? null,
+      attachment: attachment ?? null,
     };
+  }
+
+  /**
+   * The newest file messages of a mess, for the downloader to catch up on
+   * files it never fetched, say because the app closed mid-download.
+   */
+  async recentAttachments(
+    messId: number,
+    limit: number,
+  ): Promise<{ messageServerId: number; attachment: ApiMessageAttachment }[]> {
+    const rows = await this.db.getAllAsync<{
+      server_id: number;
+      attachment_json: string;
+    }>(
+      `SELECT server_id,attachment_json FROM local_messages
+       WHERE mess_id=? AND server_id IS NOT NULL AND attachment_json IS NOT NULL
+       ORDER BY created_at DESC LIMIT ?`,
+      messId,
+      limit,
+    );
+    return rows.flatMap((row) => {
+      const attachment = parseAttachment(row.attachment_json);
+      return attachment ? [{ messageServerId: row.server_id, attachment }] : [];
+    });
   }
 
   private async reactionsFor(
@@ -417,7 +471,8 @@ export class MessageRepository {
       );
       await this.db.runAsync(
         `UPDATE local_messages SET server_id=?,sender_name=?,body=?,created_at=?,updated_at=?,status='sent',
-           reply_to_server_id=?,reply_to_sender_user_id=?,reply_to_sender_name=?,reply_to_body=?
+           reply_to_server_id=?,reply_to_sender_user_id=?,reply_to_sender_name=?,reply_to_body=?,
+           attachment_json=COALESCE(?,attachment_json)
          WHERE local_id=?`,
         message.id,
         message.senderName,
@@ -428,6 +483,7 @@ export class MessageRepository {
         message.replyToSenderUserId ?? null,
         message.replyToSenderName ?? null,
         message.replyToBody ?? null,
+        serializeAttachment(message.attachment),
         localId,
       );
     });

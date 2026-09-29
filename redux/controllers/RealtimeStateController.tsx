@@ -7,6 +7,7 @@ import {
   type ApiServerNotification,
 } from "@/lib/api";
 import { getOfflineDatabase } from "@/offline/database/connection";
+import { startChatMedia } from "@/lib/chatMedia/mediaTransfer";
 import { MessageRepository } from "@/offline/features/messages/MessageRepository";
 import { subscribeToMessageLifecycle } from "@/offline/features/messages/messageLifecycle";
 import {
@@ -61,6 +62,9 @@ export const RealtimeStateController = ({
   const user = useAppSelector(selectAuthUser);
   const activeMess = useAppSelector(selectActiveMess);
   const messId = activeMess?.id ?? null;
+
+  // Before the connection effect below, so the file relay sees the first socket.
+  useEffect(() => startChatMedia(), []);
 
   useEffect(
     () =>

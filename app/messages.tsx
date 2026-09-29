@@ -15,12 +15,26 @@ import {
   View,
 } from "react-native";
 
-import type { MessageReactionKind } from "@/lib/api";
+import type { ApiMessageAttachment, MessageReactionKind } from "@/lib/api";
 import type {
   MessageItem,
   MessageQuote,
 } from "@/offline/features/messages/MessageRepository";
+import {
+  AttachmentSourceSheet,
+  type AttachmentSource,
+} from "@/components/messages/AttachmentSourceSheet";
+import {
+  MediaViewerModal,
+  opensInApp,
+  type MediaViewerTarget,
+} from "@/components/messages/MediaViewerModal";
+import { MessageAttachment } from "@/components/messages/MessageAttachment";
 import { MessageAvatar } from "@/components/messages/MessageAvatar";
+import {
+  PreparingAttachmentBubble,
+  type PreparingFile,
+} from "@/components/messages/PreparingAttachmentBubble";
 import { MessageQuoteBlock } from "@/components/messages/MessageQuoteBlock";
 import { MessageReactionDetails } from "@/components/messages/MessageReactionDetails";
 import {
@@ -29,6 +43,14 @@ import {
   reactionEmoji,
 } from "@/components/messages/MessageReactionPicker";
 import { SwipeToReply } from "@/components/messages/SwipeToReply";
+import {
+  attachmentFallbackBody,
+  importPickedFile,
+  isChatMediaSupported,
+} from "@/lib/chatMedia/mediaFiles";
+import { registerSentFile } from "@/lib/chatMedia/mediaTransfer";
+import { openMediaFile } from "@/lib/chatMedia/openMedia";
+import { pickDocuments, pickGalleryMedia } from "@/lib/chatMedia/pickMedia";
 import {
   enterMessageConversation,
   leaveMessageConversation,
@@ -83,6 +105,8 @@ const MessageBubble = ({
   onShowReactionDetails,
   onReply,
   onJumpToQuoted,
+  onOpenMedia,
+  onMediaActions,
 }: {
   message: MessageItem;
   own: boolean;
@@ -93,7 +117,16 @@ const MessageBubble = ({
   onShowReactionDetails: (message: MessageItem) => void;
   onReply: (message: MessageItem) => void;
   onJumpToQuoted: (messageServerId: number) => void;
+  onOpenMedia: (attachment: ApiMessageAttachment, uri: string) => void;
+  onMediaActions: (attachment: ApiMessageAttachment, uri: string) => void;
 }) => {
+  const attachment = message.attachment ?? null;
+  // A file sent without a caption carries a stand-in body for older builds;
+  // the file card already says the same, so only a real caption is shown.
+  const caption =
+    attachment && message.body === attachmentFallbackBody(attachment)
+      ? ""
+      : message.body;
   const stamp = formatMessageStamp(message.createdAt);
   // A server id is proof the message landed, so it decides delivery rather
   // than the status flag, which depends on an acknowledgement event that a
@@ -196,9 +229,22 @@ const MessageBubble = ({
                   />
                 </TouchableOpacity>
               ) : null}
-              <Text className="font-inter text-[14px] leading-5 text-white">
-                {message.body}
-              </Text>
+              {attachment ? (
+                <MessageAttachment
+                  attachment={attachment}
+                  messageServerId={message.serverId}
+                  own={own}
+                  onOpen={onOpenMedia}
+                  onShowActions={
+                    opensInApp(attachment) ? undefined : onMediaActions
+                  }
+                />
+              ) : null}
+              {caption ? (
+                <Text className="font-inter text-[14px] leading-5 text-white">
+                  {caption}
+                </Text>
+              ) : null}
               <View className="mt-1.5 flex-row items-center justify-end">
                 {own && !undelivered ? (
                   <MaterialCommunityIcons
@@ -287,6 +333,13 @@ export default function MessagesRoute() {
   const [reactionTargetId, setReactionTargetId] = useState<number | null>(null);
   const [detailsTargetId, setDetailsTargetId] = useState<number | null>(null);
   const [replyTarget, setReplyTarget] = useState<MessageQuote | null>(null);
+  const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+  // Picked files still being copied and checksummed, shown as placeholder
+  // bubbles until each becomes a real message.
+  const [preparingFiles, setPreparingFiles] = useState<PreparingFile[]>([]);
+  const [viewerTarget, setViewerTarget] = useState<MediaViewerTarget | null>(
+    null,
+  );
   const [highlightedServerId, setHighlightedServerId] = useState<number | null>(
     null,
   );
@@ -475,6 +528,74 @@ export default function MessagesRoute() {
     }
   };
 
+  /**
+   * Photos, videos and audio open in the in-app viewer. Documents such as a
+   * PDF go straight to the phone's viewer app for that type.
+   */
+  const openMedia = (attachment: ApiMessageAttachment, uri: string) => {
+    if (opensInApp(attachment)) {
+      setViewerTarget({ attachment, uri });
+      return;
+    }
+    void openMediaFile(uri, attachment).catch((error: unknown) =>
+      dispatch(
+        apiActionFailed(
+          error instanceof Error ? error.message : "Could not open this file.",
+        ),
+      ),
+    );
+  };
+
+  /**
+   * Copies each picked file into chat storage and sends it as its own
+   * message. A reply being composed goes with the first file only.
+   */
+  const sendPickedFiles = async (source: AttachmentSource) => {
+    setAttachSheetOpen(false);
+    if (!user) return;
+    let picked;
+    try {
+      picked =
+        source === "gallery" ? await pickGalleryMedia() : await pickDocuments();
+    } catch (error) {
+      dispatch(
+        apiActionFailed(
+          error instanceof Error ? error.message : "Could not open the picker.",
+        ),
+      );
+      return;
+    }
+    if (picked.length === 0) return;
+    let replyTo = replyTarget;
+    setReplyTarget(null);
+    const batch = picked.map((file, index) => ({
+      ...file,
+      key: `${Date.now()}-${index}-${file.uri}`,
+    }));
+    setPreparingFiles((current) => [...current, ...batch]);
+    // One after another, so the messages land in the order they were picked.
+    for (const file of batch) {
+      try {
+        const attachment = await importPickedFile(file);
+        await registerSentFile(attachment.id);
+        await dispatch(
+          sendMessage({ body: "", senderUserId: user.id, replyTo, attachment }),
+        ).unwrap();
+        replyTo = null;
+      } catch (error) {
+        dispatch(
+          apiActionFailed(
+            error instanceof Error ? error.message : "Could not send the file.",
+          ),
+        );
+      } finally {
+        setPreparingFiles((current) =>
+          current.filter((entry) => entry.key !== file.key),
+        );
+      }
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-[#0B1220]"
@@ -512,6 +633,17 @@ export default function MessagesRoute() {
             ref={listRef}
             data={messages}
             inverted
+            // An inverted list draws its header at the bottom, which is where
+            // the newest message goes.
+            ListHeaderComponent={
+              preparingFiles.length > 0 ? (
+                <View>
+                  {preparingFiles.map((file) => (
+                    <PreparingAttachmentBubble key={file.key} file={file} />
+                  ))}
+                </View>
+              ) : null
+            }
             className="flex-1"
             contentContainerClassName="px-4 py-5"
             keyExtractor={(message) => String(message.id)}
@@ -529,6 +661,10 @@ export default function MessagesRoute() {
                 onShowReactionDetails={showReactionDetails}
                 onReply={startReply}
                 onJumpToQuoted={jumpToQuoted}
+                onOpenMedia={openMedia}
+                onMediaActions={(attachment, uri) =>
+                  setViewerTarget({ attachment, uri })
+                }
               />
             )}
             // Rows are not a fixed height, so a jump to a message that is
@@ -608,6 +744,16 @@ export default function MessagesRoute() {
             </View>
           ) : null}
           <View className="flex-row items-end rounded-2xl border border-slate-600 bg-slate-800 px-3 py-1.5">
+            {isChatMediaSupported ? (
+              <TouchableOpacity
+                className="mr-1 h-10 w-9 items-center justify-center"
+                onPress={() => setAttachSheetOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Attach a file"
+              >
+                <Feather name="paperclip" size={19} color="#94A3B8" />
+              </TouchableOpacity>
+            ) : null}
             <TextInput
               className="max-h-24 min-h-10 flex-1 px-1 py-2 font-inter text-[14px] text-white"
               value={draft}
@@ -639,6 +785,18 @@ export default function MessagesRoute() {
         selected={myReactionOnTarget}
         onSelect={applyReaction}
         onClose={() => setReactionTargetId(null)}
+      />
+
+      <AttachmentSourceSheet
+        visible={attachSheetOpen}
+        onSelect={(source) => void sendPickedFiles(source)}
+        onClose={() => setAttachSheetOpen(false)}
+      />
+
+      <MediaViewerModal
+        target={viewerTarget}
+        onClose={() => setViewerTarget(null)}
+        onError={(message) => dispatch(apiActionFailed(message))}
       />
 
       <MessageReactionDetails

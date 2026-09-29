@@ -9,6 +9,7 @@ import {
   api,
   invalidateApiCache,
   type ApiMessage,
+  type ApiMessageAttachment,
   type ApiMessageCursor,
   type MessageReactionKind,
 } from "@/lib/api";
@@ -157,9 +158,15 @@ export const loadMessages = createAsyncThunk<
 
 export const sendMessage = createAsyncThunk<
   { messId: number; message: MessageItem },
-  { body: string; senderUserId: number; replyTo?: MessageQuote | null },
+  {
+    body: string;
+    senderUserId: number;
+    replyTo?: MessageQuote | null;
+    /** A file already copied into chat storage on this phone. */
+    attachment?: ApiMessageAttachment | null;
+  },
   { state: MessagesRootState }
->("messages/send", async ({ body, replyTo }, { getState }) => {
+>("messages/send", async ({ body, replyTo, attachment }, { getState }) => {
   const { token, messId, userId } = getAuthContext(getState());
   try {
     const database = await getOfflineDatabase();
@@ -169,6 +176,7 @@ export const sendMessage = createAsyncThunk<
       userId,
       body,
       replyTo,
+      attachment,
     );
     void getOfflineRuntime(database).engine.sync(
       { userId, messId, token },
@@ -181,6 +189,7 @@ export const sendMessage = createAsyncThunk<
       token,
       messId,
       replyTo?.replyToMessageId ?? null,
+      attachment,
     );
     return { messId, message: serverMessage(response.message) };
   }

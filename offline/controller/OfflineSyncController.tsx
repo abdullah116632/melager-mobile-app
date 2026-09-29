@@ -166,9 +166,10 @@ export function OfflineSyncController({ children }: { children: ReactNode }) {
     const outbox = getOfflineRuntime(database).outbox;
 
     // Every mess counts: sync pushes them all, so "all synced" must mean it.
+    // Chat is the exception; its bubbles show their own sending state.
     const publishPendingCount = () => {
       void outbox
-        .countAllPending(userId)
+        .countBannerPending(userId)
         .then((count) => {
           if (!cancelled) dispatch(offlineQueueSizeChanged(count));
         })
