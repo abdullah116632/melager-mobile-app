@@ -18,6 +18,7 @@ const socketUrl =
   (domain ? `https://${domain}` : undefined);
 
 let socket: Socket | null = null;
+let authToken: string | null = null;
 /** Carries only chat file transfers; see connectRealtime. */
 let mediaSocket: Socket | null = null;
 let activeConversationMessId: number | null = null;
@@ -45,6 +46,7 @@ const connectionOptions = {
 
 export const connectRealtime = (token: string, messId: number): Socket => {
   if (socket) socket.disconnect();
+  authToken = token;
   if (mediaSocket) mediaSocket.disconnect();
 
   const nextSocket = io(socketUrl, {
@@ -83,6 +85,7 @@ export const connectRealtime = (token: string, messId: number): Socket => {
 };
 
 export const disconnectRealtime = (): void => {
+  authToken = null;
   socket?.disconnect();
   socket = null;
   mediaSocket?.disconnect();
@@ -102,6 +105,9 @@ export const subscribeToRealtimeSocket = (
 };
 
 export const getRealtimeSocket = (): Socket | null => socket;
+
+/** The token the live connection signed in with, for the file downloader. */
+export const getRealtimeAuthToken = (): string | null => authToken;
 
 export const enterMessageConversation = (messId: number): void => {
   activeConversationMessId = messId;

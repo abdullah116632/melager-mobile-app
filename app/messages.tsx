@@ -44,13 +44,23 @@ import {
 } from "@/components/messages/MessageReactionPicker";
 import { SwipeToReply } from "@/components/messages/SwipeToReply";
 import {
+  fetchRemainingFileQuota,
+  messFileLimitMessage,
+} from "@/lib/chatMedia/cloudFiles";
+import {
   attachmentFallbackBody,
+  deleteHeldFile,
   importPickedFile,
   isChatMediaSupported,
 } from "@/lib/chatMedia/mediaFiles";
 import { registerSentFile } from "@/lib/chatMedia/mediaTransfer";
+import { logFileSendStep } from "@/lib/chatMedia/sendTiming";
 import { openMediaFile } from "@/lib/chatMedia/openMedia";
-import { pickDocuments, pickGalleryMedia } from "@/lib/chatMedia/pickMedia";
+import {
+  pickDocuments,
+  pickGalleryMedia,
+  shrinkPhoto,
+} from "@/lib/chatMedia/pickMedia";
 import {
   enterMessageConversation,
   leaveMessageConversation,
@@ -337,6 +347,18 @@ export default function MessagesRoute() {
   // Picked files still being copied and checksummed, shown as placeholder
   // bubbles until each becomes a real message.
   const [preparingFiles, setPreparingFiles] = useState<PreparingFile[]>([]);
+  // A placeholder whose message already reached the list would show the same
+  // file twice until the send finishes.
+  const listedAttachmentIds = new Set(
+    preparingFiles.length > 0
+      ? messages.flatMap((message) =>
+          message.attachment ? [message.attachment.id] : [],
+        )
+      : [],
+  );
+  const visiblePreparingFiles = preparingFiles.filter(
+    (file) => !file.attachmentId || !listedAttachmentIds.has(file.attachmentId),
+  );
   const [viewerTarget, setViewerTarget] = useState<MediaViewerTarget | null>(
     null,
   );
@@ -573,14 +595,54 @@ export default function MessagesRoute() {
       key: `${Date.now()}-${index}-${file.uri}`,
     }));
     setPreparingFiles((current) => [...current, ...batch]);
+    // Checked when online, so a file over the mess's daily limit is refused
+    // here instead of failing after it was queued. Asked in parallel with
+    // preparing the first file rather than before it. Offline, the file is
+    // queued like any message and the server checks it on sync.
+    const quotaRequest =
+      isOnline && token && mess
+        ? fetchRemainingFileQuota(token, mess.id)
+        : Promise.resolve(null);
     // One after another, so the messages land in the order they were picked.
     for (const file of batch) {
       try {
-        const attachment = await importPickedFile(file);
+        // A photo from the gallery is sent scaled down; one picked as a
+        // document keeps its original quality.
+        let stepAt = Date.now();
+        const prepared = source === "gallery" ? await shrinkPhoto(file) : file;
+        logFileSendStep("shrink photo", stepAt);
+        stepAt = Date.now();
+        const attachment = await importPickedFile(prepared);
+        logFileSendStep(
+          "copy + sha256",
+          stepAt,
+          `${Math.round(attachment.size / 1024)} KB`,
+        );
+        // From here the placeholder hides as soon as the real bubble is in
+        // the list, so the two are never on screen together.
+        setPreparingFiles((current) =>
+          current.map((entry) =>
+            entry.key === file.key
+              ? { ...entry, attachmentId: attachment.id }
+              : entry,
+          ),
+        );
+        stepAt = Date.now();
+        const quota = await quotaRequest;
+        logFileSendStep("wait for quota check", stepAt);
+        if (quota && attachment.size > quota.remaining) {
+          deleteHeldFile(attachment.id);
+          throw new Error(messFileLimitMessage(quota.limit));
+        }
+        if (quota) quota.remaining -= attachment.size;
+        stepAt = Date.now();
         await registerSentFile(attachment.id);
+        logFileSendStep("  mark file as held", stepAt);
+        stepAt = Date.now();
         await dispatch(
           sendMessage({ body: "", senderUserId: user.id, replyTo, attachment }),
         ).unwrap();
+        logFileSendStep("  save message + show bubble", stepAt);
         replyTo = null;
       } catch (error) {
         dispatch(
@@ -636,9 +698,9 @@ export default function MessagesRoute() {
             // An inverted list draws its header at the bottom, which is where
             // the newest message goes.
             ListHeaderComponent={
-              preparingFiles.length > 0 ? (
+              visiblePreparingFiles.length > 0 ? (
                 <View>
-                  {preparingFiles.map((file) => (
+                  {visiblePreparingFiles.map((file) => (
                     <PreparingAttachmentBubble key={file.key} file={file} />
                   ))}
                 </View>

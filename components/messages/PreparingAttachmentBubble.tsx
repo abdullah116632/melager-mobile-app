@@ -6,6 +6,8 @@ import { kindForMimeType, type PickedFile } from "@/lib/chatMedia/mediaFiles";
 
 export interface PreparingFile extends PickedFile {
   key: string;
+  /** Set once the file is imported; its message then takes over the slot. */
+  attachmentId?: string;
 }
 
 const PREVIEW_WIDTH = 220;

@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 import type { ApiMessageAttachment } from "@/lib/api";
+import { useUploadProgress } from "@/lib/chatMedia/cloudFiles";
 import { formatFileSize } from "@/lib/chatMedia/mediaFiles";
 import {
   requestDownload,
@@ -76,6 +77,11 @@ export const MessageAttachment = ({
   onShowActions?: (attachment: ApiMessageAttachment, uri: string) => void;
 }) => {
   const status = useMediaStatus(attachment.id);
+  const uploadProgress = useUploadProgress(own ? attachment.id : null);
+  const uploadText =
+    uploadProgress === null
+      ? ""
+      : `Uploading ${Math.round(uploadProgress * 100)}%`;
   const available = status?.kind === "available" ? status : null;
   const busy =
     status?.kind === "queued" ||
@@ -102,16 +108,26 @@ export const MessageAttachment = ({
         className="mb-1.5"
       >
         {available ? (
-          <Image
-            source={{ uri: available.uri }}
-            style={{
-              width: IMAGE_WIDTH,
-              height: imageHeight(attachment),
-              borderRadius: 14,
-            }}
-            contentFit="cover"
-            transition={120}
-          />
+          <View>
+            <Image
+              source={{ uri: available.uri }}
+              style={{
+                width: IMAGE_WIDTH,
+                height: imageHeight(attachment),
+                borderRadius: 14,
+              }}
+              contentFit="cover"
+              transition={120}
+            />
+            {uploadText ? (
+              <View className="absolute bottom-2 left-2 flex-row items-center rounded-full bg-slate-950/75 px-2.5 py-1">
+                <ActivityIndicator size="small" color="#CCFBF1" />
+                <Text className="ml-1.5 font-inter-semibold text-[11px] text-white">
+                  {uploadText}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         ) : (
           <View
             style={{ width: IMAGE_WIDTH, height: imageHeight(attachment) }}
@@ -154,7 +170,7 @@ export const MessageAttachment = ({
       }`}
     >
       <View className="h-10 w-10 items-center justify-center rounded-xl bg-slate-950/40">
-        {busy ? (
+        {busy || uploadText ? (
           <ActivityIndicator size="small" color="#CCFBF1" />
         ) : (
           <Feather
@@ -179,7 +195,7 @@ export const MessageAttachment = ({
         </Text>
         <Text className={`mt-0.5 font-inter text-[10px] ${mutedText}`}>
           {formatFileSize(attachment.size)}
-          {statusText ? ` · ${statusText}` : ""}
+          {uploadText || statusText ? ` · ${uploadText || statusText}` : ""}
         </Text>
         {retryable ? (
           <Text className="mt-0.5 font-inter-semibold text-[10px] text-cyan-300">

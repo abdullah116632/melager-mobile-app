@@ -347,7 +347,8 @@ export type MessageAttachmentKind = "image" | "video" | "audio" | "file";
 
 /**
  * A file shared in the chat. The server keeps only this description; the file
- * itself lives on members' phones and is relayed between them on demand.
+ * itself lives on members' phones and is relayed between them on demand, and
+ * for a few days it may also be kept in cloud storage (see `storedUntil`).
  */
 export interface ApiMessageAttachment {
   id: string;
@@ -359,7 +360,20 @@ export interface ApiMessageAttachment {
   width?: number | null;
   height?: number | null;
   durationMs?: number | null;
+  /**
+   * Set by the server when the sender uploaded the file: until then (ISO) it
+   * can be downloaded from cloud storage even while every holder is offline.
+   */
+  storedUntil?: string | null;
 }
+
+/**
+ * The server's answer to a request to upload a chat file. "relay" means the
+ * file may be sent but travels phone to phone only.
+ */
+export type ApiFileUploadGrant =
+  | { storage: "cloud"; uploadUrl: string; storedUntil: string }
+  | { storage: "relay" };
 
 export interface ApiMessage {
   id: number;
@@ -828,6 +842,8 @@ export const api = {
     messId: number,
     replyToMessageId?: number | null,
     attachment?: ApiMessageAttachment | null,
+    /** The file reached cloud storage, so members may fetch it from there. */
+    attachmentUploaded = false,
   ) =>
     req<{ message: ApiMessage }>(
       "POST",
@@ -839,6 +855,7 @@ export const api = {
         // Only sent when present, so a text message is the same request an
         // older build makes.
         ...(attachment ? { attachment } : {}),
+        ...(attachmentUploaded ? { attachmentUploaded } : {}),
       },
       token,
     ),
@@ -855,6 +872,34 @@ export const api = {
       token,
     ),
 
+  requestFileUpload: (
+    token: string,
+    messId: number,
+    attachment: ApiMessageAttachment,
+  ) =>
+    req<ApiFileUploadGrant>(
+      "POST",
+      "/mess/messages/file-upload",
+      { messId, attachment },
+      token,
+    ),
+
+  getFileQuota: (token: string, messId: number) =>
+    req<{ usedBytes: number; limitBytes: number; maxFileBytes: number }>(
+      "GET",
+      `/mess/messages/file-quota?messId=${messId}`,
+      undefined,
+      token,
+    ),
+
+  getFileDownloadUrl: (token: string, messId: number, messageId: number) =>
+    req<{ url: string }>(
+      "GET",
+      `/mess/messages/file-url?messId=${messId}&messageId=${messageId}`,
+      undefined,
+      token,
+    ),
+
   syncMessage: (
     clientMutationId: string,
     messId: number,
@@ -862,6 +907,8 @@ export const api = {
     token: string,
     replyToMessageId?: number | null,
     attachment?: ApiMessageAttachment | null,
+    /** The file reached cloud storage, so members may fetch it from there. */
+    attachmentUploaded = false,
   ) =>
     req<{ message: ApiMessage }>(
       "POST",
@@ -872,6 +919,7 @@ export const api = {
         body,
         replyToMessageId: replyToMessageId ?? null,
         ...(attachment ? { attachment } : {}),
+        ...(attachmentUploaded ? { attachmentUploaded } : {}),
       },
       token,
     ),

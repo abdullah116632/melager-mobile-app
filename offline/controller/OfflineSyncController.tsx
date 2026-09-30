@@ -26,6 +26,7 @@ import { MealScheduleRepository } from "../features/meals/MealScheduleRepository
 import { registerBackgroundSyncAsync } from "../background/backgroundSync";
 import { useOfflineDatabase } from "../provider/OfflineDatabaseProvider";
 import { getOfflineRuntime } from "../runtime/getOfflineRuntime";
+import { consumePickerReturn } from "../runtime/foregroundRefresh";
 import { setManualSyncHandler } from "../runtime/manualSync";
 import { subscribeToSessionExpired } from "../runtime/sessionExpiry";
 import { subscribeToOutboxChanges } from "../outbox/outboxChangeNotifier";
@@ -211,7 +212,7 @@ export function OfflineSyncController({ children }: { children: ReactNode }) {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       appStateRef.current = nextState;
-      if (nextState === "active") {
+      if (nextState === "active" && !consumePickerReturn()) {
         void hydrateReduxFromLocal()
           .then(syncNow)
           .catch(() => undefined);

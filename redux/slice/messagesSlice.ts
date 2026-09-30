@@ -13,6 +13,8 @@ import {
   type ApiMessageCursor,
   type MessageReactionKind,
 } from "@/lib/api";
+import { uploadAttachmentToCloud } from "@/lib/chatMedia/cloudFiles";
+import { logFileSendStep } from "@/lib/chatMedia/sendTiming";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import {
   MessageRepository,
@@ -169,7 +171,10 @@ export const sendMessage = createAsyncThunk<
 >("messages/send", async ({ body, replyTo, attachment }, { getState }) => {
   const { token, messId, userId } = getAuthContext(getState());
   try {
+    let stepAt = Date.now();
     const database = await getOfflineDatabase();
+    if (attachment) logFileSendStep("    open database", stepAt);
+    stepAt = Date.now();
     const message = await new MessageRepository(database).compose(
       userId,
       messId,
@@ -178,18 +183,23 @@ export const sendMessage = createAsyncThunk<
       replyTo,
       attachment,
     );
+    if (attachment) logFileSendStep("    write message + outbox", stepAt);
     void getOfflineRuntime(database).engine.sync(
       { userId, messId, token },
       { collections: ["messages"], force: true },
     );
     return { messId, message };
   } catch {
+    const uploaded = attachment
+      ? await uploadAttachmentToCloud(token, messId, attachment)
+      : false;
     const response = await api.sendMessage(
       body,
       token,
       messId,
       replyTo?.replyToMessageId ?? null,
       attachment,
+      uploaded,
     );
     return { messId, message: serverMessage(response.message) };
   }

@@ -6,6 +6,8 @@ import {
   type ApiMessageAttachment,
   type MessageReactionKind,
 } from "@/lib/api";
+import { uploadAttachmentToCloud } from "@/lib/chatMedia/cloudFiles";
+import { logFileSendStep } from "@/lib/chatMedia/sendTiming";
 import { emitMessageLifecycle } from "./messageLifecycle";
 import type { SyncRegistry } from "../../sync/registry";
 import { MessageRepository } from "./MessageRepository";
@@ -23,6 +25,19 @@ export const registerMessageSync = (
     };
     try {
       await repository.markPending(p.localId);
+      // Uploaded before the message is sent, so the server can confirm the
+      // file is stored and every member may fetch it while this phone is off.
+      const startedAt = Date.now();
+      if (p.attachment) {
+        logFileSendStep(
+          "sync picked up the message",
+          op.createdAt ?? startedAt,
+        );
+      }
+      const uploaded = p.attachment
+        ? await uploadAttachmentToCloud(ctx.token, ctx.messId!, p.attachment)
+        : false;
+      const sentAt = Date.now();
       const r = await api.syncMessage(
         op.id,
         ctx.messId!,
@@ -30,7 +45,12 @@ export const registerMessageSync = (
         ctx.token,
         p.replyToMessageId ?? null,
         p.attachment ?? null,
+        uploaded,
       );
+      if (p.attachment) {
+        logFileSendStep("server: save message", sentAt);
+        logFileSendStep("TOTAL in sync", startedAt);
+      }
       await repository.acknowledge(p.localId, r.message);
     } catch (e) {
       await repository.failed(p.localId);

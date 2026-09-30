@@ -18,8 +18,7 @@ export function OfflineBanner() {
   // This banner is for reconnect/sync feedback only. In particular, do not
   // leave a stale "You're offline" frame on screen while the connection is
   // coming back and the success banner is about to be shown.
-  const showBanner =
-    isOnline && (isSyncing || pendingCount > 0 || justSynced);
+  const showBanner = isOnline && (pendingCount > 0 || justSynced);
   const topInset = Platform.OS === "web" ? 0 : insets.top;
   const bannerHeight = BANNER_BODY_HEIGHT + topInset;
   const hiddenOffset = -(bannerHeight + SLIDE_BUFFER);
@@ -50,11 +49,14 @@ export function OfflineBanner() {
     justSyncedRef.current = false;
   }, [isOnline]);
 
+  // Only work the banner counts earns "All changes synced". Chat is left out
+  // of that count (its bubbles show their own sending state), so a sync that
+  // only delivers messages or uploads chat files stays silent.
   useEffect(() => {
-    if (isSyncing) {
+    if (isSyncing && pendingCount > 0) {
       justSyncedRef.current = true;
     }
-  }, [isSyncing]);
+  }, [isSyncing, pendingCount]);
 
   let icon: "wifi-off" | "refresh-cw" | "check-circle" = "wifi-off";
   let label = "You're offline";

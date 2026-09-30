@@ -43,6 +43,7 @@ import {
   ingestServerNotification,
   refreshNotifications,
 } from "@/redux/slice/notificationSlice";
+import { isPickerOpen } from "@/offline/runtime/foregroundRefresh";
 
 /**
  * Window used to fold a burst of month events into a single refetch. Short
@@ -267,6 +268,9 @@ export const RealtimeStateController = ({
       "change",
       (state: AppStateStatus) => {
         if (state === "active" && !isActive) connect();
+        // A picker the app opened keeps the connection: reconnecting on the
+        // way back would compete with sending the file just picked.
+        if (state !== "active" && isPickerOpen()) return;
         if (state !== "active") disconnectRealtime();
         isActive = state === "active";
       },

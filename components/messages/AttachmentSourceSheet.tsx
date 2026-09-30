@@ -53,8 +53,10 @@ export const AttachmentSourceSheet = ({
           Send a file
         </Text>
         <Text className="mb-3 mt-1 font-inter text-[11px] leading-4 text-slate-400">
-          Files go straight to the other members' phones and are not stored on
-          the server. Up to {formatFileSize(MAX_ATTACHMENT_BYTES)} each.
+          Up to {formatFileSize(MAX_ATTACHMENT_BYTES)} a file and 30 MB a day
+          for the whole mess. Files are kept online for 3 days, so members can
+          download them even while you are offline. Gallery photos are sent in a
+          smaller size; pick a photo as a document to send the original.
         </Text>
         {SOURCES.map((entry) => (
           <TouchableOpacity

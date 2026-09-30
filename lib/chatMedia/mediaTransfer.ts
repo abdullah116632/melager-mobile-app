@@ -3,7 +3,10 @@ import type { Socket } from "socket.io-client";
 import type { File, FileHandle } from "expo-file-system";
 
 import type { ApiMessage, ApiMessageAttachment } from "@/lib/api";
-import { subscribeToRealtimeSocket } from "@/lib/realtime";
+import {
+  getRealtimeAuthToken,
+  subscribeToRealtimeSocket,
+} from "@/lib/realtime";
 import { getOfflineDatabase } from "@/offline/database/connection";
 import { MessageMediaRepository } from "@/offline/features/messages/MessageMediaRepository";
 import { MessageRepository } from "@/offline/features/messages/MessageRepository";
@@ -19,12 +22,15 @@ import {
   prepareDownloadTarget,
   sha256OfFile,
 } from "./mediaFiles";
+import { downloadAttachmentFromCloud, isStoredInCloud } from "./cloudFiles";
 
 /**
  * Moves chat files between members' phones through the server's socket relay
  * (see backend/realtime/mediaRelay.ts). This phone plays both parts: it
  * downloads every file shared in the mess, one at a time, and streams any file
- * it holds to whoever asks for it.
+ * it holds to whoever asks for it. A file still kept in cloud storage is
+ * fetched from there first (see cloudFiles.ts), and from phones only when
+ * that fails.
  */
 
 export type MediaStatus =
@@ -47,11 +53,14 @@ const MAX_UPLOADS = 2;
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 3_000;
 const CATCH_UP_LIMIT = 40;
+const MAX_CLOUD_DOWNLOADS = 3;
 
 interface Job {
   messageServerId: number;
   attachment: ApiMessageAttachment;
   attempts: number;
+  /** The cloud copy already failed once, so only phones are asked. */
+  skipCloud?: boolean;
 }
 
 interface ActiveDownload extends Job {
@@ -142,11 +151,30 @@ const queue: Job[] = [];
 /** Files nobody could send yet, asked for again when a source may be online. */
 const parked = new Map<string, Job>();
 let active: ActiveDownload | null = null;
+/**
+ * Cloud downloads run in a lane of their own, a few at a time. The relay
+ * handles one file at a time and may wait seconds for a holder to answer, so
+ * a file that is stored must never queue behind it.
+ */
+const cloudActive = new Map<string, ActiveDownload>();
 const uploads = new Map<string, { cancelled: boolean }>();
 
 const isQueued = (fileId: string) =>
   active?.attachment.id === fileId ||
+  cloudActive.has(fileId) ||
   queue.some((job) => job.attachment.id === fileId);
+
+const wantsCloud = (job: Job) =>
+  !job.skipCloud && isStoredInCloud(job.attachment);
+
+const startDownload = (job: Job): ActiveDownload => ({
+  ...job,
+  transferId: null,
+  target: null,
+  handle: null,
+  nextSeq: 0,
+  received: 0,
+});
 
 /** Queues a file for download unless this phone has it or chose to drop it. */
 const enqueue = (job: Job, force = false) => {
@@ -160,7 +188,8 @@ const enqueue = (job: Job, force = false) => {
 };
 
 const park = (job: Job) => {
-  parked.set(job.attachment.id, { ...job, attempts: 0 });
+  // When it is asked for again the cloud copy gets another chance too.
+  parked.set(job.attachment.id, { ...job, attempts: 0, skipCloud: false });
   setTransient(job.attachment.id, { kind: "waiting" });
 };
 
@@ -197,23 +226,31 @@ const retryOrPark = (job: Job) => {
   }, RETRY_DELAY_MS);
 };
 
-function pump(): void {
-  if (active || !socket?.connected) return;
-  const job = queue.shift();
-  if (!job) return;
-  if (findHeldFile(job.attachment.id)) {
-    setTransient(job.attachment.id, null);
-    pump();
-    return;
+/** Takes the first queued job the predicate accepts, skipping held files. */
+const takeJob = (accept: (job: Job) => boolean): Job | null => {
+  for (;;) {
+    const index = queue.findIndex(accept);
+    if (index < 0) return null;
+    const [job] = queue.splice(index, 1);
+    if (!findHeldFile(job!.attachment.id)) return job!;
+    setTransient(job!.attachment.id, null);
   }
-  const download: ActiveDownload = {
-    ...job,
-    transferId: null,
-    target: null,
-    handle: null,
-    nextSeq: 0,
-    received: 0,
-  };
+};
+
+function pump(): void {
+  // The socket being connected stands in for being online in both lanes.
+  if (!socket?.connected) return;
+  while (cloudActive.size < MAX_CLOUD_DOWNLOADS) {
+    const job = takeJob(wantsCloud);
+    if (!job) break;
+    const download = startDownload(job);
+    cloudActive.set(job.attachment.id, download);
+    void downloadFromCloud(download);
+  }
+  if (active) return;
+  const job = takeJob((candidate) => !wantsCloud(candidate));
+  if (!job) return;
+  const download = startDownload(job);
   active = download;
   setTransient(job.attachment.id, { kind: "searching" });
   socket
@@ -257,24 +294,81 @@ const handleStart = (payload: { transferId?: string }) => {
   }
 };
 
-const finishDownload = async (download: ActiveDownload) => {
+/** Verifies a finished download and keeps it as this phone's copy. */
+const keepDownload = async (download: ActiveDownload) => {
   const { attachment } = download;
   const partial = download.target!;
+  download.handle?.close();
+  download.handle = null;
+  const valid =
+    partial.size === attachment.size &&
+    (await sha256OfFile(partial)) === attachment.sha256;
+  if (!valid) throw new Error("Checksum mismatch");
+  partial.move(mediaFileFor(attachment));
+  await rememberState(attachment.id, "available");
+  setTransient(attachment.id, null);
+};
+
+const finishDownload = async (download: ActiveDownload) => {
   try {
-    download.handle?.close();
-    download.handle = null;
-    const valid =
-      partial.size === attachment.size &&
-      (await sha256OfFile(partial)) === attachment.sha256;
-    if (!valid) throw new Error("Checksum mismatch");
-    partial.move(mediaFileFor(attachment));
+    await keepDownload(download);
     active = null;
-    await rememberState(attachment.id, "available");
-    setTransient(attachment.id, null);
     socket?.emit("media:complete", { transferId: download.transferId });
   } catch {
     closeActive();
     retryOrPark(download);
+  }
+  pump();
+};
+
+const downloadFromCloud = async (download: ActiveDownload) => {
+  const { attachment } = download;
+  const fileId = attachment.id;
+  const token = getRealtimeAuthToken();
+  const messId = currentMessId;
+  // False once the member removed the file meanwhile.
+  const current = () => cloudActive.get(fileId) === download;
+  let kept = false;
+  try {
+    download.target = prepareDownloadTarget(attachment);
+    setTransient(fileId, { kind: "downloading", progress: 0 });
+    const fetched =
+      token !== null &&
+      messId !== null &&
+      (await downloadAttachmentFromCloud(
+        token,
+        messId,
+        download.messageServerId,
+        download.target,
+        (progress) => {
+          if (current()) {
+            setTransient(fileId, { kind: "downloading", progress });
+          }
+        },
+      ));
+    if (fetched && current()) {
+      await keepDownload(download);
+      kept = true;
+    }
+  } catch {
+    // Handled below like any other miss.
+  }
+  if (!current()) return;
+  cloudActive.delete(fileId);
+  if (!kept) {
+    try {
+      if (download.target?.exists) download.target.delete();
+    } catch {
+      // A leftover partial file is replaced on the next attempt.
+    }
+    // Expired, removed or unreachable: ask the members' phones right away.
+    queue.unshift({
+      messageServerId: download.messageServerId,
+      attachment,
+      attempts: download.attempts,
+      skipCloud: true,
+    });
+    setTransient(fileId, { kind: "queued" });
   }
   pump();
 };
@@ -471,7 +565,9 @@ const attachSocket = (next: Socket | null, messId: number | null) => {
     pump();
   });
 
-  pendingJobs.forEach((job) => enqueue({ ...job, attempts: 0 }, true));
+  pendingJobs.forEach((job) =>
+    enqueue({ ...job, attempts: 0, skipCloud: false }, true),
+  );
   void catchUp(messId);
 };
 
@@ -517,6 +613,7 @@ export const deleteLocalCopy = async (fileId: string): Promise<void> => {
     }
     closeActive();
   }
+  cloudActive.delete(fileId);
   const queued = queue.findIndex((job) => job.attachment.id === fileId);
   if (queued >= 0) queue.splice(queued, 1);
   parked.delete(fileId);

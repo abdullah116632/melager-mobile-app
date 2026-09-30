@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import type { ApiMessageAttachment, MessageAttachmentKind } from "@/lib/api";
 
 /** Must match MAX_ATTACHMENT_BYTES on the server. */
-export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 
 /** File sharing needs the native file system, so the web build leaves it out. */
 export const isChatMediaSupported = Platform.OS !== "web";
