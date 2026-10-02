@@ -7,7 +7,12 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
 import { api, clearApiCache } from "@/lib/api";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
-import { selectAuthState, selectMess } from "@/redux/slice/authSlice";
+import {
+  exitMess,
+  refreshMe,
+  selectAuthState,
+  selectMess,
+} from "@/redux/slice/authSlice";
 import {
   ingestServerNotification,
   markNotificationRead,
@@ -16,6 +21,7 @@ import {
 } from "@/redux/slice/notificationSlice";
 import { loadUnreadMessageCount } from "@/redux/slice/messagesSlice";
 import { loadUnreadNoticesCount } from "@/redux/slice/noticesSlice";
+import { isManagerRoleNotification } from "@/types/notification";
 
 const PUSH_REGISTRATION_RETRY_MS = 30_000;
 
@@ -170,6 +176,14 @@ export const PushNotificationStateController = ({
     const received = Notifications.addNotificationReceivedListener(
       (notification) => {
         const type = notification.request.content.data?.type;
+        if (isManagerRoleNotification(type)) {
+          // The new role is live on the server; pick it up for the hub list,
+          // and show the saved notification if that mess is open now.
+          clearApiCache();
+          void dispatch(refreshMe());
+          void dispatch(refreshNotifications());
+          return;
+        }
         if (type === "message") {
           clearApiCache();
           void dispatch(loadUnreadMessageCount());
@@ -223,6 +237,17 @@ export const PushNotificationStateController = ({
     handledResponseId.current = responseId;
 
     const data = lastResponse.notification.request.content.data;
+    // "You are now a manager": open Mess Hub, outside every mess, so the mess
+    // is entered again with the manager role. Pushing "/" from inside a mess
+    // would only bounce back to its dashboard.
+    if (isManagerRoleNotification(data?.type)) {
+      Notifications.clearLastNotificationResponse();
+      dispatch(exitMess());
+      clearApiCache();
+      void dispatch(refreshMe());
+      router.replace("/");
+      return;
+    }
     const route = data?.route;
     const isMessage = data?.type === "message";
     const isNotice = data?.type === "notice";

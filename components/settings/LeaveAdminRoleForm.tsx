@@ -14,12 +14,8 @@ import {
   View,
 } from "react-native";
 
-import {
-  SecurityErrorBox,
-  SecuritySuccessCard,
-} from "@/components/settings/SecurityFormControls";
+import { SecurityErrorBox } from "@/components/settings/SecurityFormControls";
 import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
-import { clearApiCache } from "@/lib/api";
 import { useAuth } from "@/redux/hooks";
 import { saveOpenForgotPasswordIntent } from "@/services/pendingForgotPasswordIntentService";
 import {
@@ -40,10 +36,10 @@ export const LeaveAdminRoleForm = ({
   onClose,
 }: LeaveAdminRoleFormProps) => {
   const router = useRouter();
-  const { token, activeMess, refreshMe, logout } = useAuth();
+  const { token, activeMess, leaveMessAfterManagerRoleLoss, logout } =
+    useAuth();
   const messId = activeMess?.id;
   const androidKeyboardOffset = useKeyboardSheetOffset();
-  const [step, setStep] = useState<"identity" | "success">("identity");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -51,7 +47,6 @@ export const LeaveAdminRoleForm = ({
 
   useEffect(() => {
     if (!visible) {
-      setStep("identity");
       setPassword("");
       setShowPassword(false);
       setLoading(false);
@@ -63,13 +58,16 @@ export const LeaveAdminRoleForm = ({
     if (!loading) onClose();
   };
 
-  // Losing the manager role invalidates this whole screen (it's gated on
-  // being a manager), so leaving it showing stale "you're still a manager"
-  // options after success would be wrong — send the user back to the
-  // dashboard instead of just closing the modal in place.
-  const finishRemoval = () => {
+  // Losing the manager role invalidates every screen of this mess (they were
+  // built for a manager), so leave the mess for Mess Hub straight away.
+  const finishRemoval = (removedFromMessId: number) => {
     onClose();
-    router.replace("/(tabs)/dashboard");
+    leaveMessAfterManagerRoleLoss(removedFromMessId);
+    // Mess Hub shows the confirmation itself, from these params.
+    router.replace({
+      pathname: "/",
+      params: { roleNotice: "removed", messName: activeMess?.name ?? "" },
+    });
   };
 
   const removeAdmin = async () => {
@@ -85,18 +83,12 @@ export const LeaveAdminRoleForm = ({
     setLoading(true);
     try {
       await removeSelfAdminV2(token, { messId, password });
-      // removeSelfAdminV2 goes through securityService's own fetch, not
-      // lib/api.ts's req(), so it never clears that module's 15s GET cache —
-      // without this, refreshMe()'s /auth/me call can still serve a
-      // pre-removal cached response. Clear it, then await the refresh, so
-      // the dashboard/tab bar (driven by activeMess.role) already reflects
-      // the demoted role by the time the user leaves this screen.
-      clearApiCache();
-      await refreshMe().catch(() => undefined);
-      setStep("success");
+      finishRemoval(messId);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Failed to remove your manager role.",
+        caught instanceof Error
+          ? caught.message
+          : "Failed to remove your manager role.",
       );
       setLoading(false);
     }
@@ -121,7 +113,9 @@ export const LeaveAdminRoleForm = ({
       }
       const { GoogleSignin, isSuccessResponse } = googleSignInModule;
       GoogleSignin.configure({ webClientId: googleWebClientId });
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
       const response = await GoogleSignin.signIn();
       if (!isSuccessResponse(response)) return;
       if (!response.data.idToken) {
@@ -132,8 +126,7 @@ export const LeaveAdminRoleForm = ({
         messId,
         googleIdToken: response.data.idToken,
       });
-      await refreshMe().catch(() => undefined);
-      setStep("success");
+      finishRemoval(messId);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "";
       setError(
@@ -153,7 +146,12 @@ export const LeaveAdminRoleForm = ({
   };
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={close}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={close}
+    >
       <KeyboardAvoidingView
         className="flex-1 justify-center bg-black/55 px-5"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -170,117 +168,108 @@ export const LeaveAdminRoleForm = ({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {step === "success" ? (
-              <SecuritySuccessCard
-                icon="check-circle"
-                iconClassName="bg-green-50"
-                iconColor="#16A34A"
-                title="Manager Role Removed"
-                body="You are now a regular member of this mess."
-                onClose={finishRemoval}
-              />
-            ) : (
-              <>
-                <View className="mb-4 h-16 w-16 items-center justify-center self-center rounded-full bg-red-50">
-                  <Feather name="user-minus" size={28} color="#DC2626" />
-                </View>
-                <Text className="mb-1.5 text-center font-inter-bold text-xl text-gray-900">
-                  Confirm Your Identity
-                </Text>
-                <Text className="mb-5 text-center font-inter text-sm leading-[22px] text-gray-500">
-                  Verify it&apos;s you to remove your manager role from{" "}
-                  {activeMess?.name ?? "this mess"}.
-                </Text>
+            <>
+              <View className="mb-4 h-16 w-16 items-center justify-center self-center rounded-full bg-red-50">
+                <Feather name="user-minus" size={28} color="#DC2626" />
+              </View>
+              <Text className="mb-1.5 text-center font-inter-bold text-xl text-gray-900">
+                Confirm Your Identity
+              </Text>
+              <Text className="mb-5 text-center font-inter text-sm leading-[22px] text-gray-500">
+                Verify it&apos;s you to remove your manager role from{" "}
+                {activeMess?.name ?? "this mess"}.
+              </Text>
 
-                <Text className="mb-1.5 font-inter-semibold text-[13px] text-gray-700">
-                  Password
-                </Text>
-                <View className="flex-row gap-2">
-                  <TextInput
-                    className="h-12 flex-1 rounded-[10px] border-[1.5px] border-gray-200 bg-gray-50 px-3.5 font-inter text-[15px] text-gray-900"
-                    placeholder="Enter your password"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={(value) => {
-                      setPassword(value);
-                      setError("");
-                    }}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!loading}
-                    returnKeyType="done"
-                    onSubmitEditing={() => void removeAdmin()}
+              <Text className="mb-1.5 font-inter-semibold text-[13px] text-gray-700">
+                Password
+              </Text>
+              <View className="flex-row gap-2">
+                <TextInput
+                  className="h-12 flex-1 rounded-[10px] border-[1.5px] border-gray-200 bg-gray-50 px-3.5 font-inter text-[15px] text-gray-900"
+                  placeholder="Enter your password"
+                  placeholderTextColor="#9CA3AF"
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    setError("");
+                  }}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                  returnKeyType="done"
+                  onSubmitEditing={() => void removeAdmin()}
+                />
+                <TouchableOpacity
+                  className="h-12 w-12 items-center justify-center rounded-[10px] border-[1.5px] border-gray-200 bg-gray-50"
+                  onPress={() =>
+                    setShowPassword((visibleState) => !visibleState)
+                  }
+                  disabled={loading}
+                >
+                  <Feather
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#6B7280"
                   />
-                  <TouchableOpacity
-                    className="h-12 w-12 items-center justify-center rounded-[10px] border-[1.5px] border-gray-200 bg-gray-50"
-                    onPress={() => setShowPassword((visibleState) => !visibleState)}
-                    disabled={loading}
-                  >
-                    <Feather
-                      name={showPassword ? "eye-off" : "eye"}
-                      size={20}
-                      color="#6B7280"
-                    />
-                  </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                className="mb-4 mt-3 self-start"
+                onPress={() => void goToForgotPassword()}
+                disabled={loading}
+              >
+                <Text className="font-inter-semibold text-[13px] text-teal-700">
+                  Forgot password?
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className={`h-[52px] flex-row items-center justify-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white ${loading ? "opacity-50" : "opacity-100"}`}
+                onPress={() => void removeAdminWithGoogle()}
+                disabled={loading}
+              >
+                <AntDesign name="google" size={18} color="#EA4335" />
+                <Text className="font-inter-semibold text-[15px] text-gray-700">
+                  Verify with Google
+                </Text>
+              </TouchableOpacity>
+
+              <SecurityErrorBox message={error} />
+
+              <View className="mb-4 mt-2 flex-row items-start gap-2 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-3">
+                <Feather name="shield" size={14} color="#92400E" />
+                <Text className="flex-1 font-inter-medium text-xs leading-[18px] text-amber-800">
+                  A mess must always have at least one manager. If you are the
+                  only manager, add another manager first.
+                </Text>
+              </View>
+
+              <View className="flex-row gap-3">
                 <TouchableOpacity
-                  className="mb-4 mt-3 self-start"
-                  onPress={() => void goToForgotPassword()}
+                  className="h-[52px] flex-1 items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-white"
+                  onPress={close}
                   disabled={loading}
                 >
-                  <Text className="font-inter-semibold text-[13px] text-teal-700">
-                    Forgot password?
+                  <Text className="font-inter-semibold text-base text-gray-700">
+                    Cancel
                   </Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                  className={`h-[52px] flex-row items-center justify-center gap-2.5 rounded-xl border-[1.5px] border-gray-200 bg-white ${loading ? "opacity-50" : "opacity-100"}`}
-                  onPress={() => void removeAdminWithGoogle()}
-                  disabled={loading}
+                  className={`h-[52px] flex-1 items-center justify-center rounded-xl bg-red-600 ${loading || !password ? "opacity-50" : "opacity-100"}`}
+                  onPress={() => void removeAdmin()}
+                  disabled={loading || !password}
                 >
-                  <AntDesign name="google" size={18} color="#EA4335" />
-                  <Text className="font-inter-semibold text-[15px] text-gray-700">
-                    Verify with Google
-                  </Text>
-                </TouchableOpacity>
-
-                <SecurityErrorBox message={error} />
-
-                <View className="mb-4 mt-2 flex-row items-start gap-2 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-3">
-                  <Feather name="shield" size={14} color="#92400E" />
-                  <Text className="flex-1 font-inter-medium text-xs leading-[18px] text-amber-800">
-                    A mess must always have at least one manager. If you are
-                    the only manager, add another manager first.
-                  </Text>
-                </View>
-
-                <View className="flex-row gap-3">
-                  <TouchableOpacity
-                    className="h-[52px] flex-1 items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-white"
-                    onPress={close}
-                    disabled={loading}
-                  >
-                    <Text className="font-inter-semibold text-base text-gray-700">
-                      Cancel
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text className="font-inter-bold text-base text-white">
+                      Confirm Remove
                     </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className={`h-[52px] flex-1 items-center justify-center rounded-xl bg-red-600 ${loading || !password ? "opacity-50" : "opacity-100"}`}
-                    onPress={() => void removeAdmin()}
-                    disabled={loading || !password}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text className="font-inter-bold text-base text-white">
-                        Confirm Remove
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>

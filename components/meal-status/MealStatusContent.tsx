@@ -4,11 +4,11 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useAppSelector, useAuth, useNetwork } from "@/redux/hooks";
 import { clearApiCache } from "@/lib/api";
 import { selectMealMenuState } from "@/redux/slice/mealMenuSlice";
@@ -33,6 +33,16 @@ interface MealStatusContentProps {
 
 type MealStatusSchedule = Awaited<ReturnType<typeof getMealStatus>>["schedule"];
 
+/** "Friday" and "2 October 2026" for a YYYY-MM-DD date, read as local. */
+const formatScheduleDay = (date: string) => {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(year!, month! - 1, day!);
+  return {
+    weekday: value.toLocaleDateString("en-US", { weekday: "long" }),
+    date: `${day} ${value.toLocaleDateString("en-US", { month: "long" })} ${year}`,
+  };
+};
+
 export const MealStatusContent = ({
   initialDate,
   onBack,
@@ -49,6 +59,7 @@ export const MealStatusContent = ({
   const [loadedDate, setLoadedDate] = useState<string | null>(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const selectedDay = formatScheduleDay(selectedDate);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -178,8 +189,12 @@ export const MealStatusContent = ({
           <ActivityIndicator size="large" color="#0F766E" />
         </View>
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollViewCompat
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          // Keeps the focused menu field, and a little room under it, above
+          // the keyboard; the dinner card used to end up hidden behind it.
+          bottomOffset={96}
           contentContainerClassName="pb-safe-offset-8 pt-4"
           refreshControl={
             <RefreshControl
@@ -192,8 +207,16 @@ export const MealStatusContent = ({
         >
           <View className="mx-4 mb-3.5 overflow-hidden rounded-[18px] border border-slate-300 bg-white">
             <View className="flex-row items-center border-b border-teal-100 bg-teal-50 px-4 py-3">
-              <Text className="flex-1 font-inter-bold text-[17px] text-slate-900">
-                Meal Schedule
+              <Text
+                className="mr-2 flex-1 font-inter-medium text-[15px] text-slate-600"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                <Text className="font-inter-bold text-teal-800">
+                  {selectedDay.weekday},
+                </Text>{" "}
+                {selectedDay.date}
               </Text>
               <TouchableOpacity
                 className="flex-row items-center gap-1.5 rounded-lg border border-teal-200 bg-white px-2.5 py-1.5"
@@ -226,7 +249,7 @@ export const MealStatusContent = ({
             loadedDate={loadedDate}
           />
           <MealOptOutTable consumers={consumers} />
-        </ScrollView>
+        </KeyboardAwareScrollViewCompat>
       )}
 
       {toast && (

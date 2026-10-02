@@ -299,6 +299,8 @@ export const loadMonth = createMessAsyncThunk<LoadMonthResult, LoadMonthArgs>(
           yearMonth,
           data.meals,
           remoteRequestStartedAt,
+          false,
+          true,
         );
       } catch {
         // Web and pre-migration builds retain the existing cache path.

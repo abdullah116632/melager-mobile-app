@@ -25,6 +25,7 @@ export class DailyMealsRepository {
     meals: MealData[string],
     remoteRequestStartedAt = Number.POSITIVE_INFINITY,
     confirmAcknowledged = false,
+    pruneMissing = false,
   ): Promise<MealData[string]> {
     const localRows = await this.db.getAllAsync<{
       consumer_id: string;
@@ -90,6 +91,40 @@ export class DailyMealsRepository {
             yearMonth,
             local.consumer_id,
             local.day,
+          );
+        }
+      }
+      // A fresh server snapshot is authoritative for cells it no longer holds
+      // (a removed member, a cell cleared on another device). Only a cell that
+      // is fully synced and untouched since the request started may go: the
+      // guards sit in the DELETE itself so an edit made after `localRows` was
+      // read, or a cell this merge just confirmed, is never removed. A queued
+      // outbox write keeps its cell regardless.
+      if (pruneMissing && Number.isFinite(remoteRequestStartedAt)) {
+        for (const local of localRows) {
+          if (meals[local.consumer_id]?.[String(local.day)] !== undefined)
+            continue;
+          if (local.is_dirty !== 0 || local.sync_state !== 0) continue;
+          await this.db.runAsync(
+            `DELETE FROM local_daily_meals
+             WHERE user_id=? AND mess_id=? AND year_month=?
+               AND consumer_id=? AND day=?
+               AND is_dirty=0 AND sync_state=0 AND conflict_message IS NULL
+               AND updated_at <= ?
+               AND NOT EXISTS (
+                 SELECT 1 FROM offline_outbox
+                 WHERE offline_outbox.user_id = local_daily_meals.user_id
+                   AND offline_outbox.dedupe_key = 'daily-meal:' || local_daily_meals.mess_id
+                     || ':' || local_daily_meals.year_month
+                     || ':' || local_daily_meals.consumer_id
+                     || ':' || local_daily_meals.day
+               )`,
+            userId,
+            messId,
+            yearMonth,
+            local.consumer_id,
+            local.day,
+            remoteRequestStartedAt,
           );
         }
       }

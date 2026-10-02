@@ -417,6 +417,17 @@ export class ReferenceDataRepository implements ReferenceDataStore {
       Date.now(),
       messId,
     );
+    if (update.role) {
+      await this.database.runAsync(
+        `UPDATE reference_memberships
+         SET role = ?, updated_at = ?
+         WHERE mess_id = ?
+           AND user_id = (SELECT user_id FROM local_session WHERE singleton_id = 1)`,
+        update.role,
+        Date.now(),
+        messId,
+      );
+    }
   }
 
   async clear(): Promise<void> {

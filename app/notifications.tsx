@@ -10,8 +10,11 @@ import {
   View,
 } from "react-native";
 
-import { useNotifications } from "@/redux/hooks";
-import type { AppNotification } from "@/types/notification";
+import { useAuth, useNotifications } from "@/redux/hooks";
+import {
+  isManagerRoleNotification,
+  type AppNotification,
+} from "@/types/notification";
 
 const formatNotificationTime = (timestamp: number) => {
   const date = new Date(timestamp);
@@ -26,6 +29,13 @@ const formatNotificationTime = (timestamp: number) => {
 };
 
 const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
+  if (isManagerRoleNotification(type)) {
+    return (
+      <View className="h-11 w-11 items-center justify-center rounded-xl bg-violet-100">
+        <Feather name="shield" size={18} color="#6D28D9" />
+      </View>
+    );
+  }
   const icon =
     type === "member_request" || type === "member_request_accepted"
       ? "user-plus"
@@ -58,6 +68,7 @@ export default function NotificationsRoute() {
   const router = useRouter();
   const { notifications, unreadCount, markAllRead, markRead, refreshCount } =
     useNotifications();
+  const { exitMess, refreshMe } = useAuth();
 
   useEffect(() => {
     void refreshCount();
@@ -66,9 +77,16 @@ export default function NotificationsRoute() {
   const openNotification = useCallback(
     (notification: AppNotification) => {
       markRead(notification.id);
+      if (isManagerRoleNotification(notification.type)) {
+        // Mess Hub, outside the mess: it is entered again with the new role.
+        exitMess();
+        void refreshMe().catch(() => undefined);
+        router.replace("/");
+        return;
+      }
       router.push(notification.route as never);
     },
-    [markRead, router],
+    [exitMess, markRead, refreshMe, router],
   );
 
   const renderNotification = ({ item }: { item: AppNotification }) => (
@@ -102,7 +120,9 @@ export default function NotificationsRoute() {
   );
 
   return (
-    <View className="pt-safe flex-1 bg-[#F4F8FC]">
+    // The root is the header colour so the strip behind the status bar matches
+    // the header; the list below brings back the page background.
+    <View className="pt-safe flex-1 bg-[#075F5B]">
       <StatusBar style="light" backgroundColor="#075F5B" />
       <View className="flex-row items-center bg-[#075F5B] px-4 pb-4 pt-2">
         <TouchableOpacity
@@ -136,6 +156,7 @@ export default function NotificationsRoute() {
       </View>
 
       <FlatList
+        className="flex-1 bg-[#F4F8FC]"
         data={notifications}
         keyExtractor={(notification) => notification.id}
         renderItem={renderNotification}

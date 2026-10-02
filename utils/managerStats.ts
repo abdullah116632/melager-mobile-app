@@ -156,10 +156,10 @@ interface BuildManagerTrendsOptions {
  * so a per-day rate would be zero on most days and spike on the rest, showing
  * nothing about whether the month is getting cheaper or dearer.
  *
- * Meals and deposits are summed across every consumer the month holds, not just
- * the current member list, because that is how the totals beside the chart are
- * counted. Filtering here would leave a mess that has removed a member showing
- * one meal rate in the chart and a different one in the box above it.
+ * Meals and deposits are summed across every consumer the month passed in
+ * holds. The caller limits them to the current members first, the way the
+ * totals beside the chart are counted, so the chart and the box above it never
+ * show two different meal rates.
  *
  * The three daily series cover the whole month, because entries can be made on
  * a date that has not arrived yet and cutting the month at today would hide

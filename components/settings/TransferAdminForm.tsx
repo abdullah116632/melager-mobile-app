@@ -17,10 +17,8 @@ import {
 import {
   SecurityErrorBox,
   SecuritySubmitButton,
-  SecuritySuccessCard,
 } from "@/components/settings/SecurityFormControls";
 import { useKeyboardSheetOffset } from "@/hooks/useKeyboardSheetOffset";
-import { clearApiCache } from "@/lib/api";
 import { useAuth } from "@/redux/hooks";
 import { saveOpenForgotPasswordIntent } from "@/services/pendingForgotPasswordIntentService";
 import {
@@ -45,12 +43,11 @@ export const TransferAdminForm = ({
   onClose,
 }: TransferAdminFormProps) => {
   const router = useRouter();
-  const { token, user, activeMess, refreshMe, logout } = useAuth();
+  const { token, user, activeMess, leaveMessAfterManagerRoleLoss, logout } =
+    useAuth();
   const messId = activeMess?.id;
   const androidKeyboardOffset = useKeyboardSheetOffset();
-  const [step, setStep] = useState<"select" | "identity" | "success">(
-    "select",
-  );
+  const [step, setStep] = useState<"select" | "identity">("select");
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [error, setError] = useState("");
   const [members, setMembers] = useState<EligibleAdmin[]>([]);
@@ -134,12 +131,21 @@ export const TransferAdminForm = ({
     if (!loading) onClose();
   };
 
-  // Transferring always hands away the caller's own manager status, so this
-  // screen (gated on being a manager) is no longer valid for them — leave it
-  // instead of just closing the modal in place.
-  const finishTransfer = () => {
+  // Transferring always hands away the caller's own manager status, so every
+  // screen of this mess (built for a manager) is no longer valid for them —
+  // leave the mess for Mess Hub straight away.
+  const finishTransfer = (transferredMessId: number) => {
     onClose();
-    router.replace("/(tabs)/dashboard");
+    leaveMessAfterManagerRoleLoss(transferredMessId);
+    // Mess Hub shows the confirmation itself, from these params.
+    router.replace({
+      pathname: "/",
+      params: {
+        roleNotice: "transferred",
+        messName: activeMess?.name ?? "",
+        managerName: selectedMember?.name ?? "",
+      },
+    });
   };
 
   const goToIdentityStep = () => {
@@ -173,18 +179,12 @@ export const TransferAdminForm = ({
         consumerId: selectedConsumerId,
         password,
       });
-      // transferAdminV2 goes through securityService's own fetch, not
-      // lib/api.ts's req(), so it never clears that module's 15s GET cache —
-      // without this, refreshMe()'s /auth/me call can still serve a
-      // pre-transfer cached response. Clear it, then await the refresh, so
-      // the dashboard/tab bar (driven by activeMess.role) already reflects
-      // the demoted role by the time the user leaves this screen.
-      clearApiCache();
-      await refreshMe().catch(() => undefined);
-      setStep("success");
+      finishTransfer(messId);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Failed to transfer manager access.",
+        caught instanceof Error
+          ? caught.message
+          : "Failed to transfer manager access.",
       );
       setLoading(false);
     }
@@ -206,7 +206,9 @@ export const TransferAdminForm = ({
       }
       const { GoogleSignin, isSuccessResponse } = googleSignInModule;
       GoogleSignin.configure({ webClientId: googleWebClientId });
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
       const response = await GoogleSignin.signIn();
       if (!isSuccessResponse(response)) return;
       if (!response.data.idToken) {
@@ -218,8 +220,7 @@ export const TransferAdminForm = ({
         consumerId: selectedConsumerId,
         googleIdToken: response.data.idToken,
       });
-      await refreshMe().catch(() => undefined);
-      setStep("success");
+      finishTransfer(messId);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "";
       setError(
@@ -239,7 +240,12 @@ export const TransferAdminForm = ({
   };
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={close}>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+      onRequestClose={close}
+    >
       <KeyboardAvoidingView
         className="flex-1 justify-center bg-black/55 px-5"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -256,16 +262,7 @@ export const TransferAdminForm = ({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {step === "success" ? (
-              <SecuritySuccessCard
-                icon="check-circle"
-                iconClassName="bg-green-50"
-                iconColor="#16A34A"
-                title="Manager Transferred!"
-                body="The selected member is now the primary manager. You are now a regular member."
-                onClose={finishTransfer}
-              />
-            ) : step === "identity" ? (
+            {step === "identity" ? (
               <>
                 <View className="mb-4 h-16 w-16 items-center justify-center self-center rounded-full bg-orange-50">
                   <Feather name="shield" size={28} color="#EA580C" />
@@ -300,7 +297,9 @@ export const TransferAdminForm = ({
                   />
                   <TouchableOpacity
                     className="h-12 w-12 items-center justify-center rounded-[10px] border-[1.5px] border-gray-200 bg-gray-50"
-                    onPress={() => setShowPassword((visibleState) => !visibleState)}
+                    onPress={() =>
+                      setShowPassword((visibleState) => !visibleState)
+                    }
                     disabled={loading}
                   >
                     <Feather
@@ -415,8 +414,8 @@ export const TransferAdminForm = ({
                       No eligible members
                     </Text>
                     <Text className="px-2 text-center font-inter text-[13px] leading-5 text-gray-400">
-                      Members must have linked accounts to become manager.
-                      Add them via the Consumers tab with an email address.
+                      Members must have linked accounts to become manager. Add
+                      them via the Consumers tab with an email address.
                     </Text>
                   </View>
                 ) : (
@@ -507,7 +506,11 @@ export const TransferAdminForm = ({
                               )}
                             </View>
                             <View className="flex-row items-center gap-1 rounded-lg bg-green-50 px-2 py-[3px]">
-                              <Feather name="shield" size={12} color="#16A34A" />
+                              <Feather
+                                name="shield"
+                                size={12}
+                                color="#16A34A"
+                              />
                               <Text className="font-inter-semibold text-[11px] text-green-600">
                                 Manager
                               </Text>

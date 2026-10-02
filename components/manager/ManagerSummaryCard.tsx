@@ -13,6 +13,7 @@ import {
   formatDashboardAmount,
   formatDashboardQuantity,
   formatDashboardRate,
+  pickCurrentConsumers,
 } from "@/utils/dashboard";
 import {
   buildManagerTrends,
@@ -78,7 +79,11 @@ export const ManagerSummaryCard = () => {
   const { meals } = useMeals();
   const { expenses } = useExpenses();
   const { deposits } = useDeposits();
-  const { currentYearMonth: yearMonth, getDaysInMonth } = useMess();
+  const {
+    consumers,
+    currentYearMonth: yearMonth,
+    getDaysInMonth,
+  } = useMess();
   const [activeMetric, setActiveMetric] = useState<ManagerTrendMetric>("rate");
 
   // The same figures the dues card below this one is built from, so the two
@@ -90,11 +95,11 @@ export const ManagerSummaryCard = () => {
       buildManagerTrends({
         yearMonth,
         daysInMonth: getDaysInMonth(yearMonth),
-        meals: meals[yearMonth],
+        meals: pickCurrentConsumers(meals[yearMonth], consumers),
         expenses: expenses[yearMonth],
-        deposits: deposits[yearMonth],
+        deposits: pickCurrentConsumers(deposits[yearMonth], consumers),
       }),
-    [yearMonth, getDaysInMonth, meals, expenses, deposits],
+    [yearMonth, getDaysInMonth, consumers, meals, expenses, deposits],
   );
 
   const balancePositive = accounting.netBalance >= 0;
@@ -110,9 +115,10 @@ export const ManagerSummaryCard = () => {
   const hasTrend = series.points.length >= 2 && series.max > 0;
   const rising = series.change > 0;
 
-  // A climbing meal rate is the one movement here that is bad news, so that
-  // line turns red. The daily bars carry no such meaning and keep one colour.
-  const seriesColor =
+  // A climbing meal rate is the one movement here that is bad news, so the
+  // trend arrow beside the headline turns red. The chart itself always keeps
+  // its tab colour.
+  const trendColor =
     activeMetric === "rate" && rising ? "#DC2626" : active.color;
 
   // Only the rate is a single running figure worth naming. A daily bar chart's
@@ -195,7 +201,7 @@ export const ManagerSummaryCard = () => {
                       : "arrow-down-right"
                 }
                 size={13}
-                color={series.change === 0 ? "#94A3B8" : seriesColor}
+                color={series.change === 0 ? "#94A3B8" : trendColor}
               />
               <Text
                 className="font-inter-bold text-[15px] text-slate-900"
@@ -241,7 +247,7 @@ export const ManagerSummaryCard = () => {
             points={series.points}
             min={series.min}
             max={series.max}
-            color={seriesColor}
+            color={active.color}
             variant={active.variant}
             formatValue={active.format}
           />

@@ -9,6 +9,7 @@ import {
   ToastAndroid,
   View,
 } from "react-native";
+import { RemoveMemberConfirmModal } from "@/components/RemoveMemberConfirmModal";
 import { useAuth } from "@/redux/hooks";
 import { deleteConsumer } from "@/services/consumerService";
 import type { Consumer } from "@/types/consumer";
@@ -16,7 +17,6 @@ import { ConsumerSearchBar } from "./ConsumerSearchBar";
 import { ConsumerDetailModal } from "./ConsumerDetailModal";
 import { ConsumerTableSection } from "./ConsumerTableSection";
 import { ConsumersEmptyState } from "./ConsumersEmptyState";
-import { DeleteConsumerModal } from "./DeleteConsumerModal";
 
 interface ConsumersListProps {
   consumers: Consumer[];
@@ -61,12 +61,13 @@ export const ConsumersList = ({
   };
 
   const remove = async (consumerId: number) => {
-    if (!token || !messId) return;
+    if (!token || !messId || deletingId !== null) return;
 
     setDeletingId(consumerId);
     try {
       await deleteConsumer(consumerId, token, messId);
       onDeleted(consumerId);
+      setPendingDelete(null);
     } catch (caughtError: unknown) {
       Alert.alert(
         "Error",
@@ -80,25 +81,7 @@ export const ConsumersList = ({
   };
 
   const confirmDelete = (consumer: Consumer) => {
-    if (Platform.OS === "web") {
-      setPendingDelete(consumer);
-      return;
-    }
-
-    Alert.alert(
-      "Delete Member",
-      `All meals, expenses, and deposits for "${consumer.name}" will be permanently deleted.\n\nAre you sure?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void remove(consumer.id);
-          },
-        },
-      ],
-    );
+    setPendingDelete(consumer);
   };
 
   const normalizedSearch = search.trim().toLowerCase();
@@ -204,12 +187,16 @@ export const ConsumersList = ({
         )}
       </ScrollView>
 
-      <DeleteConsumerModal
-        consumer={pendingDelete}
+      <RemoveMemberConfirmModal
+        member={
+          pendingDelete
+            ? { id: String(pendingDelete.id), name: pendingDelete.name }
+            : null
+        }
+        loading={pendingDelete !== null && deletingId === pendingDelete.id}
         onCancel={() => setPendingDelete(null)}
-        onConfirm={(consumerId) => {
-          void remove(consumerId);
-          setPendingDelete(null);
+        onConfirm={() => {
+          if (pendingDelete) void remove(pendingDelete.id);
         }}
       />
       <ConsumerDetailModal

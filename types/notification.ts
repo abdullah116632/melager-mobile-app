@@ -6,7 +6,9 @@ export type AppNotification = {
     | "meal_opt_out"
     | "notice"
     | "message"
-    | "menu";
+    | "menu"
+    | "manager_role_transferred"
+    | "manager_role_added";
   title: string;
   body: string;
   timestamp: number;
@@ -19,3 +21,9 @@ export type AppNotification = {
     | "/bazar-list"
     | "/messages";
 };
+
+/** "You are now a manager": opening one leaves the mess for Mess Hub. */
+export const isManagerRoleNotification = (
+  type: unknown,
+): type is "manager_role_transferred" | "manager_role_added" =>
+  type === "manager_role_transferred" || type === "manager_role_added";

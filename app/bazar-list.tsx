@@ -825,20 +825,25 @@ export default function BazarListRoute() {
               </View>
               {isAdmin && selectedItems.length > 0 ? (
                 <TouchableOpacity
-                  className="mt-3 flex-row items-center justify-center rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5"
+                  className={`mt-3 flex-row items-center justify-center rounded-xl bg-teal-600 px-3 py-2.5 shadow-sm shadow-teal-900/20 ${
+                    saving || addingToExpense ? "opacity-70" : ""
+                  }`}
                   onPress={addItemsToExpense}
                   disabled={saving || addingToExpense}
+                  activeOpacity={0.8}
                   accessibilityLabel="Add this day's bazar items to that day's expense"
                 >
                   {addingToExpense ? (
-                    <ActivityIndicator size="small" color="#C2410C" />
+                    <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Feather name="file-plus" size={16} color="#C2410C" />
+                    <Feather name="file-plus" size={16} color="#FFFFFF" />
                   )}
-                  <Text className="ml-2 font-inter-semibold text-xs text-orange-800">
+                  <Text className="ml-2 font-inter-semibold text-[13px] text-white">
                     {addingToExpense
-                      ? "Adding to expense..."
-                      : "Add these items to this day's expense"}
+                      ? "Adding..."
+                      : selectedDate === getDhakaDate()
+                        ? "Add these items to today's expense"
+                        : "Add these items to this day's expense"}
                   </Text>
                 </TouchableOpacity>
               ) : null}

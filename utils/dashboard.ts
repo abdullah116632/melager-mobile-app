@@ -18,6 +18,24 @@ export const getDashboardMealMenu = (
   mealType: DashboardMealType,
 ): string | null => schedule?.schedule[`${mealType}Menu`] ?? null;
 
+/**
+ * One month's `[consumerId][day]` entries limited to the current members. A
+ * removed member's rows can still reach local state (an older change feed
+ * replays them), and every total must leave them out the way the meal grid
+ * does.
+ */
+export const pickCurrentConsumers = <T>(
+  month: Record<string, T> | undefined,
+  consumers: readonly { id: string }[],
+): Record<string, T> => {
+  const picked: Record<string, T> = {};
+  if (!month) return picked;
+  for (const { id } of consumers) {
+    if (month[id] !== undefined) picked[id] = month[id];
+  }
+  return picked;
+};
+
 export const localDateString = (date: Date): string => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");

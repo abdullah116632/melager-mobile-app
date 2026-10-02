@@ -109,8 +109,11 @@ export function ManagerScreen() {
     }
   }, [dispatch, isOnline, refreshMonth]);
 
+  // Only a member of an open mess is sent to its dashboard. With no mess open
+  // (role null) the user is on the way to Mess Hub, where the tabs no longer
+  // exist, and the root route guard handles that move.
   useEffect(() => {
-    if (role !== "admin") {
+    if (role !== null && role !== "admin") {
       router.replace("/(tabs)/dashboard");
     }
   }, [role, router]);

@@ -8,6 +8,7 @@ import {
   deleteMess,
   deleteMessWithGoogle,
   exitMess,
+  leaveMessAfterManagerRoleLoss,
   joinMess,
   login,
   loginWithGoogle,
@@ -154,6 +155,8 @@ export const useAuth = () => {
     selectMess: (selectedMess: Parameters<typeof selectMess>[0]) =>
       dispatch(selectMess(selectedMess)),
     exitMess: () => dispatch(exitMess()),
+    leaveMessAfterManagerRoleLoss: (messId: number) =>
+      dispatch(leaveMessAfterManagerRoleLoss(messId)),
     patchUser: (update: Parameters<typeof patchUser>[0]) =>
       dispatch(patchUser(update)),
     patchActiveMess: (update: Parameters<typeof patchActiveMess>[0]) =>

@@ -246,7 +246,7 @@ export function AppDrawer() {
               <SectionLabel label="MESS" />
               <View className="mx-4 overflow-hidden rounded-[16px] border border-slate-200 bg-white">
                 <DrawerRow icon="home" label={mess.name} sublabel="Mess name" />
-                <View className="flex-row items-center gap-3 px-3.5 py-3.5">
+                <View className="flex-row items-center gap-3 border-b border-slate-200 px-3.5 py-3.5">
                   <IconBadge icon="key" />
                   <View className="flex-1">
                     <Text className="font-inter text-[11px] text-slate-500">
@@ -272,6 +272,17 @@ export function AppDrawer() {
                     />
                   </TouchableOpacity>
                 </View>
+                <DrawerRow
+                  icon="grid"
+                  label="Switch Mess"
+                  sublabel="Go back to mess hub"
+                  onPress={() => {
+                    exitMess();
+                    closeDrawer();
+                  }}
+                  showChevron
+                  isLast
+                />
               </View>
             </>
           )}
@@ -292,18 +303,6 @@ export function AppDrawer() {
               onPress={() => navigateTo(mess ? "/(tabs)/profile" : "/account")}
               showChevron
             />
-            {mess && (
-              <DrawerRow
-                icon="grid"
-                label="Switch Mess"
-                sublabel="Go back to mess hub"
-                onPress={() => {
-                  exitMess();
-                  closeDrawer();
-                }}
-                showChevron
-              />
-            )}
             <DrawerRow
               icon="help-circle"
               label="Help & FAQ"

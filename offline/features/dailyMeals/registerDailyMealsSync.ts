@@ -148,6 +148,7 @@ export const registerDailyMealsSync = (
           data.meals,
           remoteRequestStartedAt,
           true,
+          true,
         );
         if (month.cursor === "legacy") continue;
       }

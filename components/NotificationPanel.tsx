@@ -11,8 +11,11 @@ import {
   View,
 } from "react-native";
 
-import { useNotifications } from "@/redux/hooks";
-import type { AppNotification } from "@/types/notification";
+import { useAuth, useNotifications } from "@/redux/hooks";
+import {
+  isManagerRoleNotification,
+  type AppNotification,
+} from "@/types/notification";
 
 const timeAgo = (timestamp: number): string => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -28,6 +31,14 @@ const timeAgo = (timestamp: number): string => {
 };
 
 const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
+  if (isManagerRoleNotification(type)) {
+    return (
+      <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-violet-100">
+        <Feather name="shield" size={16} color="#6D28D9" />
+      </View>
+    );
+  }
+
   if (type === "member_request" || type === "member_request_accepted") {
     return (
       <View className="h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] bg-blue-100">
@@ -70,12 +81,20 @@ const NotificationIcon = ({ type }: { type: AppNotification["type"] }) => {
 const NotificationItem = ({ item }: { item: AppNotification }) => {
   const router = useRouter();
   const { markRead, closePanel } = useNotifications();
+  const { exitMess, refreshMe } = useAuth();
 
   const handlePress = useCallback(() => {
     markRead(item.id);
     closePanel();
+    if (isManagerRoleNotification(item.type)) {
+      // Mess Hub, outside the mess: it is entered again with the new role.
+      exitMess();
+      void refreshMe().catch(() => undefined);
+      router.replace("/");
+      return;
+    }
     router.push(item.route as never);
-  }, [closePanel, item, markRead, router]);
+  }, [closePanel, exitMess, item, markRead, refreshMe, router]);
 
   return (
     <TouchableOpacity

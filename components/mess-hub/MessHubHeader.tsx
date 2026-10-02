@@ -14,11 +14,24 @@ interface MessHubHeaderProps {
   loading: boolean;
 }
 
+/** Up to two initials, taken per character so Bangla names stay intact. */
+const getInitials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => Array.from(word)[0]?.toUpperCase() ?? "")
+    .join("");
+
 export const MessHubHeader = ({ loading }: MessHubHeaderProps) => {
-  const { requests, logout } = useAuth();
+  const { user, requests, logout } = useAuth();
   const guardLogout = useLogoutGuard();
   const { openDrawer } = useDrawer();
   const requestCount = requests.length;
+  const name = user?.name?.trim() ?? "";
+  const initials = getInitials(name);
+  const email = user?.email?.trim() ?? "";
 
   return (
     <LinearGradient
@@ -104,13 +117,50 @@ export const MessHubHeader = ({ loading }: MessHubHeaderProps) => {
         )}
       </View>
 
-      {requestCount > 0 && (
-        <View className="mt-5 self-start rounded-full border border-amber-200/25 bg-amber-100/15 px-3 py-1.5">
-          <Text className="font-inter-semibold text-[11px] text-amber-100">
-            {requestCount} pending {requestCount === 1 ? "request" : "requests"}
+      <View className="mt-5 flex-row items-center rounded-[20px] border border-white/15 bg-white/10 p-3 shadow-sm shadow-black/20">
+        <LinearGradient
+          colors={["#FFFFFF", "#CCFBF1"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="h-12 w-12 items-center justify-center overflow-hidden rounded-2xl"
+        >
+          {initials ? (
+            <Text className="font-inter-bold text-[17px] text-teal-800">
+              {initials}
+            </Text>
+          ) : (
+            <Feather name="user" size={20} color="#115E59" />
+          )}
+        </LinearGradient>
+
+        <View className="ml-3 min-w-0 flex-1">
+          <Text
+            className="font-inter-medium text-[17px] tracking-[-0.3px] text-emerald-100"
+            numberOfLines={1}
+          >
+            Welcome,{" "}
+            <Text className="font-inter-bold text-white">
+              {name || "Friend"}
+            </Text>
           </Text>
+          {email ? (
+            <Text
+              className="mt-0.5 font-inter text-[12px] text-teal-50/70"
+              numberOfLines={1}
+            >
+              {email}
+            </Text>
+          ) : null}
         </View>
-      )}
+
+        {requestCount > 0 && (
+          <View className="ml-2 rounded-full border border-amber-200/25 bg-amber-100/15 px-2.5 py-1">
+            <Text className="font-inter-semibold text-[11px] text-amber-100">
+              {requestCount} pending
+            </Text>
+          </View>
+        )}
+      </View>
     </LinearGradient>
   );
 };

@@ -9,7 +9,10 @@ import { NotificationRepository } from "@/offline/features/notifications/Notific
 import { getOfflineRuntime } from "@/offline/runtime/getOfflineRuntime";
 import type { AuthState } from "@/redux/slice/authSlice";
 import type { NetworkState } from "@/redux/slice/networkSlice";
-import type { AppNotification } from "@/types/notification";
+import {
+  isManagerRoleNotification,
+  type AppNotification,
+} from "@/types/notification";
 
 export interface NotificationState {
   pendingRequestCount: number;
@@ -44,19 +47,21 @@ const createInitialState = (): NotificationState => ({
 const initialState = createInitialState();
 
 const notificationRoute = (type: string): AppNotification["route"] =>
-  type === "member_request"
-    ? "/member-requests"
-    : type === "member_request_accepted"
-      ? "/"
-      : type === "meal_opt_out"
-        ? "/meal-status"
-        : type === "notice"
-          ? "/notice-board"
-          : type === "message"
-            ? "/messages"
-            : type === "menu"
-              ? "/meal-status"
-              : "/bazar-list";
+  isManagerRoleNotification(type)
+    ? "/"
+    : type === "member_request"
+      ? "/member-requests"
+      : type === "member_request_accepted"
+        ? "/"
+        : type === "meal_opt_out"
+          ? "/meal-status"
+          : type === "notice"
+            ? "/notice-board"
+            : type === "message"
+              ? "/messages"
+              : type === "menu"
+                ? "/meal-status"
+                : "/bazar-list";
 
 const toAppNotification = (
   notification: ApiServerNotification,
@@ -68,7 +73,8 @@ const toAppNotification = (
     notification.type === "meal_opt_out" ||
     notification.type === "notice" ||
     notification.type === "message" ||
-    notification.type === "menu"
+    notification.type === "menu" ||
+    isManagerRoleNotification(notification.type)
       ? notification.type
       : "notice",
   title: notification.title,

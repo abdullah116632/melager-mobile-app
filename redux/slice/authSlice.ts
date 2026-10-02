@@ -132,6 +132,10 @@ const setActiveMess = createAction<ApiMessWithRole | null>(
   "auth/setActiveMess",
 );
 export const patchUser = createAction<Partial<ApiUser>>("auth/patchUser");
+const messRoleChanged = createAction<{
+  messId: number;
+  role: ApiMessWithRole["role"];
+}>("auth/messRoleChanged");
 export const patchActiveMess = createAction<Partial<ApiMessWithRole>>(
   "auth/patchActiveMess",
 );
@@ -632,12 +636,20 @@ const authSlice = createSlice({
           );
           state.activeMess = refreshedSelection ?? selectedMess;
           if (!refreshedSelection) state.messes.push(selectedMess);
-        } else {
-          state.activeMess = action.payload.activeMess;
         }
+        // With no mess open the user is on Mess Hub by choice (startup restores
+        // the saved mess through initializeAuth, not here). A snapshot written
+        // by a sync that started while a mess was open must not reopen it —
+        // after giving up the manager role that bounced the user back in.
       })
       .addCase(setActiveMess, (state, action) => {
         state.activeMess = action.payload;
+      })
+      .addCase(messRoleChanged, (state, action) => {
+        const { messId, role } = action.payload;
+        const mess = state.messes.find((candidate) => candidate.id === messId);
+        if (mess) mess.role = role;
+        if (state.activeMess?.id === messId) state.activeMess.role = role;
       })
       .addCase(patchUser, (state, action) => {
         if (state.user) Object.assign(state.user, action.payload);
@@ -702,7 +714,14 @@ const authSlice = createSlice({
         state.user = action.payload.me.user;
         state.messes = action.payload.me.messes;
         state.requests = action.payload.me.requests;
-        state.activeMess = action.payload.activeMess;
+        // Follow the mess open now, not the one open when the request started:
+        // a refresh that lands after the user left a mess (for example right
+        // after giving up the manager role) must not put them back into it.
+        const current = state.activeMess;
+        state.activeMess = current
+          ? (action.payload.me.messes.find((mess) => mess.id === current.id) ??
+            null)
+          : null;
       })
       .addCase(updateProfileName.fulfilled, (state, action) => {
         if (state.user) state.user.name = action.payload.name;
@@ -756,6 +775,27 @@ export const exitMess = (): AuthThunk => (dispatch, getState) => {
   const userId = getState().auth.user?.id;
   if (userId) void setLocalActiveMess(userId, null).catch(() => undefined);
 };
+
+/**
+ * After the user hands over or gives up the manager role. Every screen that
+ * mess had open was built for a manager, so leave it for Mess Hub at once.
+ * The role is demoted locally first: the hub list, a reopened mess and the
+ * cached session all treat the user as a member even if the /auth/me refresh
+ * below fails or is slow.
+ */
+export const leaveMessAfterManagerRoleLoss =
+  (messId: number): AuthThunk =>
+  (dispatch) => {
+    // Leave first: demoting a mess that is still open would make its manager
+    // screens redirect inside tabs that are about to unmount.
+    dispatch(exitMess());
+    dispatch(messRoleChanged({ messId, role: "member" }));
+    void patchLocalMess(messId, { role: "member" }).catch(() => undefined);
+    // The role change went through a fetch that does not clear the GET cache,
+    // so /auth/me could otherwise answer with the pre-change role.
+    clearApiCache();
+    void dispatch(refreshMe()).catch(() => undefined);
+  };
 
 export const patchMess =
   (update: Partial<ApiMess>): AuthThunk =>

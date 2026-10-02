@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import { ApiError } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Text, View } from "react-native";
 import {
   DEFAULT_MEAL_DRAFT,
@@ -69,6 +69,15 @@ const serializeMeal = (meal: MealDraft[MealType]): string =>
     end: meal.end.trim(),
   });
 
+const parseMealSnapshot = (snapshot: string): MealDraft[MealType] =>
+  JSON.parse(snapshot) as MealDraft[MealType];
+
+const NOT_SAVING: Record<MealType, boolean> = {
+  breakfast: false,
+  lunch: false,
+  dinner: false,
+};
+
 const createSavedMealSnapshots = (
   schedule: MealStatusSchedule | null,
 ): Record<MealType, string> => {
@@ -87,10 +96,18 @@ export const ScheduleEditor = ({
   const { mess, token, user } = useAuth();
   const { database } = useOfflineDatabase();
   const [draft, setDraft] = useState(() => createDraftFromSchedule(schedule));
-  const [saving, setSaving] = useState(false);
+  // Per meal, so saving one meal neither spins nor blocks another's button.
+  const [savingMeals, setSavingMeals] = useState(NOT_SAVING);
   const [savedMealSnapshots, setSavedMealSnapshots] = useState(() =>
     createSavedMealSnapshots(schedule),
   );
+  const savedRef = useRef(savedMealSnapshots);
+  savedRef.current = savedMealSnapshots;
+  const savingRef = useRef(savingMeals);
+  savingRef.current = savingMeals;
+  const draftDateRef = useRef(selectedDate);
+  const setMealSaving = (mealType: MealType, value: boolean) =>
+    setSavingMeals((current) => ({ ...current, [mealType]: value }));
   const today = getTodayDate();
   const isPast = selectedDate < today;
 
@@ -113,14 +130,37 @@ export const ScheduleEditor = ({
     }));
   };
 
+  // A schedule reload (pull-to-refresh, or the socket event every save
+  // triggers) must not wipe a meal the admin is still editing. Same date: only
+  // meals with no unsaved edit and no save in flight take the server's values.
+  // A different date starts over.
   useEffect(() => {
     const nextDraft = createDraftFromSchedule(schedule);
-    setDraft(nextDraft);
-    setSavedMealSnapshots(createSavedMealSnapshots(schedule));
+    const nextSaved = createSavedMealSnapshots(schedule);
+    if (draftDateRef.current !== selectedDate) {
+      draftDateRef.current = selectedDate;
+      setDraft(nextDraft);
+      setSavedMealSnapshots(nextSaved);
+      return;
+    }
+    const previousSaved = savedRef.current;
+    const saving = savingRef.current;
+    setDraft((current) => {
+      const merged = { ...current };
+      for (const mealType of MEAL_TYPES) {
+        const editing =
+          saving[mealType] ||
+          serializeMeal(current[mealType]) !== previousSaved[mealType];
+        if (!editing) merged[mealType] = nextDraft[mealType];
+      }
+      return merged;
+    });
+    setSavedMealSnapshots(nextSaved);
   }, [schedule, selectedDate]);
 
   const handleSave = async (mealType: MealType) => {
     if (!token || !mess?.id || isPast || loadedDate !== selectedDate) return;
+    if (savingMeals[mealType]) return;
 
     const meal = draft[mealType];
 
@@ -144,7 +184,7 @@ export const ScheduleEditor = ({
       return;
     }
 
-    setSaving(true);
+    setMealSaving(mealType, true);
     try {
       const update: MealScheduleUpdate = {
         messId: mess.id,
@@ -188,19 +228,26 @@ export const ScheduleEditor = ({
         else update.dinnerMenu = nextMenu || null;
       }
 
+      // The offline copy may only carry this meal's edit. The other meals
+      // keep their saved values, not whatever unsaved draft they hold.
+      const effective = (type: MealType) =>
+        type === mealType ? meal : parseMealSnapshot(savedMealSnapshots[type]);
+      const breakfast = effective("breakfast");
+      const lunch = effective("lunch");
+      const dinner = effective("dinner");
       const nextSchedule = {
-        breakfastEnabled: draft.breakfast.enabled,
-        breakfastMenu: draft.breakfast.menu.trim() || null,
-        breakfastOptOutStart: draft.breakfast.start.trim() || null,
-        breakfastOptOutEnd: draft.breakfast.end.trim() || null,
-        lunchEnabled: draft.lunch.enabled,
-        lunchMenu: draft.lunch.menu.trim() || null,
-        lunchOptOutStart: draft.lunch.start.trim() || null,
-        lunchOptOutEnd: draft.lunch.end.trim() || null,
-        dinnerEnabled: draft.dinner.enabled,
-        dinnerMenu: draft.dinner.menu.trim() || null,
-        dinnerOptOutStart: draft.dinner.start.trim() || null,
-        dinnerOptOutEnd: draft.dinner.end.trim() || null,
+        breakfastEnabled: breakfast.enabled,
+        breakfastMenu: breakfast.menu.trim() || null,
+        breakfastOptOutStart: breakfast.start.trim() || null,
+        breakfastOptOutEnd: breakfast.end.trim() || null,
+        lunchEnabled: lunch.enabled,
+        lunchMenu: lunch.menu.trim() || null,
+        lunchOptOutStart: lunch.start.trim() || null,
+        lunchOptOutEnd: lunch.end.trim() || null,
+        dinnerEnabled: dinner.enabled,
+        dinnerMenu: dinner.menu.trim() || null,
+        dinnerOptOutStart: dinner.start.trim() || null,
+        dinnerOptOutEnd: dinner.end.trim() || null,
       };
       try {
         await updateMealSchedule(update, token);
@@ -237,25 +284,27 @@ export const ScheduleEditor = ({
         error instanceof Error ? error.message : "Failed to save",
       );
     } finally {
-      setSaving(false);
+      setMealSaving(mealType, false);
     }
   };
 
   return (
-    <>
-      <View className="mx-4 mb-3.5 rounded-2xl border border-slate-300 bg-[#E2E8F0] p-4">
-        <Text className="mb-3.5 font-inter-bold text-[15px] text-slate-900">
-          Schedule
+    <View className="mx-4 mb-5">
+      <View className="mb-2.5 flex-row items-center justify-between px-1">
+        <Text className="font-inter-bold text-[13px] tracking-[1.2px] text-slate-500">
+          SCHEDULE
         </Text>
         {isPast && (
-          <View className="mb-2 flex-row items-center gap-[7px] rounded-[9px] border border-slate-200 bg-slate-100 p-2.5">
-            <Feather name="lock" size={13} color="#64748B" />
-            <Text className="font-inter-medium text-xs text-slate-500">
-              Past schedules are read only.
+          <View className="flex-row items-center gap-1.5 rounded-full bg-slate-200 px-2.5 py-1">
+            <Feather name="lock" size={11} color="#475569" />
+            <Text className="font-inter-medium text-[11px] text-slate-600">
+              Read only
             </Text>
           </View>
         )}
+      </View>
 
+      <View className="overflow-hidden rounded-[20px] border border-slate-300 bg-[#E6E9EE] px-4 shadow-sm shadow-slate-900/5">
         {MEAL_TYPES.map((mealType, index) => (
           <MealScheduleItem
             key={mealType}
@@ -269,14 +318,14 @@ export const ScheduleEditor = ({
             onFieldChange={(field, value) =>
               updateDraftField(mealType, field, value)
             }
-            onMenuSave={() => void handleSave(mealType)}
-            menuSaving={saving}
-            menuSaveVisible={
+            onSave={() => void handleSave(mealType)}
+            saving={savingMeals[mealType]}
+            dirty={
               serializeMeal(draft[mealType]) !== savedMealSnapshots[mealType]
             }
           />
         ))}
       </View>
-    </>
+    </View>
   );
 };

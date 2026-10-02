@@ -100,10 +100,9 @@ export function registerReferenceSync(
       );
     }
 
-    const authSnapshot = await repository.replaceAuthSnapshot(
-      me,
-      context.messId,
-    );
+    // Keep whichever mess is selected when this lands, not the one selected
+    // when the sync started: the user may have left it in between.
+    const authSnapshot = await repository.replaceAuthSnapshot(me);
     const activeMessId = authSnapshot.activeMess?.id ?? null;
     if (activeMessId !== null) {
       const result = await api.getConsumers(context.token, activeMessId);

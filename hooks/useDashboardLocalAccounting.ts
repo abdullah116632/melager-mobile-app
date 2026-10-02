@@ -6,7 +6,10 @@ import {
   useMeals,
   useMess,
 } from "@/redux/hooks";
-import { calculateDashboardAccounting } from "@/utils/dashboard";
+import {
+  calculateDashboardAccounting,
+  pickCurrentConsumers,
+} from "@/utils/dashboard";
 
 /**
  * Dashboard has no independent API/cache. Its figures are always calculated
@@ -31,7 +34,9 @@ export const useDashboardLocalAccounting = () => {
         appliedRange: null,
         rangeData: {},
         getGrandTotal: (yearMonth) =>
-          Object.values(deferredMeals[yearMonth] ?? {}).reduce(
+          Object.values(
+            pickCurrentConsumers(deferredMeals[yearMonth], consumers),
+          ).reduce(
             (total, days) =>
               total + Object.values(days).reduce((sum, value) => sum + value, 0),
             0,
@@ -43,7 +48,9 @@ export const useDashboardLocalAccounting = () => {
             0,
           ),
         getGrandDepositTotal: (yearMonth) =>
-          Object.values(deferredDeposits[yearMonth] ?? {}).reduce(
+          Object.values(
+            pickCurrentConsumers(deferredDeposits[yearMonth], consumers),
+          ).reduce(
             (total, days) =>
               total + Object.values(days).reduce((sum, value) => sum + value, 0),
             0,
